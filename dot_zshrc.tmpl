@@ -1,0 +1,105 @@
+#
+# Executes commands at the start of an interactive session.
+#
+# Authors:
+#   Sorin Ionescu <sorin.ionescu@gmail.com>
+#
+
+# Source Prezto.
+if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then
+  source "${ZDOTDIR:-$HOME}/.zprezto/init.zsh"
+fi
+
+# Customize to your needs...
+alias g='git'
+alias dc='docker-compose'
+alias dcb='docker-compose build'
+alias dcr='docker-compose run --rm'
+alias dcu='docker-compose up -d'
+alias dcd='docker-compose down'
+alias dce='docker-compose exec'
+alias dcl='docker-compose logs'
+alias dps='docker ps'
+alias di='docker images'
+alias dr='docker rm'
+alias dri='docker rmi'
+export PATH=$PATH:/usr/local/go/bin
+export PATH=$PATH:$HOME/go/bin
+
+# NVM
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+
+eval "$(/opt/homebrew/bin/brew shellenv)"
+
+function awsp() {
+  if [ $# -ge 1 ]; then
+    export AWS_PROFILE="$1"
+    echo "Set AWS_PROFILE=$AWS_PROFILE."
+  else
+    source _awsp
+  fi
+  export AWS_DEFAULT_PROFILE=$AWS_PROFILE
+}
+
+. "$HOME/.local/bin/env"
+
+# Neovim aliases
+alias vim='nvim'
+alias vi='nvim'
+export EDITOR='nvim'
+export VISUAL='nvim'
+
+# Worktree + Claude Code workflow
+[[ -f ~/.config/zsh/worktree.zsh ]] && source ~/.config/zsh/worktree.zsh
+
+# Starship prompt
+eval "$(starship init zsh)"
+
+# Markdown viewer with Mermaid support
+# Usage: mdv README.md
+function mdv() {
+  if [[ -z "$1" || ! -f "$1" ]]; then
+    echo "Usage: mdv <file.md>"
+    return 1
+  fi
+
+  local file="$1"
+
+  # Render Markdown with Glow
+  glow "$file"
+
+  # Check if file contains mermaid blocks
+  if grep -q '```mermaid' "$file" 2>/dev/null; then
+    echo ""
+    echo "── Mermaid Diagrams ──"
+    echo ""
+    # Extract each mermaid block as a whole and render with mermaid-ascii
+    awk '
+      /^```mermaid/ { capture=1; block=""; next }
+      /^```/ && capture { print block; print "---SEPARATOR---"; capture=0; next }
+      capture { block = (block ? block "\n" : "") $0 }
+    ' "$file" | while IFS= read -r line; do
+      if [[ "$line" == "---SEPARATOR---" ]]; then
+        if [[ -n "$block" ]]; then
+          echo "$block" | mermaid-ascii -f -
+          echo ""
+        fi
+        block=""
+      else
+        block="${block:+$block
+}$line"
+      fi
+    done
+    # Handle last block if no trailing separator
+    if [[ -n "$block" ]]; then
+      echo "$block" | mermaid-ascii -f -
+      echo ""
+    fi
+  fi
+}
+
+# Auto-open .md files with mdv
+# e.g. typing `./README.md` or `README.md` runs mdv on it
+alias -s md=mdv

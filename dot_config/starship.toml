@@ -1,0 +1,60 @@
+# Starship Configuration
+# https://starship.rs/config/
+
+# プロンプトの前に空行を追加しない
+add_newline = false
+
+# プロンプトのフォーマット
+format = """
+$directory\
+$git_branch\
+$git_status\
+$custom\
+$character
+"""
+
+# 右側のフォーマット（時間表示）
+right_format = """
+$cmd_duration\
+$time
+"""
+
+# ディレクトリ表示
+[directory]
+truncation_length = 3
+truncate_to_repo = true
+style = "bold cyan"
+
+# Gitブランチ
+[git_branch]
+symbol = " "
+style = "bold purple"
+
+# Gitステータス
+[git_status]
+style = "bold red"
+
+# コマンド実行時間
+[cmd_duration]
+min_time = 500
+format = "[$duration]($style) "
+style = "bold yellow"
+
+# 時間表示
+[time]
+disabled = false
+time_format = "%R"  # 24時間形式 (HH:MM)
+format = '[  $time ](fg:#a0a9cb)'
+style = "bold"
+
+# Worktree indicator (gold "wt" when inside a git worktree)
+[custom.worktree]
+command = "echo 'wt'"
+when = "test -f .git"
+style = "bold #ae8b2d"
+format = " [$output]($style)"
+
+# プロンプト文字
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"
