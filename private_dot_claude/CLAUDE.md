@@ -51,3 +51,63 @@ tmux ペイン分割はプロセスと画面の分離であり、ファイルシ
 ### Project init hook
 
 If the repo has an executable `.worktree-init` at the root, it runs automatically when `wta` creates a new worktree. Use this for project-specific setup (e.g. `npm install`, `python -m venv .venv`, symlinks).
+
+## Dotfiles — chezmoi 管理
+
+個人設定ファイル（WezTerm, Neovim, zsh, tmux, Claude Code 等）は **chezmoi** で管理されている。
+
+- **ソースディレクトリ**: `~/.local/share/chezmoi/`
+- **リポジトリ**: `github.com/phantom-suzuki/dotfiles`
+- **設定**: `~/.config/chezmoi/chezmoi.toml`
+
+### 編集ワークフロー（重要）
+
+chezmoi 管理下のファイルを変更する場合、**必ずソース側を編集**すること。
+
+```bash
+# 1. ソースファイルを編集（chezmoi edit がソースを開く）
+chezmoi edit ~/.config/wezterm/appearance.lua
+
+# 2. 差分確認
+chezmoi diff
+
+# 3. 適用
+chezmoi apply
+```
+
+**ターゲットファイル（`~/.config/...` 等）を直接編集してはならない。**
+次回 `chezmoi apply` で上書きされ、変更が失われる。
+
+やむを得ずターゲットを編集した場合は、直後に `chezmoi re-add <file>` でソースに反映すること。
+
+### テンプレートファイル
+
+以下のファイルは Go template を使用しており、ソースでのみ編集可能:
+
+| ターゲット | ソース | テンプレート変数 |
+|-----------|--------|-----------------|
+| `~/.gitconfig` | `dot_gitconfig.tmpl` | `{{ .name }}`, `{{ .email }}` |
+| `~/.zshrc` | `dot_zshrc.tmpl` | なし（クリーンアップ済み、将来のマシン分岐用） |
+
+### 変更後のコミット
+
+dotfiles の変更後は chezmoi ソースディレクトリでコミット:
+
+```bash
+chezmoi cd  # → ~/.local/share/chezmoi/
+git add -A && git commit -m "feat: update wezterm appearance"
+git push
+```
+
+### 新しいファイルの追加
+
+```bash
+chezmoi add ~/.config/some/new-config.toml
+```
+
+### chezmoi 管理対象の確認
+
+```bash
+chezmoi managed          # 管理対象一覧
+chezmoi source-path ~/.<file>  # ソースパスの確認
+```
