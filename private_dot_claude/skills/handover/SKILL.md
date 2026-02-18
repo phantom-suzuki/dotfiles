@@ -14,8 +14,8 @@ disable-model-invocation: true
 2. 以下のテンプレートに従って `HANDOVER.md` を作成（既存ファイルがある場合は上書き）
 3. 保存完了を報告する
 4. 次のアクションを案内する:
-   - セッションを終了して再開する場合: `/exit` (または `Ctrl+D`) → `claude "/resume"` で新セッション開始
-   - 同じターミナルで続ける場合: `/clear` → `/resume` でコンテキストをリセットして再開
+   - セッションを終了して再開する場合: `/exit` (または `Ctrl+D`) → `claude "/takeover"` で新セッション開始
+   - 同じターミナルで続ける場合: `/clear` → `/takeover` でコンテキストをリセットして再開
 
 ## Template
 

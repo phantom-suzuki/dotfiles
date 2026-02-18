@@ -1,5 +1,5 @@
 ---
-name: resume
+name: takeover
 description: HANDOVER.md を読んで前回セッションの作業を再開する
 disable-model-invocation: true
 ---
