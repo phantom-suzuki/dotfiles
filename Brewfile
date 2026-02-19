@@ -61,6 +61,9 @@ brew "hashicorp/tap/terraform"
 cask "postman"
 # GPU-accelerated cross-platform terminal emulator and multiplexer
 cask "wezterm@nightly"
+# Fonts for WezTerm
+cask "font-source-han-code-jp"
+cask "font-symbols-only-nerd-font"
 go "github.com/golangci/golangci-lint/v2/cmd/golangci-lint"
 go "golang.org/x/tools/gopls"
 go "github.com/AlexanderGrooff/mermaid-ascii"
