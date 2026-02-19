@@ -59,8 +59,6 @@ brew "yt-dlp"
 brew "hashicorp/tap/terraform"
 # Collaboration platform for API development
 cask "postman"
-# Plugin for AWS CLI to start and end sessions that connect to managed instances
-cask "session-manager-plugin"
 # GPU-accelerated cross-platform terminal emulator and multiplexer
 cask "wezterm@nightly"
 go "github.com/golangci/golangci-lint/v2/cmd/golangci-lint"
