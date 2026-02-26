@@ -3,3 +3,4 @@ LICENSE
 CLAUDE.md
 Brewfile
 Brewfile.lock.json
+dot_ssh/
