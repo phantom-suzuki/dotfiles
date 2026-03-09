@@ -10,16 +10,33 @@ function M.apply(config)
   config.font_size = 14.0
 
   -- Window
-  config.window_background_opacity = 0.80
-  config.macos_window_background_blur = 20
   config.window_decorations = "RESIZE"
   config.max_fps = 120
   config.animation_fps = 120
 
+  -- Background image with dark overlay for readability
+  config.background = {
+    {
+      source = {
+        File = wezterm.home_dir .. "/.config/wezterm/backgrounds/nixie-tube.png",
+      },
+      hsb = { brightness = 0.15 },
+      attachment = "Fixed",
+      horizontal_align = "Center",
+      vertical_align = "Middle",
+    },
+    {
+      source = { Color = "#161821" },
+      width = "100%",
+      height = "100%",
+      opacity = 0.8,
+    },
+  }
+
   -- Dim inactive panes for visual distinction
   config.inactive_pane_hsb = {
-    saturation = 0.85,
-    brightness = 0.65,
+    saturation = 0.6,
+    brightness = 0.4,
   }
 
   -- Iceberg phantom colors
@@ -48,9 +65,6 @@ function M.apply(config)
   config.window_frame = {
     inactive_titlebar_bg = "none",
     active_titlebar_bg = "none",
-  }
-  config.window_background_gradient = {
-    colors = { "#161821" },
   }
 end
 
