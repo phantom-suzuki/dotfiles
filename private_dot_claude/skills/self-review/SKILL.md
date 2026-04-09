@@ -49,16 +49,16 @@ Simplify（コード品質改善）と外部レビュアー（バグ・設計問
    command -v codex && echo "codex: available"
    command -v claude && echo "claude: available"
    ```
-3. `--scope` に応じて対象ファイルを特定する:
+4. `--scope` に応じて対象ファイルを特定する:
    - `changed`: `git diff --name-only $(git merge-base HEAD main)..HEAD` （main がなければ develop を試行）
    - `staged`: `git diff --cached --name-only`
    - `all`: 全トラッキングファイル
-4. 対象ファイルがなければ「レビュー対象がありません」と報告して終了
-5. `--strategy auto` の場合、diff 規模で戦略を決定する:
+5. 対象ファイルがなければ「レビュー対象がありません」と報告して終了
+6. `--strategy auto` の場合、diff 規模で戦略を決定する:
    - diff 行数 ≤ 200 かつ ファイル数 ≤ 5 → `parallel`
    - それ以外 → `cascade`
-6. 初回のみ [references/classification-guide.md](references/classification-guide.md) を読み込み、分類ルールを把握する（以降のイテレーションでは再読み込み不要）
-7. 初期状態をユーザーに報告する:
+7. 初回のみ [references/classification-guide.md](references/classification-guide.md) を読み込み、分類ルールを把握する（以降のイテレーションでは再読み込み不要）
+8. 初期状態をユーザーに報告する:
    - 対象ファイル一覧
    - 選択された strategy
    - 利用可能なレビュアー

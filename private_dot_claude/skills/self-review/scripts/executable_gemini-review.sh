@@ -2,7 +2,7 @@
 # Gemini CLI レビューラッパー
 # - stdin から diff を受け取り、Gemini でレビューし JSON を stdout に出力
 # - モデルフォールバック: gemini-2.5-pro → gemini-2.5-flash
-# - リトライ: exponential backoff (30s → 60s → 120s)
+# - リトライ: exponential backoff (5s → 10s → 20s)
 #
 # Usage: echo "$DIFF" | bash gemini-review.sh
 # Exit codes:
