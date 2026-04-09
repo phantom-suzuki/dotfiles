@@ -32,6 +32,7 @@ Simplify（コード品質改善）と外部レビュアー（バグ・設計問
   - `gemini` (Gemini CLI)
   - `codex` (Codex CLI)
   - `claude` (Claude Code、`-p` モードで外部レビュアーとして使用)
+  - `jq` (Gemini レビュー結果の JSON パースに使用)
 
 ## 実行手順
 

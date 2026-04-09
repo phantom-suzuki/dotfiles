@@ -43,7 +43,7 @@
 | エラーハンドリングの追加 | try-catch の欠落、null チェック追加 |
 | 型アノテーションの修正 | 明らかな型の不一致 |
 | リソースリークの修正 | close() / defer の追加 |
-| 明確な off-by-one エラー | `< length` → `<= length` |
+| 明確な off-by-one エラー | `<= length` → `< length` |
 | ハードコードされたシークレット | 環境変数への置換 |
 | SQL インジェクション | プレースホルダーへの置換 |
 
@@ -127,4 +127,4 @@ severity と category は独立した軸。
 ### 複数の judgment 項目がある場合
 
 severity: critical を先に表示し、その後 warning を表示する。
-1つずつ確認するのではなく、全項目を一覧提示してまとめて回答を受け付ける。
+AskUserQuestion ツールの選択 UI を使い、**1件ずつ** ユーザーに確認する。

@@ -9,8 +9,14 @@
 #   0 - 成功（JSON を stdout に出力）
 #   1 - 全モデル・全リトライ失敗
 
-set -euo pipefail
+set -uo pipefail
 trap 'rm -f /tmp/gemini-review-stderr-$$.log' EXIT
+
+# jq は必須（JSON パース・レビュアー名追加に使用）
+if ! command -v jq >/dev/null 2>&1; then
+  >&2 echo "[gemini-review] jq が必要です。brew install jq 等でインストールしてください"
+  exit 1
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROMPT_FILE="$SCRIPT_DIR/../references/review-prompt-template.md"

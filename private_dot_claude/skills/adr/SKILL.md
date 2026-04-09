@@ -126,8 +126,9 @@ ai_instruction: "この ADR は {対象} に関する意思決定を記録して
 
 ### 旧 ADR の更新
 
-1. 旧 ADR の frontmatter `status` を `"superseded by ADR-{新番号}"` に変更する
-2. 旧 ADR のタイトル直後に以下の注意書きを挿入する:
+1. 旧 ADR の frontmatter `status` を `superseded` に変更する
+2. 旧 ADR の frontmatter に `superseded_by: ADR-{新番号}` を追加する
+3. 旧 ADR のタイトル直後に以下の注意書きを挿入する:
 
 ```markdown
 > **Note**: この ADR は [ADR-{新番号}](./{新ADRファイル名}) に置き換えられました。

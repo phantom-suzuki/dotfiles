@@ -26,8 +26,8 @@ DIFF=$(git diff "$BASE_BRANCH"..HEAD)
 # staged
 DIFF=$(git diff --cached)
 
-# all (直前コミットとの差分)
-DIFF=$(git diff HEAD~1..HEAD)
+# all (全トラッキングファイルの内容)
+DIFF=$(git ls-files -z | xargs -0 cat)
 ```
 
 ---
@@ -43,7 +43,7 @@ echo "$DIFF" | claude -p \
   --max-budget-usd 2.00 \
   --permission-mode dontAsk \
   --allowedTools "Read" \
-  --append-system-prompt "あなたはコードレビューの専門家です。以下の diff をレビューし、JSON 形式で結果を返してください。$(cat '${CLAUDE_SKILL_DIR}/references/review-prompt-template.md')"
+  --append-system-prompt "あなたはコードレビューの専門家です。以下の diff をレビューし、JSON 形式で結果を返してください。$(cat "${CLAUDE_SKILL_DIR}/references/review-prompt-template.md")"
 ```
 
 ### タイムアウト
