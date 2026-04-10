@@ -10,7 +10,8 @@
 #   1 - 全モデル・全リトライ失敗
 
 set -uo pipefail
-trap 'rm -f /tmp/gemini-review-stderr-$$.log' EXIT
+STDERR_TMPFILE=$(mktemp /tmp/gemini-review-stderr.XXXXXX)
+trap 'rm -f "$STDERR_TMPFILE"' EXIT
 
 # jq は必須（JSON パース・レビュアー名追加に使用）
 if ! command -v jq >/dev/null 2>&1; then
@@ -53,11 +54,11 @@ for model in "${MODELS[@]}"; do
     wait_time=$(( BASE_WAIT * (2 ** retry) ))
 
     # Gemini CLI を非対話モードで実行
-    RESULT=$(echo "$DIFF_INPUT" | gemini -m "$model" -p "$REVIEW_PROMPT" --output-format json 2>/tmp/gemini-review-stderr-$$.log) && EXIT_CODE=0 || EXIT_CODE=$?
+    RESULT=$(echo "$DIFF_INPUT" | gemini -m "$model" -p "$REVIEW_PROMPT" --output-format json 2>"$STDERR_TMPFILE") && EXIT_CODE=0 || EXIT_CODE=$?
 
     if [[ $EXIT_CODE -eq 0 ]] && [[ -n "$RESULT" ]]; then
       # JSON として有効か検証
-      if echo "$RESULT" | jq -e '.findings' >/dev/null 2>&1; then
+      if echo "$RESULT" | jq -e 'type=="object" and (.findings|type=="array") and (.summary|type=="string")' >/dev/null 2>&1; then
         # 成功: レビュアー名を追加して出力
         echo "$RESULT" | jq --arg reviewer "gemini ($model)" '. + {reviewer: $reviewer}'
         exit 0
@@ -68,7 +69,7 @@ for model in "${MODELS[@]}"; do
       if [[ -n "$EXTRACTED" ]]; then
         # response 内の JSON ブロックを抽出
         JSON_BLOCK=$(echo "$EXTRACTED" | sed -n '/^{/,/^}/p' | head -100)
-        if echo "$JSON_BLOCK" | jq -e '.findings' >/dev/null 2>&1; then
+        if echo "$JSON_BLOCK" | jq -e 'type=="object" and (.findings|type=="array") and (.summary|type=="string")' >/dev/null 2>&1; then
           echo "$JSON_BLOCK" | jq --arg reviewer "gemini ($model)" '. + {reviewer: $reviewer}'
           exit 0
         fi
@@ -78,7 +79,7 @@ for model in "${MODELS[@]}"; do
       >&2 echo "[gemini-review] $model: JSON パース失敗、リトライ $((retry + 1))/$MAX_RETRIES"
     else
       # エラー内容を確認
-      STDERR_CONTENT=$(cat /tmp/gemini-review-stderr-$$.log 2>/dev/null || echo "")
+      STDERR_CONTENT=$(cat $STDERR_TMPFILE 2>/dev/null || echo "")
 
       if echo "$STDERR_CONTENT" | grep -qi "MODEL_CAPACITY_EXHAUSTED\|RESOURCE_EXHAUSTED\|429"; then
         >&2 echo "[gemini-review] $model: 容量不足 (429)、${wait_time}秒後にリトライ $((retry + 1))/$MAX_RETRIES"
