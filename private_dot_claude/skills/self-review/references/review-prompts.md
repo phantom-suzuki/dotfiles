@@ -26,8 +26,8 @@ DIFF=$(git diff "$BASE_BRANCH"..HEAD)
 # staged
 DIFF=$(git diff --cached)
 
-# all (全トラッキングファイルの内容)
-DIFF=$(git ls-files -z | xargs -0 cat)
+# all (全トラッキングファイルをヘッダ付きで連結)
+DIFF=$(git ls-files | while read f; do echo "=== $f ==="; git show "HEAD:$f" 2>/dev/null; echo; done)
 ```
 
 ---

@@ -67,9 +67,9 @@ for model in "${MODELS[@]}"; do
       # JSON パースに失敗した場合、response フィールドから抽出を試みる
       EXTRACTED=$(echo "$RESULT" | jq -r '.response // empty' 2>/dev/null)
       if [[ -n "$EXTRACTED" ]]; then
-        # response 内の JSON ブロックを抽出
-        JSON_BLOCK=$(echo "$EXTRACTED" | sed -n '/^{/,/^}/p' | head -100)
-        if echo "$JSON_BLOCK" | jq -e 'type=="object" and (.findings|type=="array") and (.summary|type=="string")' >/dev/null 2>&1; then
+        # response 内の JSON を jq で安全にパース
+        JSON_BLOCK=$(echo "$EXTRACTED" | jq -e 'type=="object" and (.findings|type=="array") and (.summary|type=="string")' 2>/dev/null && echo "$EXTRACTED" | jq '.')
+        if [[ -n "$JSON_BLOCK" ]] && echo "$JSON_BLOCK" | jq -e 'type=="object"' >/dev/null 2>&1; then
           echo "$JSON_BLOCK" | jq --arg reviewer "gemini ($model)" '. + {reviewer: $reviewer}'
           exit 0
         fi
