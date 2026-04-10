@@ -79,7 +79,7 @@ for model in "${MODELS[@]}"; do
       >&2 echo "[gemini-review] $model: JSON パース失敗、リトライ $((retry + 1))/$MAX_RETRIES"
     else
       # エラー内容を確認
-      STDERR_CONTENT=$(cat $STDERR_TMPFILE 2>/dev/null || echo "")
+      STDERR_CONTENT=$(cat "$STDERR_TMPFILE" 2>/dev/null || echo "")
 
       if echo "$STDERR_CONTENT" | grep -qi "MODEL_CAPACITY_EXHAUSTED\|RESOURCE_EXHAUSTED\|429"; then
         >&2 echo "[gemini-review] $model: 容量不足 (429)、${wait_time}秒後にリトライ $((retry + 1))/$MAX_RETRIES"
