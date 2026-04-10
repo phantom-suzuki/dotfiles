@@ -18,6 +18,12 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 1
 fi
 
+# gemini CLI は必須（レビュー実行に使用）
+if ! command -v gemini >/dev/null 2>&1; then
+  >&2 echo "[gemini-review] gemini CLI が必要です。インストール後に再実行してください"
+  exit 1
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROMPT_FILE="$SCRIPT_DIR/../references/review-prompt-template.md"
 
@@ -37,7 +43,7 @@ fi
 DIFF_INPUT=$(cat)
 
 if [[ -z "$DIFF_INPUT" ]]; then
-  echo '{"findings": [], "summary": "diff が空です"}'
+  echo '{"findings": [], "summary": "diff が空です", "reviewer": "gemini (skipped: empty diff)"}'
   exit 0
 fi
 
