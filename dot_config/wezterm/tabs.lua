@@ -23,22 +23,20 @@ function M.setup()
     end
     local edge_foreground = background
 
-    -- Get process name or directory name for the tab title
+    -- Get process name or directory name for the tab title.
+    -- tab.active_pane is PaneInformation (userdata), not a Pane object.
     local pane = tab.active_pane
     local process_name = utils.basename(pane.foreground_process_name)
     local title = process_name
     if process_name == "zsh" or process_name == "bash" or process_name == "fish" then
-      -- Show directory name for shell processes
-      local cwd = utils.get_cwd(pane)
+      local cwd = utils.get_cwd_from_info(pane)
       title = utils.basename(cwd)
     elseif process_name == "claude" then
-      -- Show project name for Claude Code
-      local cwd = utils.get_cwd(pane)
+      local cwd = utils.get_cwd_from_info(pane)
       local dir_name = utils.basename(cwd)
       title = "claude:" .. dir_name
     elseif process_name == "node" then
-      -- Node.js fallback (Claude Code may run via node)
-      local cwd = utils.get_cwd(pane)
+      local cwd = utils.get_cwd_from_info(pane)
       title = utils.basename(cwd)
     end
 

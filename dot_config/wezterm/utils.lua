@@ -13,16 +13,8 @@ function M.is_vim(pane)
   return is_vim_env == "true"
 end
 
--- Get current working directory from pane.
--- Accepts both Pane (has :get_current_working_dir()) and PaneInformation (field `current_working_dir`).
-function M.get_cwd(pane)
-  if not pane then return "" end
-  local cwd_uri
-  if type(pane.get_current_working_dir) == "function" then
-    cwd_uri = pane:get_current_working_dir()
-  else
-    cwd_uri = pane.current_working_dir
-  end
+-- Normalize a CWD value (URL object or string) into a ~-prefixed path string.
+local function normalize_cwd(cwd_uri)
   if not cwd_uri then return "" end
   local cwd = type(cwd_uri) == "string" and cwd_uri or cwd_uri.file_path
   if not cwd then return "" end
@@ -31,6 +23,20 @@ function M.get_cwd(pane)
     cwd = cwd:gsub("^" .. home, "~")
   end
   return cwd
+end
+
+-- For Pane objects (event args like update-status second arg).
+function M.get_cwd(pane)
+  if not pane then return "" end
+  return normalize_cwd(pane:get_current_working_dir())
+end
+
+-- For PaneInformation tables (e.g. tab.active_pane in format-tab-title).
+-- PaneInformation is a userdata that rejects unknown field access, so we
+-- cannot reuse get_cwd here via type-dispatch.
+function M.get_cwd_from_info(info)
+  if not info then return "" end
+  return normalize_cwd(info.current_working_dir)
 end
 
 -- Get basename of a path
