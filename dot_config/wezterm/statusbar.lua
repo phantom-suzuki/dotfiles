@@ -24,10 +24,13 @@ function M.setup()
 
     local cells = {}
     if cwd ~= "" then
-      table.insert(cells, { Foreground = { Color = "#89b8c1" }, Text = "  " .. wezterm.nerdfonts.md_folder .. " " .. cwd })
+      table.insert(cells, { Foreground = { Color = "#89b8c1" } })
+      table.insert(cells, { Text = "  " .. wezterm.nerdfonts.md_folder .. " " .. cwd })
     end
-    table.insert(cells, { Foreground = { Color = "#6a7089" }, Text = "  |  " })
-    table.insert(cells, { Foreground = { Color = "#c5c8d0" }, Text = wezterm.nerdfonts.md_clock_outline .. " " .. time .. "  " })
+    table.insert(cells, { Foreground = { Color = "#6a7089" } })
+    table.insert(cells, { Text = "  |  " })
+    table.insert(cells, { Foreground = { Color = "#c5c8d0" } })
+    table.insert(cells, { Text = wezterm.nerdfonts.md_clock_outline .. " " .. time .. "  " })
 
     window:set_right_status(wezterm.format(cells))
   end)

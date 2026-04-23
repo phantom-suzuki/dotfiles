@@ -11,8 +11,8 @@ function M.apply(config)
 
   -- Window
   config.window_decorations = "RESIZE"
-  config.max_fps = 120
-  config.animation_fps = 120
+  config.max_fps = 60
+  config.animation_fps = 60
 
   -- Background image with dark overlay for readability
   config.background = {
@@ -29,7 +29,7 @@ function M.apply(config)
       source = { Color = "#161821" },
       width = "100%",
       height = "100%",
-      opacity = 0.8,
+      opacity = 0.75,
     },
   }
 

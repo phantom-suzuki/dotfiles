@@ -13,19 +13,24 @@ function M.is_vim(pane)
   return is_vim_env == "true"
 end
 
--- Get current working directory from pane
+-- Get current working directory from pane.
+-- Accepts both Pane (has :get_current_working_dir()) and PaneInformation (field `current_working_dir`).
 function M.get_cwd(pane)
-  local cwd_uri = pane:get_current_working_dir()
-  if cwd_uri then
-    local cwd = cwd_uri.file_path
-    -- Replace home directory with ~
-    local home = os.getenv("HOME")
-    if home and cwd then
-      cwd = cwd:gsub("^" .. home, "~")
-    end
-    return cwd
+  if not pane then return "" end
+  local cwd_uri
+  if type(pane.get_current_working_dir) == "function" then
+    cwd_uri = pane:get_current_working_dir()
+  else
+    cwd_uri = pane.current_working_dir
   end
-  return ""
+  if not cwd_uri then return "" end
+  local cwd = type(cwd_uri) == "string" and cwd_uri or cwd_uri.file_path
+  if not cwd then return "" end
+  local home = os.getenv("HOME")
+  if home then
+    cwd = cwd:gsub("^" .. home, "~")
+  end
+  return cwd
 end
 
 -- Get basename of a path
