@@ -39,6 +39,16 @@ When force push is genuinely required (e.g., after interactive rebase):
 5. `git rebase --continue`
 6. Push with `git push --force-with-lease origin <branch>`
 
+## PR Merge Policy
+
+**PRのマージは、ユーザーが明示的に「マージして」「マージお願いします」等と指示した場合にのみ実行すること。**
+
+以下の操作は明示的な指示なしに実行してはならない:
+- `gh pr merge`（全オプション含む: `--merge`, `--squash`, `--rebase`）
+- GitHub API 経由の PR マージ
+
+「PRを作成してマージまで」「マージまで進めて」等の曖昧な表現では、PRの作成までを行い、マージの実行前にユーザーに確認すること。
+
 ## General Principles
 
 - Investigate before destroying — unfamiliar files/branches may be in-progress work
