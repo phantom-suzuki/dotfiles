@@ -63,6 +63,57 @@ tmux ペイン分割はプロセスと画面の分離であり、ファイルシ
 
 If the repo has an executable `.worktree-init` at the root, it runs automatically when `wta` creates a new worktree. Use this for project-specific setup (e.g. `npm install`, `python -m venv .venv`, symlinks).
 
+## Task Delegation — Codex First for Implementation
+
+実装タスクは **原則 Codex CLI に委譲する**。Opus が直接実装するのは「設計判断が未完了」「コードベース横断の理解が必要」「ユーザー対話が必要」のいずれかに該当する場合のみ。
+
+### 着手前チェック（実装タスク受領時に必ず実施）
+
+実装着手前に以下を明示的に自問し、**ツール呼び出し前に判断結果を text で提示する**。このチェックを省略すると本ルール違反となる:
+
+1. 設計は完了しているか？（ADR / Plan / 仕様書 / 先行 Issue に落ちているか）
+   - No → **T1（Opus）** で設計を先に固める
+2. コンテキストは限定的か？（対象ファイル + 関連インターフェース程度で収まるか）
+   - No → **T1（Opus）** で横断分析
+3. メカニカルな実装・テスト・リファクタか？
+   - Yes → **T2（Codex CLI）に委譲する**
+4. 検索・要約・フォーマット変換か？
+   - Yes → **T3（Sonnet/Haiku サブエージェント）に委譲**
+
+判断詳細は `~/.claude/rules/task-delegation.md` の Tier 定義・委譲条件・プロンプトテンプレート・安全制約を参照。
+
+### デフォルトの転換
+
+- 従来: 「委譲条件を満たす場合に Codex へ」
+- **改訂: T2 条件を満たすなら委譲が default。Opus 直接実装は例外で、text に理由を明示する。**
+
+### よくあるアンチパターン（実際に踏んだ）
+
+- **「単発 Issue だから並列化不要 → Opus 直接」** ← 並列化要否と委譲要否は独立軸。単発でも T2 なら Codex
+- **「設計読み込み完了 → 自分で書く」** ← 設計が固まったなら次は Codex へ渡すフェーズ
+- **「400 行くらいなら自分で書いた方が速い」** ← Opus トークン浪費の典型。規模が大きいほど Codex 委譲の効果が大きい
+
+### Codex 呼び出しの最小形
+
+```bash
+cd /path/to/project && codex exec --full-auto "$(cat <<'EOF'
+## タスク
+（何を実装するか）
+
+## コンテキスト
+（関連ファイル、インターフェース定義、依存関係。必要最小限）
+
+## 制約
+（コーディング規約、使用ライブラリ、避けるべきパターン、git commit/push は実行しないこと）
+
+## 完了条件
+（テストが通る、lint が通る、特定の動作をする等）
+EOF
+)"
+```
+
+結果は必ず Opus が `git diff` で検証してから受け入れる。コミット判断は常に Opus（= ユーザー承認フロー）に残す。
+
 ## Dotfiles — chezmoi 管理
 
 個人設定ファイル（WezTerm, Neovim, zsh, tmux, Claude Code 等）は **chezmoi** で管理されている。
