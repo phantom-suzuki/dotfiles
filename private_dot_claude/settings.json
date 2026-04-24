@@ -1,6 +1,7 @@
 {
   "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "64000"
   },
   "permissions": {
     "allow": [
@@ -32,6 +33,8 @@
       "Bash(git show *)",
       "Bash(git blame *)",
       "Bash(git worktree *)",
+      "Bash(git remote *)",
+      "Bash(git mv *)",
       "Bash(gh *)",
       "Bash(go *)",
       "Bash(golangci-lint *)",
@@ -57,10 +60,13 @@
       "Bash(docker run *)",
       "Bash(docker ps *)",
       "Bash(docker logs *)",
+      "Bash(docker exec *)",
       "Bash(make *)",
       "Bash(brew *)",
       "Bash(curl *)",
       "Bash(aws *)",
+      "Bash(mysql *)",
+      "Bash(MYSQL_PWD=* mysql *)",
       "Bash(ls *)",
       "Bash(ls)",
       "Bash(pwd)",
@@ -104,9 +110,13 @@
       "Bash(zip *)",
       "Bash(unzip *)",
       "Bash(tmux *)",
+      "Bash(workmux *)",
+      "Bash(claude *)",
       "LSP(*)",
       "Bash(find *)",
       "Bash(chezmoi *)",
+      "Bash(rsync *)",
+      "Bash(protoc *)",
       "WebFetch(domain:*)",
       "WebSearch"
     ],
@@ -123,7 +133,8 @@
       "Read(.env.*)",
       "Read(**/.env)",
       "Read(**/.env.*)"
-    ]
+    ],
+    "defaultMode": "acceptEdits"
   },
   "hooks": {
     "Stop": [
@@ -172,8 +183,32 @@
     "command": "~/.claude/statusline.sh"
   },
   "enabledPlugins": {
-    "gopls-lsp@claude-plugins-official": true
+    "gopls-lsp@claude-plugins-official": true,
+    "skill-creator@claude-plugins-official": true,
+    "scrum-penguin@carry-penguin-scrum-penguin": true
+  },
+  "extraKnownMarketplaces": {
+    "carry-penguin-scrum-penguin": {
+      "source": {
+        "source": "directory",
+        "path": "/Users/h-suzuki/work/carry-penguin/scrum-penguin"
+      }
+    }
   },
   "language": "japanese",
+  "skipAutoPermissionPrompt": true,
+  "plugins": {
+    "extraKnownMarketplaces": [
+      "/Users/h-suzuki/work/carry-penguin/scrum-penguin"
+    ]
+  },
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest"
+      ]
+    }
+  },
   "teammateMode": "auto"
 }
