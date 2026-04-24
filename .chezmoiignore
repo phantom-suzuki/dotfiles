@@ -4,3 +4,4 @@ CLAUDE.md
 Brewfile
 Brewfile.lock.json
 dot_ssh/
+private_dot_claude/skills/self-review/.gemini-cooldown
