@@ -7,10 +7,12 @@
 ## 目次
 
 1. [共通: diff の取得](#共通-diff-の取得)
-2. [Claude Code (claude -p)](#claude-code-claude--p)
-3. [Codex CLI (codex review)](#codex-cli-codex-review)
-4. [Gemini CLI](#gemini-cli)
-5. [レビュー結果の統合](#レビュー結果の統合)
+2. [観点別プロンプトの組み立て](#観点別プロンプトの組み立て)
+3. [観点別呼び出し (parallel-by-aspect)](#観点別呼び出し-parallel-by-aspect)
+4. [Claude Code (claude -p)](#claude-code-claude--p)
+5. [Codex CLI (codex review)](#codex-cli-codex-review)
+6. [Gemini CLI](#gemini-cli)
+7. [レビュー結果の統合](#レビュー結果の統合)
 
 ---
 
@@ -29,6 +31,133 @@ DIFF=$(git diff --cached)
 # all (全トラッキングファイルをヘッダ付きで連結)
 DIFF=$(git ls-files | while read f; do echo "=== $f ==="; git show "HEAD:$f" 2>/dev/null; echo; done)
 ```
+
+---
+
+## 観点別プロンプトの組み立て
+
+`parallel-by-aspect` モード（および任意のレビュアーに観点を指定する場合）では、
+共通テンプレートと観点別テンプレートを結合してプロンプトを作る。
+
+### ファイル構成
+
+```
+references/
+  review-prompt-template.md   # 共通: 出力 JSON スキーマ、category 分類、共通ルール
+  review-prompt-bug.md        # バグ・ロジック観点
+  review-prompt-security.md   # セキュリティ観点
+  review-prompt-design.md     # 設計・アーキ観点
+```
+
+共通テンプレートには 2 つのプレースホルダがある:
+
+- `<ASPECT_FOCUS>` — 観点別テンプレートの内容を差し込む場所
+- `<REVIEW_ASPECT>` — `bug` / `security` / `design` / `all` の識別子
+- `<ATTACHED_FILES>` — B-1 の対象ファイル添付内容（未使用時は削除）
+
+### 組み立てアルゴリズム（擬似コード）
+
+```text
+build_prompt(aspect, attached_files):
+  common     = read("review-prompt-template.md")
+  if aspect == "all":
+    focus = <全観点の既存プロンプト>   # 後方互換: 現 review-prompt-template.md の「レビュー観点」章を内蔵
+  else:
+    focus = read(f"review-prompt-{aspect}.md")
+
+  prompt = common
+    .replace("<ASPECT_FOCUS>", focus)
+    .replace("<REVIEW_ASPECT>", aspect)
+    .replace("<ATTACHED_FILES>", attached_files or "（なし）")
+  return prompt
+```
+
+### 対象ファイル添付（B-1）
+
+大規模 diff では「diff にない既存実装を誤認する」誤検知を抑えるため、
+以下の条件で対象ファイル全体をプロンプトに添付する:
+
+- `parallel-by-aspect` モードで有効
+- 対象ファイルのうち **変更行数 ≥ 50** のファイルを対象
+- 添付は **最大 5 ファイル**（プロンプト肥大化防止）
+- 各ファイルは `=== <path> ===\n<file content>\n` 形式で連結
+
+```bash
+# 抽出例
+git diff --numstat "$BASE_BRANCH"..HEAD | \
+  awk '$1 + $2 >= 50 {print $3}' | head -5 | \
+  while read f; do
+    echo "=== $f ==="
+    git show "HEAD:$f" 2>/dev/null
+    echo
+  done
+```
+
+---
+
+## 観点別呼び出し (parallel-by-aspect)
+
+各観点に対して primary レビュアーを選び、失敗時は fallback に切り替える。
+
+| 観点 | primary | fallback (順) |
+|-----|---------|--------------|
+| bug | Claude-p | Gemini → Codex |
+| security | Codex | Claude-p → Gemini |
+| design | Gemini | Claude-p → Codex |
+
+### 呼び出し例（bug 観点を Claude-p に投げる）
+
+```bash
+ASPECT=bug
+ATTACHED=$(...上記の対象ファイル添付ブロックを生成...)
+PROMPT=$(build_prompt "$ASPECT" "$ATTACHED")  # 下記「観点別プロンプトの組み立て」参照
+
+echo "$DIFF" | claude -p \
+  --model sonnet \
+  --output-format json \
+  --max-budget-usd 2.00 \
+  --permission-mode dontAsk \
+  --allowedTools "Read" \
+  --append-system-prompt "あなたは ${ASPECT} 観点に特化したコードレビュアーです。$PROMPT"
+```
+
+### 呼び出し例（security 観点を Codex に投げる）
+
+```bash
+ASPECT=security
+ATTACHED=$(...)
+codex exec review --base "$BASE_BRANCH" --json -o /tmp/codex-review-$$.txt \
+  "$(build_prompt "$ASPECT" "$ATTACHED")"
+cat /tmp/codex-review-$$.txt
+rm -f /tmp/codex-review-$$.txt
+```
+
+### 呼び出し例（design 観点を Gemini に投げる）
+
+```bash
+REVIEW_ASPECT=design \
+ATTACHED_FILES="$(...対象ファイル添付...)" \
+bash "${CLAUDE_SKILL_DIR}/scripts/gemini-review.sh" <<< "$DIFF"
+```
+
+`gemini-review.sh` は環境変数 `REVIEW_ASPECT` と `ATTACHED_FILES` を読み、
+内部で観点別テンプレートを結合する。未設定時は `REVIEW_ASPECT=all` として
+従来どおり全観点プロンプトで動作する（後方互換）。
+
+### Fallback の回し方
+
+```text
+for reviewer in [primary, *fallbacks]:
+  result = invoke(reviewer, aspect)
+  if result.success:
+    return result
+return {"findings": [], "summary": f"{aspect} 観点: 全レビュアー失敗", "failed": true}
+```
+
+- 同じ diff に対して同じレビュアーを 2 回以上走らせない
+  （例: bug の fallback = Gemini、design の primary = Gemini の場合、
+  design 結果が既にあれば再実行しない。ただし aspect が異なるのでプロンプトは別）
+- 3 観点すべてで失敗した場合は、SKILL.md「レビュアーが全滅した場合」に従う
 
 ---
 
