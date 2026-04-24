@@ -10,7 +10,9 @@ function M.apply(config)
   config.font_size = 14.0
 
   -- Window
-  config.window_decorations = "RESIZE"
+  -- MACOS_FORCE_DISABLE_SHADOW works around macOS Tahoe window-shadow GPU
+  -- stall that freezes WezTerm windows after sleep/wake (wezterm#7271, #7275).
+  config.window_decorations = "MACOS_FORCE_DISABLE_SHADOW | RESIZE"
   config.max_fps = 60
   config.animation_fps = 60
 
