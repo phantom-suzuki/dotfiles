@@ -10,8 +10,11 @@ function M.apply(config)
   config.font_size = 14.0
 
   -- Window
-  -- MACOS_FORCE_DISABLE_SHADOW works around macOS Tahoe window-shadow GPU
-  -- stall that freezes WezTerm windows after sleep/wake (wezterm#7271, #7275).
+  -- Force OpenGL front-end on macOS Tahoe to avoid post-wake render-surface
+  -- loss on the WebGpu/Metal path (multi-monitor + Tahoe display reconfig).
+  -- MACOS_FORCE_DISABLE_SHADOW alone was insufficient; the WebGpu->Metal
+  -- composite path is still broken across sleep/wake on this build.
+  config.front_end = "OpenGL"
   config.window_decorations = "MACOS_FORCE_DISABLE_SHADOW | RESIZE"
   config.max_fps = 60
   config.animation_fps = 60
