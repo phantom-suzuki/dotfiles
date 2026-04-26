@@ -1,0 +1,63 @@
+# Ghostty configuration
+# Mirrors the WezTerm setup (Iceberg phantom theme, Source Han Code JP)
+# Reference: ghostty.org/docs/config/reference
+
+# --- Font ---
+font-family = Source Han Code JP
+font-family = Symbols Nerd Font Mono
+font-size = 14
+
+# --- Window ---
+window-padding-x = 8
+window-padding-y = 8
+window-padding-balance = true
+window-save-state = always
+macos-titlebar-style = transparent
+macos-option-as-alt = true
+
+# --- Background / transparency ---
+# WezTerm uses a background image with 0.75 dark overlay; we approximate
+# with a slightly transparent solid background here.
+background-opacity = 0.92
+background-blur = 20
+
+# --- Iceberg phantom colors ---
+background = #161821
+foreground = #c5c8d0
+cursor-color = #c5c8d0
+cursor-text = #161821
+selection-background = #272b41
+selection-foreground = #c5c8d0
+
+# ANSI 0-7
+palette = 0=#151820
+palette = 1=#e17878
+palette = 2=#b3bd82
+palette = 3=#e1a378
+palette = 4=#83a0c5
+palette = 5=#a092c7
+palette = 6=#89b8c1
+palette = 7=#c5c8d0
+# Bright 8-15
+palette = 8=#6a7089
+palette = 9=#e98989
+palette = 10=#c0c98e
+palette = 11=#e9b189
+palette = 12=#91abd0
+palette = 13=#aca0d3
+palette = 14=#95c4ce
+palette = 15=#d2d3de
+
+# --- Cursor ---
+cursor-style = block
+cursor-style-blink = false
+
+# --- Shell integration ---
+# Ghostty auto-detects zsh; explicit declaration just to be safe.
+shell-integration = zsh
+shell-integration-features = cursor,sudo,title
+
+# --- Misc ---
+copy-on-select = false
+mouse-hide-while-typing = true
+confirm-close-surface = false
