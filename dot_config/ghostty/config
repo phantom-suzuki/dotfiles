@@ -16,10 +16,17 @@ macos-titlebar-style = transparent
 macos-option-as-alt = true
 
 # --- Background / transparency ---
-# WezTerm uses a background image with 0.75 dark overlay; we approximate
-# with a slightly transparent solid background here.
+# WezTerm composites a background image (hsb brightness 0.15) under a
+# #161821 dark overlay (opacity 0.75) on an opaque window. Here we keep
+# Ghostty's translucent + blurred window aesthetic and layer the same
+# image on top of it (option B from the WezTerm-parity discussion).
 background-opacity = 0.92
 background-blur = 20
+background-image = /Users/h-suzuki/.config/wezterm/backgrounds/nixie-tube.png
+background-image-opacity = 0.15
+background-image-position = center
+background-image-fit = cover
+background-image-repeat = false
 
 # --- Iceberg phantom colors ---
 background = #161821
