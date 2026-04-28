@@ -106,6 +106,29 @@ EOF
 > 「実装タスクは T2 委譲対象なので、Codex に委譲して実装させます」
 > 「本タスクは設計判断を含むため T1 で自分が実装します（理由: ...）」
 
+## リポジトリ衛生チェック（commit 前 / 完了報告前 必須）
+
+実装作業中に発生した artifact / 大型ファイルが commit に混入しないよう、必ず確認する。Codex 委譲で実装した場合も、Opus が diff 検証時に併せて行う:
+
+```bash
+# 変更概要
+git diff --stat <base>..HEAD
+
+# 大型変更検出（1000 行超の単一ファイル変更）
+git diff <base>..HEAD --numstat | awk '$1+$2 > 1000 {print}'
+
+# 意図しない artifact 混入検出
+git diff <base>..HEAD --name-only | grep -E '\.terraform/|terraform-provider-|\.DS_Store|node_modules/|\.next/|dist/|build/' && echo "WARN" || echo "OK"
+```
+
+**完了報告のセルフチェック AC に必ず以下を含める**:
+
+- [ ] `git diff --stat` の出力に Bin（バイナリ）ファイルなし
+- [ ] 単一 commit に 1000 行超の変更がある場合、理由を報告書に明記
+- [ ] `.terraform/` / `terraform-provider-*` / `.DS_Store` / `node_modules/` / `dist/` 等の artifact 混入なし
+
+実証: 2026-04-28 セッションで `terragrunt validate clean` のみを AC にしていた teammate が 679MB の Terraform Provider バイナリを commit に混入。team-lead 検証で発覚し cherry-pick 修正 + .gitignore 整備で再構築が必要になった。
+
 ## 失敗時のフォールバック
 
 Codex が期待通りの結果を返さない場合:
