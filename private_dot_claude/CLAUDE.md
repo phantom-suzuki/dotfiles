@@ -13,15 +13,16 @@
 
 ## Parallel Work
 
-並列作業の依頼を受けたら **`parallel-work-decision` スキル** を起動し、worktree × Agent Teams のパターン S/A/B を判定してから実行する。判定をスキップした起動はアンチパターン。
+並列作業の依頼を受けたら **`parallel-work-decision` スキル** を起動し、worktree × Agent Teams のパターン S/B を判定してから実行する。判定をスキップした起動はアンチパターン。
 
-- パターン S（同一ブランチ並列）: `TeamCreate` + Agent（`team_name` 付き）
-- パターン A（Issue 独立並列）: `wta` / `wti` で各 worktree に別セッション
-- パターン B（Issue 連携並列）: 単一セッション + Agent（`isolation: "worktree"`）
+**原則: Agent Teams × git worktree が default**。tmux 並列（`wta`/`wti`）はユーザーが明示的に要求した場合のみ採用する。
+
+- パターン S（同一ブランチ並列）: `TeamCreate` + Agent（`team_name` 付き、`isolation` なし）
+- パターン B（Issue 別ブランチ並列）: team-lead が `git worktree add` ×N → `TeamCreate` + Agent（`team_name` 付き、prompt で worktree path を固定）。連携の有無を問わず default
 
 詳細・起動コマンド早見表・アンチパターンは `~/.claude/skills/parallel-work-decision/SKILL.md` を参照。
 
-### Worktree shell commands（`wta` 関連）
+### Worktree shell commands（オプション、tmux 並列を明示要求された場合のみ）
 
 | Command | Action |
 |---------|--------|

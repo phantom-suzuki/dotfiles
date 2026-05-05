@@ -196,6 +196,8 @@
     }
   },
   "language": "japanese",
+  "effortLevel": "high",
+  "teammateMode": "auto",
   "skipAutoPermissionPrompt": true,
   "plugins": {
     "extraKnownMarketplaces": [
@@ -209,6 +211,5 @@
         "@playwright/mcp@latest"
       ]
     }
-  },
-  "teammateMode": "auto"
+  }
 }
