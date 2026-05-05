@@ -17,13 +17,13 @@ macos-option-as-alt = true
 
 # --- Background / transparency ---
 # WezTerm composites a background image (hsb brightness 0.15) under a
-# #161821 dark overlay (opacity 0.75) on an opaque window. Here we keep
-# Ghostty's translucent + blurred window aesthetic and layer the same
-# image on top of it (option B from the WezTerm-parity discussion).
-background-opacity = 0.92
-background-blur = 20
+# #161821 dark overlay (opacity 0.75) on an opaque window. We mirror
+# that with an opaque window + image overlay (option A from the
+# WezTerm-parity discussion). Adjust background-image-opacity in
+# 0.18–0.25 if the image feels too faint or too strong.
+background-opacity = 1.0
 background-image = /Users/h-suzuki/.config/wezterm/backgrounds/nixie-tube.png
-background-image-opacity = 0.15
+background-image-opacity = 0.20
 background-image-position = center
 background-image-fit = cover
 background-image-repeat = false
