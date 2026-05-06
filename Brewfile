@@ -19,6 +19,8 @@ brew "ffmpeg"
 brew "fzf"
 # GitHub command-line tool
 brew "gh"
+# Google Gemini CLI (used by self-review skill)
+brew "gemini-cli"
 # Render markdown on the CLI
 brew "glow"
 # Open source programming language to build simple/reliable/efficient software
@@ -57,6 +59,10 @@ brew "yq"
 brew "yt-dlp"
 # Terraform
 brew "hashicorp/tap/terraform"
+# OpenAI Codex CLI (T2 implementation delegation, see CLAUDE.md)
+cask "codex"
+# Fast, native terminal emulator
+cask "ghostty"
 # Collaboration platform for API development
 cask "postman"
 # GPU-accelerated cross-platform terminal emulator and multiplexer
