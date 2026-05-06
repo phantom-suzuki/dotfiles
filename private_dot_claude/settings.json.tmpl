@@ -191,7 +191,7 @@
     "carry-penguin-scrum-penguin": {
       "source": {
         "source": "directory",
-        "path": "/Users/h-suzuki/work/carry-penguin/scrum-penguin"
+        "path": "{{ .chezmoi.homeDir }}/work/carry-penguin/scrum-penguin"
       }
     }
   },
@@ -201,7 +201,7 @@
   "skipAutoPermissionPrompt": true,
   "plugins": {
     "extraKnownMarketplaces": [
-      "/Users/h-suzuki/work/carry-penguin/scrum-penguin"
+      "{{ .chezmoi.homeDir }}/work/carry-penguin/scrum-penguin"
     ]
   },
   "mcpServers": {
