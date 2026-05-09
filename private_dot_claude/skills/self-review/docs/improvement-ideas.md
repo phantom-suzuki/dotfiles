@@ -184,3 +184,105 @@ fallback (primary が失敗した場合):
 効果: Gemini 不調時の待機が **最大 ~70s → 初回 ~10s / 15 分以内の再実行 0.015s** に短縮。案 A（Codex timeout 短縮）と同じく「早期フォールバック」系の改善だが、対象は Gemini の 429 検出パス。
 
 未着手: 案 B（観点別並列）、案 C（ファイル×観点の二軸並列）は引き続き次フェーズ。
+
+### 2026-05-09: レートリミット対策と新機能取り込み（Strategy 再構成）
+
+「Codex の 5 時間ウィンドウ消費」「Gemini の容量不足」によるレビュー遅延と、Claude Code v2.1.x / Codex CLI 直近リリースでの新機能（`--bare`, `--json-schema`, `--output-schema`, `claude ultrareview`）を取り込んで Strategy を再構成した。
+
+**主要変更**:
+
+- Simplify を Codex 委譲から **内蔵 `/simplify` がデフォルト** に戻した。Codex 委譲は `--simplify-via=codex` で opt-in
+- Strategy を `auto / cascade / parallel / parallel-by-aspect` から **`simple / standard / deep`** の 3 段階に整理
+  - `simple`: diff ≤ 30 行 かつ ファイル ≤ 3 で外部レビュー自動スキップ（`--force-external` で復活）
+  - `standard`: bug + security の 2 並列（Claude-p + Codex）
+  - `deep`: standard + design + `claude ultrareview` + `--max-iterations 3`
+- 観点を **bug + security の 2 軸固定** に。design は `--with-design` で opt-in
+- Gemini を **デフォルト経路から完全除外**。`--with-gemini` 指定時のみプリフライトも含めて起動
+- 全 CLI 呼び出しに **再現性確保フラグを必須化**:
+  - `claude -p`: `--bare --output-format json --json-schema <FINDING_SCHEMA>`
+  - `codex exec`: `--output-schema <FINDING_SCHEMA> --ignore-user-config --ignore-rules`、モデルは `gpt-5`（`gpt-5-codex` の schema 無視バグ回避）
+  - `claude ultrareview`: `--json` 必須、exit code を尊重
+- judgment 上限を 5 → **3 件** に。4 件目以降は info 格下げ
+- 新設: `references/schemas/finding-schema.json`（claude -p / codex exec 両用の出力スキーマ）
+
+**peer-review への波及**:
+
+- L1 (`claude -p`) に `--bare --json-schema` を必須化
+- L2 (Gemini) も同 schema に整形して返すよう要件化
+- `--with-codex` の代替経路として `/codex:review --background`（`openai/codex-plugin-cc`）をドキュメントに追記（実装は次フェーズ）
+
+**取り込み根拠**:
+
+- `claude ultrareview`: [code.claude.com/docs/en/ultrareview](https://code.claude.com/docs/en/ultrareview)
+- `claude -p --bare` / `--json-schema`: [code.claude.com/docs/en/headless](https://code.claude.com/docs/en/headless)
+- `codex exec --output-schema`: [Codex CLI reference](https://developers.openai.com/codex/cli/reference)
+- gpt-5-codex schema バグ: [openai/codex#15451](https://github.com/openai/codex/issues/15451)
+- `/codex:review --background`: [openai/codex-plugin-cc](https://github.com/openai/codex/codex-plugin-cc)
+
+**未着手**:
+- ultrareview の peer-review 経路への組み込み（要対話設計）
+- review-summary の `--stats` フラグ（false-positive 率の可視化、案 B-2 の継続）
+- AGENTS.md コンベンション対応（Claude Code 本体未対応）
+
+### 2026-05-09（同日）: セルフ試験で発見した仕様ミスの修正
+
+新仕様の検証として、改修自身の diff（6 ファイル / 614 行）に対して `--scope staged` でセルフレビューを実行したところ、Step 3 の必須フラグに以下の仕様ミスを検知。
+
+**発見 1: `claude -p --bare` は OAuth ログイン環境で必ず失敗**
+- `--bare` は OAuth / keychain を読まず `ANTHROPIC_API_KEY` か `apiKeyHelper` 必須
+- ローカル開発環境（OAuth ログイン）でデフォルト `--bare` を強制すると常に `Not logged in · Please run /login` エラー
+- 修正: Step 0 で `ANTHROPIC_API_KEY` の有無を判定し、設定済みのみ `$BARE_CLAUDE="--bare"` をセット。それ以外は空文字（通常の OAuth 経由）
+
+**発見 2: `codex exec review` は `--output-schema` を非サポート**
+- `codex exec review` サブコマンドのヘルプに `--output-schema` 無し（codex 0.111.0 で確認、`error: unexpected argument '--output-schema' found`）
+- 調査時の OpenAI Cookbook 例も `codex exec --output-schema schema.json - < prompt.md` と書かれており、`review` サブコマンドではなかった（仕様誤読）
+- 修正: `codex exec review` を **`codex exec` + プロンプト本文に「review せよ」と明示** + diff を stdin で渡す方式に統一
+
+**発見 3: `--json-schema` はファイルパスではなく JSON 文字列**
+- `claude -p --json-schema <schema>` の引数は schema の **中身（JSON 文字列）** で、ファイルパスを渡すと不正
+- 修正: 全呼び出し例を `--json-schema "$(cat "$SCHEMA")"` に統一
+
+**発見 4: `--ignore-user-config` / `--ignore-rules` は新しい codex でのみ利用可**
+- codex 0.111.0 のヘルプには無く、調査時情報の codex 0.122+ で追加された機能
+- 修正: Step 0 で `codex exec --help` を grep してフラグ存在を判定し、`$CODEX_REPRO_FLAGS` に格納
+
+**発見 5: OpenAI strict mode JSON Schema は `properties` の全キーが `required` 必須**
+- `codex exec --output-schema` で初回起動時に発生:
+  ```
+  Invalid schema for response_format 'codex_output_schema':
+  'required' is required to be supplied and to be an array including every key in properties. Missing 'suggestion'.
+  ```
+- 当初の finding-schema.json では `suggestion` を optional にしていたが、OpenAI structured output (response_format) の strict 仕様では NG
+- 修正: optional フィールド (`suggestion`、peer-review では加えて `file` / `line`) を **`type: ["string", "null"]`** + required に登録。値がないケースは null を返させる
+- self-review / peer-review の両 schema に同修正を適用
+
+**発見 6: `claude -p` は OAuth セッション切れ環境で動かない**
+- ローカルで `Not logged in · Please run /login` が出る場合、`--bare` の有無に関わらず認証エラーで失敗
+- これは個別環境の問題だが、self-review skill としては「`claude -p` 認証エラー時のフォールバック」を持つべき
+- 暫定: 認証エラーを検知したら、Opus 自身（メイン会話の orchestrator）が代替レビュアーとして動く経路を許容する。SKILL.md には書いていなかったが、現実的なフォールバックとして追加検討（次フェーズ）
+
+**発見 7: `codex exec` は trusted directory（git リポジトリ内）でしか動かない**
+- Claude Code セッションの cwd が git 管理外のディレクトリだと `Not inside a trusted directory` で起動失敗
+- self-review は元々「git リポジトリ内で実行」を前提としているので原則問題ないが、Claude Code セッション側 cwd と self-review 対象 cwd がズレる場合（例: chezmoi ソースに対するセルフレビュー）に発生
+- 暫定: スキル呼び出しで `(cd <repo> && codex exec ...)` のように cwd を明示する書式に。SKILL.md の呼び出し例にも反映
+
+**所感**: セルフレビューの「設計時の仕様確認漏れ検知」効果が、Step 3 を実行する前の段階で得られた（Bash 直叩きで `--help` を叩く程度の試験で十分検知できた）。今後は SKILL.md 改修後に **対象 PR で必ず 1 回セルフレビューを通す** 運用ルールを明記してもよい。
+
+---
+
+### 2026-05-09（同日続き）: codex security review が成功して検出した設計上の問題
+
+仕様修正（発見 1〜7）後、改めて `codex exec --output-schema` で security 観点レビューを実行（exit=0）。次の 2 件を検知し、両方とも本改修内で対応済み。
+
+**S1（judgment, warning, CWE-201）: ATTACHED_FILES のデフォルト全文添付による機密漏洩リスク**
+- `git show HEAD:<file>` で 50 行以上変更されたファイル全体を外部 LLM へ送る仕様
+- 変更行に無関係な秘密情報（API キー、内部設定等）が同時に流出する可能性
+- 適用: **デフォルトから外し `--attach-full-file` の opt-in に降格**。誤検知抑制はプロンプト文言で代替
+
+**S2（auto-fix, warning, CWE-377/379）: 予測可能な `/tmp/...$$` 一時ファイル名**
+- `claude ultrareview --json > /tmp/ultrareview-$$.json` などローカル攻撃でリンク先を奪取される可能性
+- 適用: 全箇所を `umask 077; TMP=$(mktemp "${TMPDIR:-/tmp}/...XXXXXX.json"); trap 'rm -f "$TMP"' EXIT` に統一
+
+**bug 観点**: `claude -p` の OAuth セッション切れで実行不可だったため今回はスキップ。Opus 自身を代替レビュアーとする経路は SKILL.md に未追加（次フェーズ検討課題）。
+
+**収穫**: セルフレビュー第 1 回で 7 件の仕様ミス + 設計上のセキュリティ問題 2 件を検知。「自分の改修を自分のスキルで検証する」ループが、新仕様の精度を急激に上げる効果が確認できた。

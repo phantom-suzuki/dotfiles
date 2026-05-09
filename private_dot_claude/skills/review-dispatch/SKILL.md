@@ -54,6 +54,19 @@ Q3: 自分のもののどのフェーズ？
 | 「ドキュメントレビュー」「ガイドを見て」「Markdown レビュー」 | 通常 Markdown | `/review-doc` |
 | 「dependabot レビュー」「依存性 PR を見て」「bot PR チェック」 | Bot 作成 PR | `/dependabot-review` |
 
+### `/self-review` の主な opt-in フラグ（参考）
+
+軽量化のためデフォルト経路は **bug + security の 2 並列** に絞られている。重厚化が必要な場合は以下を明示指定:
+
+| フラグ | 効果 |
+|---|---|
+| `--with-design` | design 観点を追加（claude -p、`--with-gemini` 時は Gemini） |
+| `--with-gemini` | Gemini を経路に組み込む（プリフライトもこの時のみ起動） |
+| `--ultrareview` | bug の primary を `claude ultrareview --json` に置換（課金あり） |
+| `--deep` | `standard` を superset、design + ultrareview + max-iterations 3 を自動有効化 |
+| `--simplify-via=codex` | Simplify を codex exec に委譲（デフォルトは内蔵 `/simplify`） |
+| `--force-external` | diff が小さく `simple` 自動判定された場合でも外部レビューを強制実行 |
+
 ## 特殊ケース
 
 ### ADR を含む PR
