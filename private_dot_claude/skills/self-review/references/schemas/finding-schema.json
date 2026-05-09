@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://claude.local/schemas/self-review/finding.json",
+  "title": "Self-Review Finding Output",
+  "description": "claude -p / codex exec が返すべきレビュー結果の構造。category/severity/aspect は呼び出し元がそのまま信頼するため、必ず enum のいずれかを返すこと。OpenAI strict mode JSON Schema 互換のため、全 properties は required に列挙し、optional 値は null を許容する。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["findings", "summary"],
+  "properties": {
+    "findings": {
+      "type": "array",
+      "description": "個別の指摘。問題なしなら空配列。",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "category", "aspect", "file", "line", "title", "description", "suggestion"],
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": ["critical", "warning", "info"]
+          },
+          "category": {
+            "type": "string",
+            "enum": ["auto-fix", "judgment", "info"],
+            "description": "auto-fix=自動修正可、judgment=ユーザー判断、info=記録のみ。迷ったら judgment。"
+          },
+          "aspect": {
+            "type": "string",
+            "enum": ["bug", "security", "design", "all"],
+            "description": "呼び出し側が指定した観点をそのまま記録する。"
+          },
+          "file": {
+            "type": "string",
+            "description": "リポジトリルートからの相対パス。"
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "対象行番号（不明なら 0）。"
+          },
+          "title": {
+            "type": "string",
+            "description": "問題の要約（1 行）。"
+          },
+          "description": {
+            "type": "string",
+            "description": "詳細な説明。"
+          },
+          "suggestion": {
+            "type": ["string", "null"],
+            "description": "修正案（任意）。なければ null。"
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "string",
+      "description": "全体評価（2-3 文）。問題なしなら「問題なし」を含める。"
+    }
+  }
+}
