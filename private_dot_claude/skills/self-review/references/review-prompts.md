@@ -11,7 +11,7 @@
 3. [観点別呼び出し（standard / deep）](#観点別呼び出しstandard--deep)
 4. [Claude Code (claude -p)](#claude-code-claude--p)
 5. [Claude Code (claude ultrareview)](#claude-code-claude-ultrareview)
-6. [Codex CLI (codex review / codex exec)](#codex-cli-codex-review--codex-exec)
+6. [Codex CLI (codex exec)](#codex-cli-codex-exec)
 7. [Gemini CLI（`--with-gemini` 指定時のみ）](#gemini-cli--with-gemini-指定時のみ)
 8. [レビュー結果の統合](#レビュー結果の統合)
 
