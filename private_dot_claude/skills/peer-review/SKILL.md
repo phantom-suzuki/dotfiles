@@ -126,9 +126,9 @@ bash "${CLAUDE_SKILL_DIR}/scripts/codex-review.sh" <PR番号> [base-branch] > /t
 
 #### Gemini を使う場合（opt-in）
 
-`--with-gemini` 指定時のみ、`scripts/gemini-review.sh` を追加で呼び出す。Pro → Flash のモデルフォールバック内蔵。
+`--with-gemini` 指定時のみ、`scripts/gemini-review.sh` を追加で呼び出す。Pro → Flash のモデルフォールバックは維持しつつ、capacity 不足（429 / MODEL_CAPACITY_EXHAUSTED / RESOURCE_EXHAUSTED）を検知した場合はクールダウンを記録して終了する。
 
-ただし **Gemini Pro は capacity 制約で失敗が多発する**ため、デフォルトでは使わない。リトライ待ちで数分溶ける場合は早めに kill して L1+L2 のみで続行する判断をする（PR #386 の教訓）。
+`scripts/gemini-review.sh` は capacity クールダウン中（15 分）なら即 `exit 1` するため、呼び出し側は Gemini を再試行せず Codex で続行する。
 
 ```bash
 cat prompt.md | bash "${CLAUDE_SKILL_DIR}/scripts/gemini-review.sh" <PR番号> > /tmp/peer-review-<PR>-gemini.json
@@ -215,7 +215,7 @@ gh pr view <PR> --json reviews --jq '.reviews[-1] | {author, state, submittedAt}
 |--------|------|------|
 | Codex `--base と PROMPT の併用不可` | 引数排他 | カスタム PROMPT は渡さず、`codex exec review --base` の標準観点に任せる。プロジェクト固有のコンテキストは L1 側で扱う |
 | Codex `agent_message` が空 | Codex が結論を出さずに終了 | `codex-review.sh` が `--output-last-message` ファイルを fallback として読む。それでも空の場合は L1 単独で続行 |
-| Gemini Pro `MODEL_CAPACITY_EXHAUSTED` | サーバー容量不足 | `scripts/gemini-review.sh` が Flash に自動フォールバック。Flash も失敗ならスキップして L1+Codex で続行（リトライ待ちで数分溶かさない） |
+| Gemini Pro `MODEL_CAPACITY_EXHAUSTED` | サーバー容量不足 | クールダウン記録 (15 分) → 次回呼び出しは即スキップ → Codex で続行 |
 | Gemini 全モデル失敗 | キャパ / ネットワーク | `--with-gemini` は opt-in なので、失敗時は静かに諦めて L1+Codex で続行 |
 | `gh pr review` が `--body-file` 未対応 | 古い gh バージョン | `--body "$(cat <file>)"` で代替 |
 | 大規模 PR（diff > 3000 行） | コンテキスト窓圧迫 | ファイルごとに分割レビュー or 重要ファイルのみ対象化 |

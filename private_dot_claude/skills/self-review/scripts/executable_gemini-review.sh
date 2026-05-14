@@ -158,4 +158,5 @@ if [[ $CAPACITY_EXHAUSTED -eq 1 ]]; then
   >&2 echo "[gemini-review] 容量不足でクールダウン記録: $COOLDOWN_FILE"
 fi
 >&2 echo "[gemini-review] 全モデル・全リトライ失敗"
+>&2 echo "[self-review] gemini unavailable, caller should fall back to alternative reviewer"
 exit 1

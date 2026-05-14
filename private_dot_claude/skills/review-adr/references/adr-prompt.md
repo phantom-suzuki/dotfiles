@@ -1,6 +1,6 @@
-# ADR Review Prompt for Gemini (L2)
+# ADR Review Prompt (L2 External Reviewer)
 
-`/review-adr` スキルが Gemini CLI に渡すプロンプトテンプレート。stdin で「このテンプレート + 対象 ADR 本文 + 既存 ADR インデックス」をまとめて投入する。
+`/review-adr` スキルが L2 レビュアー（Codex / Gemini）に渡す共通プロンプトテンプレート。stdin で「このテンプレート + 対象 ADR 本文 + 既存 ADR インデックス」をまとめて投入する。
 
 ---
 
@@ -24,7 +24,7 @@
 
 ## 出力形式（厳守）
 
-以下の JSON スキーマで出力してください。**コードブロック ` ```json ... ``` ` で囲んで返してください。**
+以下の JSON スキーマで出力してください。**コードブロックは使わず、純粋な JSON のみ**を返してください。
 
 ```json
 {

@@ -1,6 +1,6 @@
 ---
 description: 通常の Markdown ドキュメント（README / マイグレーションガイド / spec / RFC / 技術記事 等、ADR を除く）を、可読性・前後整合・参照リンク・更新漏れの観点でレビューする軽量スキル。修正は提案のみで自動編集なし。「ドキュメントレビュー」「Markdown レビュー」「review-doc」「ガイドを見て」等の依頼時に使用。
-argument-hint: "[doc-file-path-or-glob] [--skip-gemini] [--scope this|related]"
+argument-hint: "[doc-file-path-or-glob] [--skip-codex] [--with-gemini] [--scope this|related]"
 ---
 
 # Skill: /review-doc
@@ -22,12 +22,14 @@ argument-hint: "[doc-file-path-or-glob] [--skip-gemini] [--scope this|related]"
 | パラメータ | デフォルト | 説明 |
 |-----------|----------|------|
 | `doc-file-path-or-glob` | (省略可) | 対象ドキュメントのパス or glob。省略時は最新変更の Markdown を自動検出（`docs/adr/` 配下を除外） |
-| `--skip-gemini` | false | L2 Gemini をスキップ（L1 Claude のみ） |
+| `--skip-codex` | false | L2 Codex をスキップ（L1 Claude のみ） |
+| `--with-gemini` | false | Gemini を追加（opt-in） |
 | `--scope` | `this` | `this` = 対象ドキュメントのみ / `related` = 同ディレクトリ・親ディレクトリの関連ファイルもインデックス化（推奨） |
 
 ## 前提条件
 
-- `--skip-gemini` でなければ `gemini` CLI が利用可能（peer-review の `scripts/gemini-review.sh` を借用）
+- `--skip-codex` でなければ `codex` CLI が利用可能
+- `--with-gemini` 指定時のみ `gemini` CLI が利用可能（Gemini は opt-in）
 - `jq` がインストール済み
 
 ## 観点（4 軸固定）
@@ -89,37 +91,59 @@ referenced=$(grep -oE '\[[^]]*\]\(([^)]+\.md)\)' "$DOC_PATH" | sed -E 's/.*\(([^
 - 関連ファイルとの整合は Step 1 のインデックスと突合
 - 出力先: `/tmp/review-doc-l1.json`
 
-### Step 3: L2 Gemini セカンドオピニオン（オプション）
+### Step 3: L2 Codex セカンドオピニオン（デフォルト、オプションで Gemini）
 
-`--skip-gemini` でなければ、`peer-review` の Gemini スクリプトを再利用する:
+`--skip-codex` でなければ、Codex を L2 として実行する（デフォルト経路）。`peer-review/scripts/codex-review.sh` は PR 専用のため流用しない。
+
+```bash
+codex exec \
+  --full-auto \
+  --sandbox read-only \
+  --ignore-user-config \
+  --ignore-rules \
+  --output-last-message /tmp/review-doc-codex.txt \
+  "$(cat <<EOF
+## タスク
+以下のドキュメントを review-doc 観点でレビューし、L1 とは独立したセカンドオピニオンとして指摘を返してください。
+
+## 観点
+- 可読性 / 前後整合 / 参照リンク / 更新漏れ
+- 既存ドキュメントや実装との矛盾（リポジトリ内を grep して確認可能）
+
+## 出力形式
+以下の JSON を 1 つ返してください（コードブロックなし、純粋な JSON のみ）:
+{
+  "findings": [{"category": "must-fix|should-fix|nit", "axis": "...", "title": "...", "description": "...", "suggestion": "..."}],
+  "overall_summary": "..."
+}
+
+## 対象ドキュメント
+<DOC_CONTENT>
+EOF
+)"
+```
+
+`--with-gemini` 指定時のみ、Gemini を追加で実行する（opt-in）。Gemini が失敗しても Codex/L1 の経路で続行する。
 
 ```bash
 PROMPT_FILE=$(mktemp)
 {
   echo "## タスク"
   echo "以下の Markdown ドキュメントを 4 軸（可読性 R / 前後整合 C / 参照リンク L / 更新漏れ U）でレビューしてください。"
-  echo "severity は must-fix / should-fix / nit のいずれかを付与してください。"
-  echo "出力は JSON 形式で findings 配列を返してください。"
-  echo "細かい typo・表記ゆれは CodeRabbit と重複するため除外してください。"
+  echo "出力は JSON 形式の findings を返してください。"
   echo "---"
   echo "## 対象ドキュメント ($DOC_PATH)"
   cat "$DOC_PATH"
-  if [[ -n "$RELATED_INDEX" ]]; then
-    echo "---"
-    echo "## 関連ファイル（見出しのみ）"
-    echo "$RELATED_INDEX"
-  fi
 } > "$PROMPT_FILE"
 
 cat "$PROMPT_FILE" | bash ~/.claude/skills/peer-review/scripts/gemini-review.sh \
-  > /tmp/review-doc-l2.json
+  > /tmp/review-doc-gemini.json
 ```
 
-**注意**:
-- `gemini-review.sh` は stdin からプロンプトを受け取る。`cat | bash ...` のパイプ形式で渡す（`< file` リダイレクトは Bash tool の background mode で効かないことがある）
-- Gemini Pro が `MODEL_CAPACITY_EXHAUSTED` で失敗した場合は Flash に自動フォールバック
 
-Gemini が失敗した場合は L1 のみで続行（ユーザーに通知）。
+Codex が失敗した場合は L1 のみで続行し、`--with-gemini` 指定時のみ Gemini 結果を補助的に使う。
+
+**注意**: 上記 `codex exec` ブロックの `<DOC_CONTENT>` は呼び出し時に Opus 側でプレースホルダ展開する（対象ドキュメントの本文 + 必要なら関連ファイル見出しを差し込む）。シェルが展開する変数ではない。
 
 ### Step 4: 統合と提示
 
@@ -148,7 +172,7 @@ L1 / L2 の `findings` を統合し、severity でソートしてユーザーに
 |--------|------|------|
 | 対象ファイルが ADR | `docs/adr/` 配下を指定 | review-adr に誘導して終了 |
 | 対象が極小（< 50 行・見出し 1-2 個） | README 等の軽量ファイル | 警告し、続行可否を AskUserQuestion で確認 |
-| Gemini CLI 失敗 | キャパ / ネットワーク | L1 のみで続行（peer-review / review-adr と同じ挙動） |
+| Codex 実行失敗 | CLI エラー / タイムアウト | L1 のみで続行。`--with-gemini` 指定時のみ Gemini 結果を補助として利用 |
 | 対象が複数候補 | git status が複数 .md を返す | AskUserQuestion で選択 |
 
 ## 注意事項

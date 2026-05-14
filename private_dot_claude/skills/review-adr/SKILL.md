@@ -1,6 +1,6 @@
 ---
 description: ADR (Architecture Decision Record) を論理一貫性・既存ADRとの矛盾・抜け漏れ・軸選定の妥当性・表記整合の観点でレビューする軽量スキル。外部LLM 1回、修正は提案のみで自動編集なし。「ADRレビュー」「review-adr」「ADR を見て」等の依頼時に使用。
-argument-hint: "[adr-file-path] [--skip-gemini] [--scope this|all]"
+argument-hint: "[adr-file-path] [--skip-codex] [--with-gemini] [--scope this|all]"
 ---
 
 # Skill: /review-adr
@@ -22,13 +22,15 @@ argument-hint: "[adr-file-path] [--skip-gemini] [--scope this|all]"
 | パラメータ | デフォルト | 説明 |
 |-----------|----------|------|
 | `adr-file-path` | (省略可) | 対象 ADR のパス。省略時は最新変更の `docs/adr/*.md` を自動検出 |
-| `--skip-gemini` | false | L2 Gemini をスキップ（L1 Claude のみ） |
+| `--skip-codex` | false | L2 Codex をスキップ（L1 Claude のみ） |
+| `--with-gemini` | false | Gemini を追加（opt-in） |
 | `--scope` | `this` | `this` = 対象 ADR のみ / `all` = 全 ADR 横断インデックスと突合（推奨） |
 
 ## 前提条件
 
 - 対象リポジトリに `docs/adr/` ディレクトリが存在する
-- `--skip-gemini` でなければ `gemini` CLI が利用可能
+- `--skip-codex` でなければ `codex` CLI が利用可能
+- `--with-gemini` 指定時のみ `gemini` CLI が利用可能（Gemini は opt-in）
 - `jq` がインストール済み
 
 ## 観点（5 軸固定）
@@ -81,9 +83,39 @@ done
 - 既存 ADR との矛盾は Step 1 のインデックスと突合
 - 出力先: `/tmp/review-adr-l1.json`
 
-### Step 3: L2 Gemini セカンドオピニオン（オプション）
+### Step 3: L2 Codex セカンドオピニオン（デフォルト、オプションで Gemini）
 
-`--skip-gemini` でなければ、`peer-review` の Gemini スクリプトを再利用する:
+`--skip-codex` でなければ、Codex を L2 として実行する（デフォルト経路）。Codex は ADR ディレクトリ全体を grep して既存 ADR との矛盾を機械検証できる。
+
+```bash
+codex exec \
+  --full-auto \
+  --sandbox read-only \
+  --ignore-user-config \
+  --ignore-rules \
+  --output-last-message /tmp/review-adr-codex.txt \
+  "$(cat <<EOF
+## タスク
+以下の ADR を review-adr 観点でレビューし、L1 とは独立したセカンドオピニオンとして指摘を返してください。
+
+## 観点
+- 論理一貫性 / 既存 ADR との矛盾 / 抜け漏れ / 軸選定の妥当性 / 表記整合
+- `docs/adr/*.md` を grep し、既存 ADR との矛盾や参照ミスを機械検証する
+
+## 出力形式
+以下の JSON を 1 つ返してください（コードブロックなし、純粋な JSON のみ）:
+{
+  "findings": [{"category": "must-fix|should-fix|nit", "axis": "L|C|G|A|N", "title": "...", "description": "...", "suggestion": "..."}],
+  "overall_summary": "..."
+}
+
+## 対象 ADR
+<ADR_CONTENT>
+EOF
+)"
+```
+
+`--with-gemini` 指定時のみ、`references/adr-prompt.md` を使って Gemini を追加実行する（opt-in）。
 
 ```bash
 PROMPT_FILE=$(mktemp)
@@ -100,15 +132,12 @@ PROMPT_FILE=$(mktemp)
 } > "$PROMPT_FILE"
 
 cat "$PROMPT_FILE" | bash ~/.claude/skills/peer-review/scripts/gemini-review.sh \
-  > /tmp/review-adr-l2.json
+  > /tmp/review-adr-gemini.json
 ```
 
-**注意**:
-- `gemini-review.sh` は stdin からプロンプトを受け取る。`< "$PROMPT_FILE"` ではなく `cat | bash ...` のパイプ形式で渡すと background 実行時も stdin が確実に届く（`< file` リダイレクトは Bash tool の background mode で効かないことがある）
-- zsh の noclobber が有効な場合、出力ファイルが既存だと `>` で失敗する。事前に `rm -f /tmp/review-adr-l2.json` するか `>!` を使用
-- Gemini Pro が `MODEL_CAPACITY_EXHAUSTED` で失敗した場合は Flash に自動フォールバック（gemini-review.sh が処理）。Flash は Pro より浅い指摘になる傾向があるため、L1 結果との重み付けを調整する
+Codex が失敗した場合は L1 のみで続行し、`--with-gemini` 指定時のみ Gemini 結果を補助的に使う。
 
-Gemini が失敗した場合は L1 のみで続行（ユーザーに通知）。
+**注意**: 上記 `codex exec` ブロックの `<ADR_CONTENT>` は呼び出し時に Opus 側でプレースホルダ展開する（対象 ADR の本文 + 既存 ADR インデックスを差し込む）。シェルが展開する変数ではない。
 
 ### Step 4: 統合と提示
 
@@ -138,7 +167,7 @@ L1 / L2 の `findings` を統合し、severity でソートしてユーザーに
 |--------|------|------|
 | `docs/adr/` 未検出 | 対象リポジトリが ADR を採用していない | スキル中断、ユーザーに通知 |
 | ADR ファイル形式不一致 | 見出しが `# ADR-XXXX:` でない | パース失敗箇所を報告して L1 のみ続行 |
-| Gemini CLI 失敗 | キャパ / ネットワーク | L1 のみで続行（peer-review と同じ挙動） |
+| Codex 実行失敗 | CLI エラー / タイムアウト | L1 のみで続行。`--with-gemini` 指定時のみ Gemini 結果を補助として利用 |
 | 対象 ADR が複数候補 | git status が複数 ADR を返す | AskUserQuestion で選択 |
 
 ## 注意事項

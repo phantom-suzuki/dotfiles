@@ -18,8 +18,8 @@ argument-hint: ""
 | `/self-review` | 自分のコード差分 (changed/staged/all) | あり（自動コミット） | git commit | バグ・品質・複雑さ |
 | `/review-pr` | 自分の PR についたレビューコメント | あり（コード修正 + GraphQL 返信） | review thread reply + resolve | 受けた指摘への対応 |
 | `/peer-review` | 他者の PR | なし | PR review API（行コメント + トップ） | security / arch / goal / alternatives / spec |
-| `/review-adr` | 単一 ADR (.md, docs/adr/) | なし（提案のみ） | 標準出力（Edit は承認後） | 論理一貫性・既存矛盾・抜け漏れ・軸選定・表記 |
-| `/review-doc` | 通常 Markdown ドキュメント（ADR 以外） | なし（提案のみ） | 標準出力（Edit は承認後） | 可読性・前後整合・参照リンク・更新漏れ |
+| `/review-adr` | 単一 ADR (.md, docs/adr/) | なし（提案のみ） | 標準出力（Edit は承認後、L2 は Codex 既定 / Gemini は opt-in） | 論理一貫性・既存矛盾・抜け漏れ・軸選定・表記 |
+| `/review-doc` | 通常 Markdown ドキュメント（ADR 以外） | なし（提案のみ） | 標準出力（Edit は承認後、L2 は Codex 既定 / Gemini は opt-in） | 可読性・前後整合・参照リンク・更新漏れ |
 | `/dependabot-review` | Bot 作成 PR (Dependabot/Renovate) | なし（追従 PR は承認後・別ブランチ） | PR コメント upsert | バージョン bump 追従漏れ（grep） |
 
 ## 判定フロー
@@ -88,7 +88,7 @@ PR 全体を `/peer-review` で俯瞰しつつ、ADR ファイルは個別に `/
 ### コード変更を含む Markdown PR（自分のもの）
 
 - コードが主、Markdown は補助 → `/self-review`（Markdown も diff に含まれるためカバーされる）
-- Markdown が主、コードは補助（マイグレーションガイドのような PR） → `/review-doc` を起点に、コード差分があれば `/self-review --skip-simplify --skip-external` で軽くチェック
+- Markdown が主、コードは補助（マイグレーションガイドのような PR） → `/review-doc`（L2 Codex 既定、Gemini は `--with-gemini` のみ）を起点に、コード差分があれば `/self-review --skip-simplify --skip-external` で軽くチェック
 - どちらが主か曖昧 → `/self-review` を先に走らせて、Markdown 観点が薄ければ `/review-doc` を追加
 
 ### スキル / プラグインの SKILL.md レビュー
