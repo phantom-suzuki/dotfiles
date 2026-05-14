@@ -12,10 +12,14 @@
 [user]
 	name = {{ .name }}
 	email = {{ .email }}
-	signingkey = ~/.ssh/id_ed25519.pub
+{{- if default false .git_signing_enabled }}
+	signingkey = {{ .git_signing_key }}
+{{- end }}
 [core]
 	filemode = false
+{{- if default false .git_signing_enabled }}
 [gpg]
 	format = ssh
 [commit]
 	gpgsign = true
+{{- end }}
