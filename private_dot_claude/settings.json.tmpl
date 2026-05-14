@@ -185,13 +185,13 @@
   "enabledPlugins": {
     "gopls-lsp@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true,
-    "scrum-penguin@carry-penguin-scrum-penguin": true
+    "codex@openai-codex": true
   },
   "extraKnownMarketplaces": {
-    "carry-penguin-scrum-penguin": {
+    "openai-codex": {
       "source": {
-        "source": "directory",
-        "path": "{{ .chezmoi.homeDir }}/work/carry-penguin/scrum-penguin"
+        "source": "github",
+        "repo": "openai/codex-plugin-cc"
       }
     }
   },
@@ -199,11 +199,6 @@
   "effortLevel": "high",
   "teammateMode": "auto",
   "skipAutoPermissionPrompt": true,
-  "plugins": {
-    "extraKnownMarketplaces": [
-      "{{ .chezmoi.homeDir }}/work/carry-penguin/scrum-penguin"
-    ]
-  },
   "mcpServers": {
     "playwright": {
       "command": "npx",
