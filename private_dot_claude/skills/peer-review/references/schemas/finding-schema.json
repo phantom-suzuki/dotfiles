@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://claude.local/schemas/peer-review/finding.json",
+  "title": "Peer-Review Finding Output",
+  "description": "他者 PR レビュー（俯瞰観点）の結果構造。self-review の finding-schema を踏襲しつつ、俯瞰観点の axis フィールドを必須化する。OpenAI strict mode 互換のため、全 properties は required に列挙し optional 値は null を許容する。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["findings", "summary"],
+  "properties": {
+    "findings": {
+      "type": "array",
+      "description": "個別の指摘。praise（良かった点）も findings に含めて classification=praise として返す。",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "classification", "axis", "file", "line", "title", "description", "suggestion"],
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": ["critical", "warning", "info"]
+          },
+          "classification": {
+            "type": "string",
+            "enum": ["must-fix", "should-fix", "nit", "praise", "question"],
+            "description": "他者 PR のレビュー分類。"
+          },
+          "axis": {
+            "type": "string",
+            "enum": ["security", "architecture", "goal-achievement", "alternatives", "spec-consistency", "other"],
+            "description": "俯瞰観点。peer-review の review-checklist 5 観点 + other。"
+          },
+          "file": {
+            "type": ["string", "null"],
+            "description": "対象ファイル（PR 全体への指摘なら null）。"
+          },
+          "line": {
+            "type": ["integer", "null"],
+            "minimum": 0,
+            "description": "対象行（不明 / 全体指摘なら null）。"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "suggestion": {
+            "type": ["string", "null"],
+            "description": "対応案（任意、無ければ null）。"
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "string",
+      "description": "総評（2-4 文）。"
+    }
+  }
+}
