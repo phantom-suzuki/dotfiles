@@ -1,17 +1,34 @@
 ---
 name: handover
-description: セッションの作業内容を引き継ぎ用にまとめる
+description: セッションの作業内容を引き継ぎ用にまとめる。セッション終了時や作業の区切りで使用。
 disable-model-invocation: true
 ---
 
 # Session Handover Skill
 
-現在のセッションで行った作業内容を引き継ぎ用にまとめ、プロジェクトルートの `HANDOVER.md` に保存する。
+現在のセッションで行った作業内容を引き継ぎ用にまとめ、`~/.claude/projects/<project-key>/handover.md` に保存する。
+
+## 保存先
+
+保存先は `~/.claude/projects/<project-key>/handover.md`。
+
+`<project-key>` は、現在の作業ディレクトリの絶対パス中の `/` を `-` に置換した文字列（先頭の `-` を含む。Claude Code 内部のプロジェクトキー形式）。
+
+```bash
+# 例: /Users/alice/work/my-app -> -Users-alice-work-my-app
+PROJECT_KEY=$(pwd | sed 's|/|-|g')
+OUTPUT_PATH="$HOME/.claude/projects/${PROJECT_KEY}/handover.md"
+```
+
+この配置のメリット:
+- リポジトリを汚さない（`.gitignore` 不要）
+- git worktree ごとに自動的に分離される（パスが異なるため）
+- Auto Memory と同じ場所に同居する
 
 ## Procedure
 
 1. 今回のセッションで行った作業を振り返る
-2. 以下のテンプレートに従って `HANDOVER.md` を作成（既存ファイルがある場合は上書き）
+2. 以下のテンプレートに従って `~/.claude/projects/<project-key>/handover.md` を作成（既存ファイルがある場合は上書き）
 3. 保存完了を報告する
 4. 次のアクションを案内する:
    - セッションを終了して再開する場合: `/exit` (または `Ctrl+D`) → `claude "/takeover"` で新セッション開始
