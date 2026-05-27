@@ -15,7 +15,7 @@ description: 並列作業を依頼されたとき worktree × Agent Teams のパ
 
 ## 判定フロー
 
-```
+```text
 並列作業の依頼
   ↓
 ブランチ分離が必要か？
@@ -48,7 +48,7 @@ description: 並列作業を依頼されたとき worktree × Agent Teams のパ
    ```
 2. `TeamCreate` → `Agent`（`team_name` 付き、`isolation` パラメータは指定しない）で teammate spawn
 3. **teammate prompt に worktree path を明示し、最初の操作を `cd <path>` に固定**:
-   ```
+   ```text
    ## 実行環境
    作業 worktree: <absolute path>
    最初に `cd <path>` してから `pwd` / `git branch --show-current` / `git worktree list` で確認すること。
@@ -130,7 +130,7 @@ teammate に最終報告で以下を必須項目として求める:
 
 並列作業の依頼を受けたら、以下を text で明示してから起動コマンドを実行する:
 
-```
+```text
 ## 並列作業判定
 - ブランチ分離: Yes / No
 - パターン: S / B / tmux 並列（オプション）

@@ -20,7 +20,7 @@ argument-hint: "[タイトルまたは決定内容の説明]"
 [references/directory-detection.md](references/directory-detection.md) のロジックに従い、以下を自動検出する。
 
 1. **ADR ディレクトリ**の特定
-2. **既存テンプレート**の有無（`template.md` の存在確認）
+2. **既存テンプレート**の有無（`template.md` / `adr-template.md` / `ADR-0000-template.md` / `000-template.md` の存在確認）
 3. **命名規則**の検出（既存ファイル名パターンを分析）
 4. **次の ADR 番号**の算出
 
@@ -56,7 +56,7 @@ argument-hint: "[タイトルまたは決定内容の説明]"
 
 以下の優先順位でテンプレートを決定する:
 
-1. **プロジェクト固有テンプレート**: Step 0 で検出した `template.md` があればそれを使用
+1. **プロジェクト固有テンプレート**: Step 0 で検出したプロジェクト固有テンプレート（`template.md` / `adr-template.md` / `ADR-0000-template.md` / `000-template.md`）があればそれを使用
 2. **標準テンプレート**: [templates/adr-standard.md](templates/adr-standard.md)
 3. **簡潔テンプレート**: 選択肢が1-2個で詳細な比較が不要な場合は [templates/adr-lightweight.md](templates/adr-lightweight.md)
 

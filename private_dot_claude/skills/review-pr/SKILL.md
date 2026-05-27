@@ -2,6 +2,7 @@
 name: review-pr
 description: PR のレビューコメントに対応する。レビュー対応やレビューコメントへの返信を依頼されたときに使用。
 argument-hint: "[pr-number]"
+disable-model-invocation: true
 ---
 
 # PR Review Response Skill
@@ -84,10 +85,12 @@ Follow the `/commit` and `/push` skill workflows:
 - **Human reviewer へは日本語で返信** — チームは全員日本語ネイティブ
 - **全ての返信に日本語の要約を付記** — CodeRabbit への英語返信にも `---` 区切りで日本語要約を追記し、チームメンバーが読み直す際のコストを下げる
 
-**For fixed items** — reply with the fix description and commit hash, then resolve the thread:
+#### GraphQL mutations
 
+Use these two mutations for all thread replies and resolutions:
+
+**Reply to a thread:**
 ```bash
-# 1. Reply with fix details
 gh api graphql -f query='
 mutation($threadId: ID!, $body: String!) {
   addPullRequestReviewThreadReply(input: {
@@ -96,75 +99,52 @@ mutation($threadId: ID!, $body: String!) {
   }) {
     comment { id }
   }
-}' -f threadId='<thread-id>' -f body='Fixed in <commit-hash>.
+}' -f threadId='<thread-id>' -f body='<reply-body>'
+```
+
+**Resolve a thread:**
+```bash
+gh api graphql -f query='
+mutation($threadId: ID!) {
+  resolveReviewThread(input: {
+    threadId: $threadId
+  }) {
+    thread { isResolved }
+  }
+}' -f threadId='<thread-id>'
+```
+
+#### Reply body by scenario
+
+**Fixed items** (reply → resolve):
+```
+Fixed in <commit-hash>.
 
 <brief description of the fix in English>
 
 ---
-📝 <日本語の修正内容の要約>'
+📝 <日本語の修正内容の要約>
 ```
 
+**Deferred items** (create Issue → reply → resolve):
 ```bash
-# 2. Resolve the thread
-gh api graphql -f query='
-mutation($threadId: ID!) {
-  resolveReviewThread(input: {
-    threadId: $threadId
-  }) {
-    thread { isResolved }
-  }
-}' -f threadId='<thread-id>'
-```
-
-**For deferred items** — create a tracking Issue, reply with the Issue link, then resolve the thread:
-
-```bash
-# 1. Create tracking Issue
 gh issue create --title "<title>" --label "enhancement" --body "<body>"
 ```
-
-```bash
-# 2. Reply with Issue link
-gh api graphql -f query='
-mutation($threadId: ID!, $body: String!) {
-  addPullRequestReviewThreadReply(input: {
-    pullRequestReviewThreadId: $threadId
-    body: $body
-  }) {
-    comment { id }
-  }
-}' -f threadId='<thread-id>' -f body='Out of scope for the current PR. Tracked in #<issue-number>.
+```
+Out of scope for the current PR. Tracked in #<issue-number>.
 
 ---
-📝 本PRのスコープ外のため、#<issue-number> で追跡します。'
+📝 本PRのスコープ外のため、#<issue-number> で追跡します。
 ```
 
-```bash
-# 3. Resolve the thread
-gh api graphql -f query='
-mutation($threadId: ID!) {
-  resolveReviewThread(input: {
-    threadId: $threadId
-  }) {
-    thread { isResolved }
-  }
-}' -f threadId='<thread-id>'
+**Human reviewer comments** (reply in Japanese → resolve):
 ```
+<commit-hash> で修正しました。
 
-**For human reviewer comments** — reply in Japanese:
+<日本語の修正内容の説明>
 
-```bash
-gh api graphql -f query='
-mutation($threadId: ID!, $body: String!) {
-  addPullRequestReviewThreadReply(input: {
-    pullRequestReviewThreadId: $threadId
-    body: $body
-  }) {
-    comment { id }
-  }
-}' -f threadId='<thread-id>' -f body='<commit-hash> で修正しました。
-
-<日本語の修正内容の説明>'
+---
+📝 <日本語の修正内容の要約>
 ```
 
 ### 6. Output Summary

@@ -37,19 +37,18 @@ Create a Pull Request with auto-detected base branch and generated description.
    ```
 
 4. **Generate PR title**:
-   - Follow Conventional Commits style: `<type>: <summary>`
-   - Max 70 characters
-   - Derive type from branch prefix (feature/ → feat, hotfix/ → fix, etc.)
+   - Japanese, max 70 characters
+   - Derive context from branch prefix and commit history
 
-5. **Generate PR body**:
+5. **Generate PR body** (Japanese):
    ```markdown
-   ## Summary
+   ## 概要
    <1-3 bullet points summarizing the changes>
 
-   ## Test Plan
+   ## テスト計画
    - [ ] <testing checklist items>
 
-   ## Related Issues
+   ## 関連 Issue
    closes #<issue-number> (if applicable)
    ```
 
@@ -72,3 +71,9 @@ Arguments in `$ARGUMENTS` are passed as additional `gh pr create` flags:
 - `--reviewer <user>` — request review
 - `--label <label>` — add labels
 - `--assignee @me` — self-assign
+
+## PR Merge Policy
+
+**PR のマージはユーザーの明示的な指示がある場合にのみ実行する。**
+
+「PR を作成してマージまで」等の曖昧な表現では、PR 作成までを行い、マージ前にユーザーに確認すること。

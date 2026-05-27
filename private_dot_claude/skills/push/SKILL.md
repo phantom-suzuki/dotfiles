@@ -54,3 +54,14 @@ Push commits to the remote repository with safety checks.
 - Never force push to protected branches (main, master, develop, release/*)
 - Never push with `--no-verify`
 - Always show what will be pushed before executing
+
+## Conflict Resolution Procedure
+
+If push is rejected due to remote changes:
+
+1. `git fetch origin`
+2. `git rebase origin/<base-branch>`
+3. Resolve conflicts manually for each file
+4. `git add <resolved-files>`
+5. `git rebase --continue`
+6. `git push --force-with-lease origin <branch>`

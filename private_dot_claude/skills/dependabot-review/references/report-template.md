@@ -6,7 +6,7 @@
 
 upsert のための識別子。コメント本文の **先頭行** に必ずこの行を含める:
 
-```
+```html
 <!-- dependabot-review:report -->
 ```
 
