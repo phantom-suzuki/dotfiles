@@ -134,10 +134,21 @@
       "Read(**/.env)",
       "Read(**/.env.*)"
     ],
-    "defaultMode": "acceptEdits",
-    "skipAutoPermissionPrompt": true
+    "defaultMode": "acceptEdits"
   },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/block-codex-direct.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
@@ -186,7 +197,9 @@
   "enabledPlugins": {
     "gopls-lsp@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true,
-    "codex@openai-codex": true
+    "codex@openai-codex": true,
+    "scrum-penguin@mationinc-claude-code-baseline": true,
+    "tameny-base@mationinc-claude-code-baseline": true
   },
   "extraKnownMarketplaces": {
     "openai-codex": {
@@ -194,11 +207,18 @@
         "source": "github",
         "repo": "openai/codex-plugin-cc"
       }
+    },
+    "mationinc-claude-code-baseline": {
+      "source": {
+        "source": "github",
+        "repo": "mationinc/claude-code-baseline"
+      }
     }
   },
   "language": "japanese",
   "effortLevel": "high",
   "teammateMode": "auto",
+  "skipAutoPermissionPrompt": true,
   "mcpServers": {
     "playwright": {
       "command": "npx",
