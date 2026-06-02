@@ -59,6 +59,33 @@ graph LR
 
 `graph LR` は横長になるため、ノード数が 5 以上で深い依存がある場合は `graph TD` のほうが読みやすい場合もある。
 
+## 描画検証（Mermaid 追加・変更時は push 前に必須）
+
+GitHub は Mermaid をクライアント側でレンダリングし、**CI も CodeRabbit も Mermaid の構文を検証しない**（CodeRabbit はレンダリングせず APPROVED を出す）。構文エラーは PR 差分ビューで人が目視するまで分からない。よって **Mermaid を追加・変更したら push する前に `mermaid.parse()` で構文検証する**。
+
+検証レシピ（一時ディレクトリで実行）:
+
+```bash
+cd /tmp && mkdir -p mmcheck && cd mmcheck
+npm init -y >/dev/null 2>&1 && npm install mermaid@11 jsdom --no-audit --no-fund >/dev/null 2>&1
+cat > check.mjs <<'EOF'
+import { JSDOM } from 'jsdom';
+import { readFileSync } from 'fs';
+const dom = new JSDOM('<!DOCTYPE html><body></body>', { pretendToBeVisual: true });
+global.window = dom.window; global.document = dom.window.document;
+const mermaid = (await import('mermaid')).default;
+mermaid.initialize({ startOnLoad: false });
+const def = readFileSync(process.argv[2], 'utf8');   // ```mermaid ブロックの中身だけを渡す
+try { await mermaid.parse(def); console.log('PASS'); }
+catch (e) { console.log('FAIL: ' + String(e.message || e).split('\n').slice(0,3).join(' | ')); process.exit(1); }
+EOF
+node check.mjs <抽出した .mmd ファイル>
+```
+
+### 既知の落とし穴
+
+- **`stateDiagram-v2` の別行 `class A,B name` 文 + 日本語ステート ID はレキサーで落ちる**（`Lexical error ... Unrecognized text`）。`class A,B name;` 形式は本来 flowchart の機能で stateDiagram のグラマーには無い。状態遷移を描くなら **`graph LR` / `graph TD`（flowchart）+ ASCII node ID + 日本語ラベル `id[日本語]`** にし、`classDef`/`class` は本ドキュメントの実装例パターンを使う（日本語 ID 問題も同時に回避できる）。
+
 ## 関連
 
 - GitHub Primer color tokens: <https://primer.style/foundations/color>
