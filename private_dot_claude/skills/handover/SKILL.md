@@ -64,7 +64,7 @@ OUTPUT_PATH="$HOME/.claude/projects/${PROJECT_KEY}/handover.md"
 <!-- 未解決の問題、注意事項、懸念点。なければ「なし」 -->
 
 ## Next Steps
-<!-- 次のセッションで最初にやるべきことをリストで -->
+<!-- 次のセッションで最初にやるべきことをリストで。対応する GitHub Issue がある項目は Issue 番号（例: #123）を併記する -->
 ```
 
 ## Rules
@@ -74,3 +74,4 @@ OUTPUT_PATH="$HOME/.claude/projects/${PROJECT_KEY}/handover.md"
 - 次のセッションの自分（Claude）が読んですぐ作業を再開できるレベルの具体性で書く
 - ファイルパスは省略せず正確に記述する
 - `git diff` や `git status` を確認して変更ファイルを正確に把握する
+- Next Steps の各項目は、対応する GitHub Issue があれば Issue 番号を併記する。`/takeover` が次回セッションで Next Steps と Sprint Board の実体を突き合わせ、整合チェック・ネクストアクションのランク付けに使う
