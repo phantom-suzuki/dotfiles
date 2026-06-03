@@ -107,4 +107,27 @@ alias -s md=mdv
 # Claude Code: effort high で起動（モデルは Default = Opus 4.7 1M context）
 alias claude='claude --effort high'
 
+# ─── Codex CLI: マルチアカウント切替 ───────────────────────────────
+# 主アカウントは既定の ~/.codex（env 不要）。もう一方は ~/.codex-work に置く。
+#   初回ログイン: CODEX_HOME=~/.codex-work codex login
+# セットアップ詳細は dotfiles の docs/account-switching.md を参照。
+alias codex-work='CODEX_HOME=$HOME/.codex-work codex'
+
+# カレント git リポを work アカウントに固定（direnv の .envrc を生成）。
+# .envrc は .git/info/exclude に入れてコミットされないようにする（同僚に影響させない）。
+codex-use-work() {
+  local root
+  root=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "not a git repo"; return 1; }
+  echo 'export CODEX_HOME=$HOME/.codex-work' > "$root/.envrc"
+  if [[ -f "$root/.git/info/exclude" ]] && ! grep -qxF '.envrc' "$root/.git/info/exclude"; then
+    echo '.envrc' >> "$root/.git/info/exclude"
+  fi
+  command -v direnv >/dev/null 2>&1 && direnv allow "$root"
+  echo "pinned $(basename "$root") -> ~/.codex-work (.envrc は git-excluded)"
+}
+
+# direnv: ディレクトリ単位の環境変数（.envrc で CODEX_HOME を自動切替）。
+# プロンプト確定後に読み込むため zshrc 末尾で hook を張る。
+command -v direnv >/dev/null 2>&1 && eval "$(direnv hook zsh)"
+
 

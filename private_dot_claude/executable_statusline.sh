@@ -56,6 +56,47 @@ fi
 # --- Cost formatting ---
 cost_fmt=$(printf '$%.2f' "$cost")
 
+# --- Rate limit segment (Claude.ai Pro/Max only; appears after 1st API response) ---
+# Nudges an account switch as you approach the usage cap before a rate-limit stop.
+# Thresholds overridable via env. All reads are guarded for absence (set -euo pipefail safe).
+RL_WARN=${CLAUDE_RL_WARN:-80}   # yellow gauge
+RL_CRIT=${CLAUDE_RL_CRIT:-90}   # red + macOS notification ("switch account")
+rl_full=""; rl_short=""
+five_h=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
+seven_d=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
+rl_max=0; rl_label=""; rl_reset=""
+if [[ -n "$five_h" ]]; then
+  v=${five_h%%.*}; v=${v:-0}; rl_max=$v; rl_label="5h"
+  rl_reset=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty')
+fi
+if [[ -n "$seven_d" ]]; then
+  v=${seven_d%%.*}; v=${v:-0}
+  if (( v > rl_max )); then
+    rl_max=$v; rl_label="7d"
+    rl_reset=$(echo "$input" | jq -r '.rate_limits.seven_day.resets_at // empty')
+  fi
+fi
+if [[ -n "$rl_label" ]]; then
+  if (( rl_max >= RL_CRIT )); then
+    rl_full="\033[31;1m⚠ ${rl_label}:${rl_max}% 切替検討\033[0m"
+    rl_short="\033[31;1m⚠${rl_max}%\033[0m"
+    # Desktop notification — macOS only, debounced once per reset window, backgrounded
+    if [[ "$(uname)" == "Darwin" && -n "$rl_reset" ]]; then
+      flag="$cache_dir/rl-notified-${rl_reset%%.*}"
+      if [[ ! -f "$flag" ]]; then
+        hm=$(date -r "${rl_reset%%.*}" +%H:%M 2>/dev/null || echo "?")
+        ( osascript -e "display notification \"${rl_label} 使用率 ${rl_max}%。${hm} にリセット。別アカウントへの切替を検討してください\" with title \"Claude Code rate limit\" sound name \"Sosumi\"" >/dev/null 2>&1 & )
+        : > "$flag"
+      fi
+    fi
+  elif (( rl_max >= RL_WARN )); then
+    rl_full="\033[33m${rl_label}:${rl_max}%\033[0m"; rl_short="\033[33m${rl_max}%\033[0m"
+  else
+    # Normal: show gauge on wide/medium only; keep narrow uncluttered
+    rl_full="\033[32m${rl_label}:${rl_max}%\033[0m"; rl_short=""
+  fi
+fi
+
 # --- Compose line (responsive) ---
 # Using printf '%b' for reliable escape handling across shells
 if (( cols >= 90 )); then
@@ -72,6 +113,7 @@ if (( cols >= 90 )); then
   [[ -n "$branch" ]] && line+=" \033[2m|\033[0m \033[35m${branch}\033[0m"
   line+=" \033[2m|\033[0m \033[${bar_color}m${bar}\033[0m \033[${bar_color}m${used}%\033[0m"
   line+=" \033[2m|\033[0m ${model} \033[2m${cost_fmt}\033[0m"
+  [[ -n "$rl_full" ]] && line+=" \033[2m|\033[0m ${rl_full}"
 
 elif (( cols >= 60 )); then
   # Medium: project | branch | XX% | $X.XX
@@ -79,10 +121,12 @@ elif (( cols >= 60 )); then
   [[ -n "$branch" ]] && line+=" \033[2m|\033[0m \033[35m${branch}\033[0m"
   line+=" \033[2m|\033[0m \033[${bar_color}m${used}%\033[0m"
   line+=" \033[2m|\033[0m \033[2m${cost_fmt}\033[0m"
+  [[ -n "$rl_full" ]] && line+=" \033[2m|\033[0m ${rl_full}"
 
 else
-  # Narrow: project XX% $X.XX
+  # Narrow: project XX% $X.XX  (rate-limit shown only when critical)
   line="\033[36m${project}\033[0m \033[${bar_color}m${used}%\033[0m \033[2m${cost_fmt}\033[0m"
+  [[ -n "$rl_short" ]] && line+=" ${rl_short}"
 fi
 
 printf '%b\n' "$line"

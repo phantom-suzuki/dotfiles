@@ -3,5 +3,6 @@ LICENSE
 CLAUDE.md
 Brewfile
 Brewfile.lock.json
+docs/
 dot_ssh/
 private_dot_claude/skills/self-review/.gemini-cooldown
