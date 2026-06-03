@@ -34,19 +34,23 @@ echo "target: $SESSION"
 
 ### Step 2: signal の抽出
 
-ユーザー発言を抽出し、下の「signal カタログ」のパターンに該当する箇所を拾う。
+**実ユーザー入力だけ**を抽出する。スキル注入本文（`<command-name>` 等で差し込まれる SKILL.md 全文）・ルール本文・ファイル内容は signal ではない。これらを拾うと誤検出する（実測: スキル定義内の例示文言や、parse 失敗を話題にした発言まで拾った）。
 
 ```bash
-# user 発言だけを 1 行 1 メッセージで抽出（string / array 両対応）
-jq -r 'select(.type=="user")
-  | if (.message.content|type)=="string" then .message.content
-    else (.message.content[]? | select(.type=="text") | .text) end' "$SESSION" \
+# 実ユーザー入力のみ抽出（meta・スキル注入・貼り付けられたスキル本文を除外）
+jq -r 'select(.type=="user" and (.isMeta != true))
+  | (if (.message.content|type)=="string" then .message.content
+     else (.message.content[]? | select(.type=="text") | .text) end)
+  | select(test("<command-name>|<command-message>|Base directory for this skill")|not)' "$SESSION" \
   | grep -v '^$'
 ```
 
-parse 失敗の signal は assistant 側にも出るので、ファイル全体から拾う:
+下の「signal カタログ」のパターンに該当する箇所を拾う。**grep ヒットがスキル定義・ルールの例示文言（例: `explain-discipline` の否定語リスト）でないかは必ず目視確認する。**
+
+parse 失敗は **grep のカウントを signal にしない**。`grep -c "malformed..."` はドキュメント本文やその語に触れた発言まで数え過大になる（実測: 実エラー 0 件を 12 件と誤カウント）。実際に parse 失敗が起きたかは「同一ツール呼び出しの連続 retry」「ユーザーが malformed を報告」で裏取りし、裏が取れなければ signal にしない:
 
 ```bash
+# 参考カウント（過大なので、これ自体は signal にしない・裏取り前提）
 grep -E -c -i "malformed and could not be parsed|tool call could not be parsed" "$SESSION"  # -E で BSD/GNU 両対応
 ```
 
