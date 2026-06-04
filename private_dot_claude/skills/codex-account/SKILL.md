@@ -96,6 +96,20 @@ codex-work
 自動 failover（429 検知で別アカウント再試行するラッパー）は、委譲先 Codex の常駐プロセスへの
 割り込みが壊れやすいため**作らない**。
 
+## Codex effort 制御マップ（レート消費の主因）
+
+`model_reasoning_effort`（reasoning effort）は **呼び出しパスによって `~/.codex/config.toml` を尊重するか無視するかが分かれる**。「effort を変えたのに効かない」「想定外にレートが減る」の原因切り分け表。
+
+| パス | config.toml を尊重? | effort の変え方 | レート消費 |
+|---|---|---|---|
+| 委譲（task-delegation T2 default / `/codex:rescue`） | ✅ する（`codex app-server` を `--ignore-user-config` なしで起動） | `~/.codex/config.toml` の `model_reasoning_effort` | **大（本丸）** |
+| peer-review L2 / self-review（`codex exec --ignore-user-config`） | ❌ 無視 | スクリプトに `-c model_reasoning_effort=<x>` を明示指定（`-c` は `--ignore-user-config` があっても効く） | 小（低頻度） |
+
+運用方針（メリハリ）:
+- **委譲（大量・定型）= `config.toml` で `medium`** に下げてレート節約。レートが急増したら**まずここの `xhigh` を疑う**
+- **レビュー系（少量・質重視）= `-c model_reasoning_effort=high` で固定**。実装は `peer-review/scripts/codex-review.sh` と `self-review/references/review-prompts.md` のインラインコメント参照
+- `~/.codex/config.toml` は chezmoi **管理外**（直接編集が永続。dotfiles リポジトリには含まれない）
+
 ## アンチパターン
 
 | ❌ NG | ✅ OK |
