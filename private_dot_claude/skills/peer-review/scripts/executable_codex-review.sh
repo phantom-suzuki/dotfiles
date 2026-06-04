@@ -69,7 +69,12 @@ trap 'rm -f "$JSONL_FILE" "$LAST_FILE"' EXIT
 >&2 echo "[peer-review] Codex review 実行中 (base=$BASE_BRANCH)..."
 
 # Codex を非対話で実行。PROMPT は渡さない（--base と排他のため）
+# -c model_reasoning_effort=high: L2 セカンドオピニオンは質が命なので effort を high に固定する。
+#   --ignore-user-config で config.toml を無視するため、-c 明示指定で effort を上書きする
+#   （委譲パスのグローバル default は medium に下げてレートを節約しているが、低頻度な
+#    レビューだけは high を選ぶメリハリ運用）
 codex exec review \
+  -c model_reasoning_effort=high \
   --base "$BASE_BRANCH" \
   --json \
   --ignore-user-config \

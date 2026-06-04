@@ -188,6 +188,7 @@ trap 'rm -f "$TMP"' EXIT
   cat -
   echo '```'
 } <<< "$DIFF" | codex exec \
+  -c model_reasoning_effort=high \
   --output-schema "$SCHEMA" \
   --output-last-message "$TMP" \
   --sandbox read-only \
@@ -198,6 +199,8 @@ cat "$TMP"
 ```
 
 `$CODEX_REPRO_FLAGS` は Step 0 で `codex >= 0.122` のとき `--ignore-user-config --ignore-rules` に展開される（古い codex では空文字）。
+
+`-c model_reasoning_effort=high` は外部レビューの effort を high に固定する。`--ignore-user-config` で `~/.codex/config.toml` を無視するため、effort を狙った値にするには `-c` 明示指定が必須。委譲パスのグローバル default は medium に下げてレートを節約しつつ、低頻度なセカンドオピニオンだけ high を選ぶメリハリ運用（委譲パスは config.toml を尊重するが、レビュー系は `--ignore-user-config` で読まない）。
 
 ### 呼び出し例（design 観点を Claude-p に投げる、`--with-design` 時のデフォルト）
 
@@ -347,6 +350,7 @@ trap 'rm -f "$TMP"' EXIT
   echo "$DIFF"
   echo '```'
 } | codex exec \
+  -c model_reasoning_effort=high \
   --output-schema "$SCHEMA" \
   --output-last-message "$TMP" \
   --sandbox read-only \
