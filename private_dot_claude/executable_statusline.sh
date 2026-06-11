@@ -44,6 +44,45 @@ if [[ -n "$project_dir" && ( -d "$project_dir/.git" || -f "$project_dir/.git" ) 
   fi
 fi
 
+# --- Open PR for current branch (cached per branch, 60s TTL) ---
+# Replicates the open-PR indicator Claude Code's default statusline used to show.
+# gh is a network call, so cache aggressively and guard every read (set -euo pipefail safe).
+pr_number=""; pr_url=""
+if [[ -n "$branch" && -n "$project_dir" ]] && command -v gh >/dev/null 2>&1; then
+  pr_cache="${cache_file}.pr"
+  use_pr_cache=""
+  if [[ -f "$pr_cache" ]]; then
+    pr_ctime=$(sed -n '1p' "$pr_cache" 2>/dev/null || echo 0); pr_ctime=${pr_ctime:-0}
+    pr_cbranch=$(sed -n '2p' "$pr_cache" 2>/dev/null || echo "")
+    if [[ "$pr_cbranch" == "$branch" ]] && (( now - pr_ctime < 60 )); then
+      pr_number=$(sed -n '3p' "$pr_cache" 2>/dev/null || echo "")
+      pr_url=$(sed -n '4p' "$pr_cache" 2>/dev/null || echo "")
+      use_pr_cache=1
+    fi
+  fi
+  if [[ -z "$use_pr_cache" ]]; then
+    pr_line=$( (cd "$project_dir" && gh pr view --json number,url,state 2>/dev/null) \
+      | jq -r 'select(.state=="OPEN") | "\(.number)\t\(.url)"' 2>/dev/null || true )
+    if [[ "$pr_line" == *$'\t'* ]]; then
+      pr_number="${pr_line%%$'\t'*}"
+      pr_url="${pr_line#*$'\t'}"
+    else
+      pr_number=""; pr_url=""
+    fi
+    printf '%s\n%s\n%s\n%s\n' "$now" "$branch" "$pr_number" "$pr_url" > "$pr_cache"
+  fi
+fi
+
+# --- PR segment (clickable OSC 8 hyperlink when URL is known) ---
+pr_seg=""
+if [[ -n "$pr_number" ]]; then
+  if [[ -n "$pr_url" ]]; then
+    pr_seg="\033[34m\033]8;;${pr_url}\033\134PR #${pr_number}\033]8;;\033\134\033[0m"
+  else
+    pr_seg="\033[34mPR #${pr_number}\033[0m"
+  fi
+fi
+
 # --- Context bar color ---
 if (( used >= 80 )); then
   bar_color="31"   # red
@@ -97,10 +136,12 @@ if [[ -n "$rl_label" ]]; then
   fi
 fi
 
-# --- Compose line (responsive) ---
-# Using printf '%b' for reliable escape handling across shells
+# --- Compose lines (responsive; wide/medium render two rows) ---
+# Row 1 = identity (project | branch | PR), Row 2 = metrics (context | model | cost | rate-limit).
+# Narrow stays a single row. Using printf '%b' for reliable escape handling across shells.
+line1=""; line2=""
 if (( cols >= 90 )); then
-  # Wide: project | branch | ▓▓▓░░░░░░░ XX% | model $X.XX
+  # Wide
   bar_width=10
   filled=$(( used * bar_width / 100 ))
   (( filled > bar_width )) && filled=$bar_width
@@ -109,24 +150,31 @@ if (( cols >= 90 )); then
   for (( i=0; i<filled; i++ )); do bar+="▓"; done
   for (( i=0; i<empty; i++ ));  do bar+="░"; done
 
-  line="\033[36;1m${project}\033[0m"
-  [[ -n "$branch" ]] && line+=" \033[2m|\033[0m \033[35m${branch}\033[0m"
-  line+=" \033[2m|\033[0m \033[${bar_color}m${bar}\033[0m \033[${bar_color}m${used}%\033[0m"
-  line+=" \033[2m|\033[0m ${model} \033[2m${cost_fmt}\033[0m"
-  [[ -n "$rl_full" ]] && line+=" \033[2m|\033[0m ${rl_full}"
+  # Row 1: project | branch | PR
+  line1="\033[36;1m${project}\033[0m"
+  [[ -n "$branch" ]] && line1+=" \033[2m|\033[0m \033[35m${branch}\033[0m"
+  [[ -n "$pr_seg" ]] && line1+=" \033[2m|\033[0m ${pr_seg}"
+  # Row 2: ▓▓▓░░ XX% | model $X.XX | rate-limit
+  line2="\033[${bar_color}m${bar}\033[0m \033[${bar_color}m${used}%\033[0m"
+  line2+=" \033[2m|\033[0m ${model} \033[2m${cost_fmt}\033[0m"
+  [[ -n "$rl_full" ]] && line2+=" \033[2m|\033[0m ${rl_full}"
 
 elif (( cols >= 60 )); then
-  # Medium: project | branch | XX% | $X.XX
-  line="\033[36;1m${project}\033[0m"
-  [[ -n "$branch" ]] && line+=" \033[2m|\033[0m \033[35m${branch}\033[0m"
-  line+=" \033[2m|\033[0m \033[${bar_color}m${used}%\033[0m"
-  line+=" \033[2m|\033[0m \033[2m${cost_fmt}\033[0m"
-  [[ -n "$rl_full" ]] && line+=" \033[2m|\033[0m ${rl_full}"
+  # Medium
+  # Row 1: project | branch | PR
+  line1="\033[36;1m${project}\033[0m"
+  [[ -n "$branch" ]] && line1+=" \033[2m|\033[0m \033[35m${branch}\033[0m"
+  [[ -n "$pr_seg" ]] && line1+=" \033[2m|\033[0m ${pr_seg}"
+  # Row 2: XX% | $X.XX | rate-limit
+  line2="\033[${bar_color}m${used}%\033[0m"
+  line2+=" \033[2m|\033[0m \033[2m${cost_fmt}\033[0m"
+  [[ -n "$rl_full" ]] && line2+=" \033[2m|\033[0m ${rl_full}"
 
 else
-  # Narrow: project XX% $X.XX  (rate-limit shown only when critical)
-  line="\033[36m${project}\033[0m \033[${bar_color}m${used}%\033[0m \033[2m${cost_fmt}\033[0m"
-  [[ -n "$rl_short" ]] && line+=" ${rl_short}"
+  # Narrow: single row — project XX% $X.XX (rate-limit shown only when critical)
+  line1="\033[36m${project}\033[0m \033[${bar_color}m${used}%\033[0m \033[2m${cost_fmt}\033[0m"
+  [[ -n "$rl_short" ]] && line1+=" ${rl_short}"
 fi
 
-printf '%b\n' "$line"
+printf '%b\n' "$line1"
+[[ -n "$line2" ]] && printf '%b\n' "$line2"
