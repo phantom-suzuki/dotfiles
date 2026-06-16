@@ -173,7 +173,7 @@ elif (( cols >= 60 )); then
 else
   # Narrow: single row — project XX% $X.XX (rate-limit shown only when critical)
   line1="\033[36m${project}\033[0m \033[${bar_color}m${used}%\033[0m \033[2m${cost_fmt}\033[0m"
-  [[ -n "$rl_short" ]] && line1+=" ${rl_short}"
+  (( rl_max >= RL_CRIT )) && [[ -n "$rl_short" ]] && line1+=" ${rl_short}"
 fi
 
 printf '%b\n' "$line1"
