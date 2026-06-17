@@ -30,6 +30,7 @@
 #   jq '...' /tmp/board.json   # repeat freely, zero API cost
 
 set -euo pipefail
+umask 077  # cache may hold private-repo API responses; keep cache files owner-only
 
 CACHE_DIR="${GH_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/gh-api-cache}"
 TTL="${GH_CACHE_TTL:-300}"
@@ -121,12 +122,15 @@ meta_file="$CACHE_DIR/$key.meta"
 ce_ts=0
 ce_etag=""
 if [[ -f "$meta_file" ]]; then
+  # Read only the first two lines (ts, etag). The cmd line written by write_meta
+  # can contain newlines (e.g. multi-line GraphQL queries); reading it here would
+  # let an embedded "ts="/"etag=" line override the real values.
   while IFS='=' read -r k v; do
     case "$k" in
       ts) ce_ts="$v" ;;
       etag) ce_etag="$v" ;;
     esac
-  done <"$meta_file"
+  done < <(head -n2 "$meta_file")
 fi
 [[ "$ce_ts" =~ ^[0-9]+$ ]] || ce_ts=0
 
@@ -136,8 +140,8 @@ write_meta() { # $1=ts $2=etag
 
 budget_note() { # $1=header-or-mixed file
   local rem res
-  rem="$(grep -i '^x-ratelimit-remaining:' "$1" 2>/dev/null | head -n1 | tr -d '\r' | awk -F': ' '{print $2}')"
-  res="$(grep -i '^x-ratelimit-resource:' "$1" 2>/dev/null | head -n1 | tr -d '\r' | awk -F': ' '{print $2}')"
+  rem="$(grep -i '^x-ratelimit-remaining:' "$1" 2>/dev/null | head -n1 | tr -d '\r' | awk -F': ' '{print $2}' || true)"
+  res="$(grep -i '^x-ratelimit-resource:' "$1" 2>/dev/null | head -n1 | tr -d '\r' | awk -F': ' '{print $2}' || true)"
   if [[ "$rem" =~ ^[0-9]+$ ]] && ((rem < WARN_REMAINING)); then
     printf 'gh-cache: WARN rate budget low (resource=%s remaining=%s)\n' "${res:-unknown}" "$rem" >&2
   fi
@@ -179,7 +183,7 @@ if [[ "$sub" == "api" && $is_graphql -eq 0 && $method_read -eq 1 ]]; then
   fi
 
   if [[ "$status" == "200" ]]; then
-    new_etag="$(grep -i '^etag:' "$tmp" | head -n1 | tr -d '\r' | awk -F': ' '{print $2}')"
+    new_etag="$(grep -i '^etag:' "$tmp" 2>/dev/null | head -n1 | tr -d '\r' | awk -F': ' '{print $2}' || true)"
     strip_headers <"$tmp" >"$body_file"
     write_meta "$(now)" "$new_etag"
     printf 'gh-cache: MISS stored (api)\n' >&2
@@ -205,12 +209,21 @@ else
   rc=$?
 fi
 
-if [[ $rc -eq 0 && -s "$tmp" ]]; then
+# gh api graphql returns HTTP 200 + {"errors":[...]} with rc=0 on query errors.
+# Caching that would serve the error payload for the whole TTL, so detect and skip it.
+graphql_err=0
+if [[ $is_graphql -eq 1 ]] && command -v jq >/dev/null 2>&1; then
+  if jq -e 'has("errors") and (.errors | length > 0)' "$tmp" >/dev/null 2>&1; then
+    graphql_err=1
+  fi
+fi
+
+if [[ $rc -eq 0 && -s "$tmp" && $graphql_err -eq 0 ]]; then
   cp "$tmp" "$body_file"
   write_meta "$(now)" "$ce_etag"
   printf 'gh-cache: MISS stored (%s %s)\n' "$sub" "$verb" >&2
 else
-  printf 'gh-cache: not cached (rc=%s, empty=%s)\n' "$rc" "$([[ -s "$tmp" ]] && echo no || echo yes)" >&2
+  printf 'gh-cache: not cached (rc=%s, empty=%s, graphql_err=%s)\n' "$rc" "$([[ -s "$tmp" ]] && echo no || echo yes)" "$graphql_err" >&2
 fi
 
 cat "$tmp"
