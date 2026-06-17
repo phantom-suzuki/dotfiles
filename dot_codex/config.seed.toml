@@ -1,0 +1,21 @@
+# Codex CLI ポータブル設定 seed（chezmoi 管理）
+#
+# このファイルは ~/.codex/config.toml の「ポータブルな部分だけ」を切り出した seed です。
+# config.toml 本体は Codex.app が以下を自動生成・自動蓄積するため chezmoi 管理外にしています:
+#   - [projects.*]      … 各リポの絶対パス + trust_level（マシン固有・自動蓄積）
+#   - notify / [mcp_servers.node_repl] … /Applications/Codex.app のパス・SHA256・appバージョン
+#   - [marketplaces.*] / [plugins.*] / [notice] … timestamp・ローカルキャッシュ（常時 churn）
+#
+# 新マシンセットアップ手順:
+#   1. Codex.app を起動して config.toml を自動生成させる
+#   2. 下記の値を ~/.codex/config.toml の該当キーに反映する（先頭 model 2 行 + [features]）
+#
+# Effort 運用方針の正本は ~/.claude/rules/codex-config.md を参照。
+
+# 既定モデルと reasoning effort。委譲パス（task-delegation T2 / /codex:rescue）はこの
+# default を尊重するため、Codex のレート消費はまずこの値で調整する（普段は medium で節約）。
+model = "gpt-5.5"
+model_reasoning_effort = "medium"
+
+[features]
+js_repl = false
