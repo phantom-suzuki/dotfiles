@@ -23,3 +23,8 @@
 [commit]
 	gpgsign = true
 {{- end }}
+{{- $machineId := joinPath .chezmoi.homeDir ".coderabbit" "machine-id" }}
+{{- if stat $machineId }}
+[coderabbit]
+	machineId = {{ output "cat" $machineId | trim }}
+{{- end }}
