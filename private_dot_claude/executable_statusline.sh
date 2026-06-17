@@ -52,7 +52,7 @@ if [[ -n "$branch" && -n "$project_dir" ]] && command -v gh >/dev/null 2>&1; the
   pr_cache="${cache_file}.pr"
   use_pr_cache=""
   if [[ -f "$pr_cache" ]]; then
-    pr_ctime=$(sed -n '1p' "$pr_cache" 2>/dev/null || echo 0); pr_ctime=${pr_ctime:-0}
+    pr_ctime=$(sed -n '1p' "$pr_cache" 2>/dev/null || echo 0); pr_ctime=${pr_ctime//[^0-9]/}; pr_ctime=${pr_ctime:-0}
     pr_cbranch=$(sed -n '2p' "$pr_cache" 2>/dev/null || echo "")
     if [[ "$pr_cbranch" == "$branch" ]] && (( now - pr_ctime < 60 )); then
       pr_number=$(sed -n '3p' "$pr_cache" 2>/dev/null || echo "")
