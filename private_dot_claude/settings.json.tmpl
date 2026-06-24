@@ -1,7 +1,11 @@
 {
+  "model": "claude-opus-4-8",
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
-    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "64000"
+    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "64000",
+    "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1",
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "200000",
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "65"
   },
   "permissions": {
     "allow": [
@@ -22,7 +26,6 @@
       "Bash(git checkout *)",
       "Bash(git switch *)",
       "Bash(git merge *)",
-      "Bash(git rebase *)",
       "Bash(git stash *)",
       "Bash(git fetch *)",
       "Bash(git pull *)",
@@ -129,6 +132,7 @@
       "Bash(git push origin master)",
       "Bash(git reset --hard *)",
       "Bash(git clean -f *)",
+      "Bash(git rebase *)",
       "Read(.env)",
       "Read(.env.*)",
       "Read(**/.env)",
@@ -212,11 +216,13 @@
       "source": {
         "source": "github",
         "repo": "mationinc/claude-code-baseline"
-      }
+      },
+      "autoUpdate": true
     }
   },
   "language": "japanese",
   "effortLevel": "high",
+  "skipWorkflowUsageWarning": true,
   "teammateMode": "auto",
   "skipAutoPermissionPrompt": true,
   "mcpServers": {
@@ -226,5 +232,6 @@
         "@playwright/mcp@latest"
       ]
     }
-  }
+  },
+  "tui": "fullscreen"
 }
