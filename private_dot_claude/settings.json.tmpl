@@ -3,9 +3,7 @@
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
     "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "64000",
-    "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1",
-    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "200000",
-    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "65"
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "30"
   },
   "permissions": {
     "allow": [
@@ -189,6 +187,22 @@
             "command": "python3 ~/.claude/hooks/notify.py",
             "timeout": 5000,
             "once": true
+          },
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/precompact-snapshot.py",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/postcompact-reinject.py",
+            "timeout": 30
           }
         ]
       }
@@ -221,7 +235,6 @@
     }
   },
   "language": "japanese",
-  "effortLevel": "high",
   "skipWorkflowUsageWarning": true,
   "teammateMode": "auto",
   "skipAutoPermissionPrompt": true,
