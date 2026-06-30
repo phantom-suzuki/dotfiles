@@ -38,7 +38,7 @@ gh issue view <番号> --json number,title,state --jq '"#\(.number) [\(.state)] 
 
 以下のテンプレートの `<番号>` を確定した Issue 番号で置換し、**そのまま貼り付け可能な 1 行**としてコードブロックで提示する。
 
-```
+```text
 /goal Issue #<番号> を着手してください。Issue の AC が明確でない場合は判断を仰いでください。修正後はセルフレビューを行い、問題がなくなったら PR を作成、CodeRabbit のレビューを待ち必要に応じて review-pr スキルで指摘対応、CodeRabbit Approved・CI 通過を確認できたら動作確認のうえマージ指示を仰いでください。
 ```
 
