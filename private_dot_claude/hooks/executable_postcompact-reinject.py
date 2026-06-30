@@ -9,6 +9,7 @@ JSON を stdout に出すだけで副作用はない。
 """
 import sys
 import os
+import re
 import json
 import pathlib
 
@@ -29,7 +30,10 @@ def main():
     except Exception:
         data = {}
 
-    session_id = data.get("session_id", "unknown")
+    # precompact 側と同じ無害化を行う。session_id が無ければスナップショットは読まない
+    # （別セッションの compact-snapshot-unknown.md を誤って再注入しないため）。
+    raw_session_id = str(data.get("session_id") or "").strip()
+    session_id = re.sub(r"[^A-Za-z0-9._-]", "_", raw_session_id) if raw_session_id else None
     transcript = data.get("transcript_path", "")
     cwd = data.get("cwd", os.getcwd())
 
@@ -47,9 +51,10 @@ def main():
 
     # PreCompact が残した機械的スナップショットがあれば再注入
     snap = (
-        pathlib.Path.home() / ".claude" / "state" / f"compact-snapshot-{session_id}.md"
+        None if session_id is None
+        else pathlib.Path.home() / ".claude" / "state" / f"compact-snapshot-{session_id}.md"
     )
-    if snap.is_file():
+    if snap and snap.is_file():
         try:
             parts.append("【直前スナップショット】\n" + snap.read_text(encoding="utf-8")[:4000])
         except Exception:

@@ -9,6 +9,7 @@ PostCompact フックがこのファイルを読んで再注入する。
 """
 import sys
 import os
+import re
 import json
 import subprocess
 import datetime
@@ -21,7 +22,12 @@ def main():
     except Exception:
         data = {}
 
-    session_id = data.get("session_id", "unknown")
+    # session_id が無い回は別セッションのスナップショットと混線するため保存しない。
+    # ファイル名に使う前に "/" 等を無害化してパストラバーサルも防ぐ。
+    raw_session_id = str(data.get("session_id") or "").strip()
+    if not raw_session_id:
+        sys.exit(0)
+    session_id = re.sub(r"[^A-Za-z0-9._-]", "_", raw_session_id)
     transcript = data.get("transcript_path", "")
     cwd = data.get("cwd", os.getcwd())
     trigger = data.get("trigger", "?")
