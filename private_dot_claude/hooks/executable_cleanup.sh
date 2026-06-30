@@ -12,6 +12,10 @@ RETENTION_DAYS=3
 find "${CLAUDE_DIR}/todos" -type f -name "*.json" -mtime +${RETENTION_DAYS} -delete 2>/dev/null || true
 find "${CLAUDE_DIR}/shell-snapshots" -type f -name "*.sh" -mtime +${RETENTION_DAYS} -delete 2>/dev/null || true
 
+# PreCompact フックが残す compaction スナップショット（state/compact-snapshot-*.md）の蓄積防止。
+# セッションごとに 1 ファイル増え、自動 retention が無いため放置すると無限蓄積する。
+find "${CLAUDE_DIR}/state" -type f -name "compact-snapshot-*.md" -mtime +${RETENTION_DAYS} -delete 2>/dev/null || true
+
 # Codex CLI トレースログ（logs_*.sqlite）の肥大防止
 # Codex は自動 retention を持たず logs テーブルに無限追記する（実測 ~48MB/日）。
 # RETENTION_DAYS より古い行を削除し、Codex 非走行時かつ 50MB 超のときだけ VACUUM で実圧縮する。
