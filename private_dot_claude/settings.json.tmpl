@@ -1,9 +1,34 @@
 {
   "model": "claude-opus-4-8",
+  {{/*
+    effort は medium で固定する。理由: Opus 4.8 + 1M context + high effort が
+    Case B（tool_use ブロック欠落）の既知高リスク構成であり、下の 1M 無効化と
+    セットで effort も落とすのが HANDOVER-tool-fabrication-2026-06-19.md の意図。
+    個別セッションで負荷の高い作業をするときは `/effort high` で一時的に上げられる。
+  */}}
+  "effortLevel": "medium",
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
     "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "64000",
-    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "30"
+    {{/*
+      1M コンテキストは無効化する。model 名は Opus のまま（~/.claude は Opus 用
+      config、Fable パイロットは別 config dir）で、1M の on/off はこの env 変数で
+      制御する。無効化の理由: Opus 4.8 + 1M + extended thinking + 長時間セッションが
+      ツール結果・偽ユーザーターンの捏造（Case B / anthropics/claude-code#69015 等）を
+      誘発する既知の高リスク構成であり、コスト・安定性リスクが常用のメリットを上回るため。
+      再有効化してよい条件: Fable 5 等で長大コンテキストが実際に必要になり、その構成で
+      安定性を実測確認できた場合のみ。
+    */}}
+    "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1",
+    {{/*
+      以下 2 つの auto-compact 設定は 1M 無効化（= 200k コンテキスト運用）に整合させた値。
+      WINDOW=200000・PCT=65 で概ね 130k 到達時に compact が発火する。
+      PCT=30 は 1M 有効（大コンテキスト）を前提にした値で、200k 運用のままだと約 60k で
+      compact が発火し早すぎる。1M 無効化と PCT はセットの依存関係にあるため、1M を戻す
+      場合はこの 2 値も 1M 前提（PCT=30・WINDOW 撤去）に合わせて見直すこと。
+    */}}
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "200000",
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "65"
   },
   "permissions": {
     "allow": [
