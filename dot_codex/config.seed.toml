@@ -19,3 +19,19 @@ model_reasoning_effort = "medium"
 
 [features]
 js_repl = false
+
+# --- 拡張機構（skills / hooks / MCP）の dotfiles 化方針 ---
+#
+# Codex は Claude Code の拡張機構に 1:1 対応する仕組みを持つ（Issue #14 の調査）:
+#   - skills … config.toml の [skills] で SKILL.md を自動トリガ、per-skill enable/disable
+#   - hooks  … hooks.json / inline [hooks]。PreToolUse / PostToolUse / SessionStart 等。
+#              type=command のハンドラのみ実行（prompt / agent ハンドラは未実装）
+#   - mcp    … [mcp_servers]。stdio / streamable HTTP、enabled_tools/disabled_tools の
+#              allow/denylist、default_tools_approval_mode
+#
+# これらの「実体」の dotfiles 化はこの seed には未収録（フォローアップで対応）。理由:
+# 実機の hooks / MCP 定義はマシン固有の絶対パス・SHA256・app バージョンを含み、そのまま
+# 追跡すると別マシンで有害・常時 churn になる（config.toml 本体を管理外にしたのと同じ問題）。
+# seed 方式に載せるには chezmoi tmpl 化によるパス抽象化の設計が別途必要。
+#
+# 詳細な方針・分担の正本は ~/.claude/rules/codex-config.md を参照。
