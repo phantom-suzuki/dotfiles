@@ -1,0 +1,19 @@
+{
+  "skill_name": "pr-reviewer",
+  "evals": [
+    {
+      "id": 0,
+      "name": "multi-pr-triage-summary",
+      "prompt": "mationinc/matchmaking-platform の #1126 と #1090 をレビューして。投稿はせずドラフト作成まで。",
+      "expected_output": "2件のトリアージ表、各PRの経緯/目的/内容の日常語要約、L1(+可能ならL2)評価、推奨判定と理由、トップ+行コメントのドラフト",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "changes-requested-resolution",
+      "prompt": "mationinc/matchmaking-platform の #1137 をレビューして。投稿はせずドラフト作成まで。",
+      "expected_output": "otake-yuya の CHANGES_REQUESTED が後続コミットで解消済みと見抜き蒸し返さない。L1(+可能ならL2)評価、推奨判定と理由、ドラフト",
+      "files": []
+    }
+  ]
+}
