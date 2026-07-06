@@ -22,6 +22,7 @@ Go template 構文（`{{ .variable }}`）を使用するファイル:
 | `dot_gitconfig.tmpl` | `~/.gitconfig` | `{{ .name }}`, `{{ .email }}` |
 | `dot_zshrc.tmpl` | `~/.zshrc` | なし（将来のマシン分岐用に `.tmpl` 維持） |
 | `.chezmoi.toml.tmpl` | `~/.config/chezmoi/chezmoi.toml` | `promptStringOnce` で初回入力 |
+| `private_dot_claude/settings.json.tmpl` | `~/.claude/settings.json` | `data.claude.*`（省略時は default 値。下表参照） |
 | `run_once_install-packages.sh.tmpl` | (実行のみ) | `{{ .chezmoi.sourceDir }}` |
 
 変数は `~/.config/chezmoi/chezmoi.toml` で定義:
@@ -31,6 +32,31 @@ Go template 構文（`{{ .variable }}`）を使用するファイル:
     name = "phantom-suzuki"
     email = "h.suzuki@sorenalab.com"
 ```
+
+### Claude Code settings の上書き変数（`data.claude.*`）
+
+`private_dot_claude/settings.json.tmpl`（`~/.claude/settings.json` を生成する chezmoi テンプレート）のマシン固有・個人固有になり得る値は、`data.claude.*` で上書きできる。`dig` 関数で「未定義なら default」にフォールバックするため、`[data.claude]` を書かなくても現状と同一の JSON が生成される（後方互換）。default 値は settings.json のモデル・1M コンテキスト設定を再設計した Issue #22 の決定値。
+
+| 変数 | 意味 | default |
+|------|------|---------|
+| `data.claude.model` | モデル名 | `claude-opus-4-8` |
+| `data.claude.effortLevel` | reasoning effort | `medium` |
+| `data.claude.disable1m` | 1M コンテキスト無効化（`"1"`=無効 / `"0"`=有効） | `"1"` |
+| `data.claude.autoCompactWindow` | auto-compact のコンテキスト窓 | `200000` |
+| `data.claude.autoCompactPct` | auto-compact 発火閾値 % | `65` |
+
+マシンごとに変えたいときは `~/.config/chezmoi/chezmoi.toml` の `[data.claude]` に値を書く（例は `.chezmoi.toml.tmpl` のコメント参照）:
+
+```toml
+[data.claude]
+    model = "claude-opus-4-8"
+    effortLevel = "medium"
+    disable1m = "1"
+    autoCompactWindow = "200000"
+    autoCompactPct = "65"
+```
+
+> **注意（1M と auto-compact の依存）**: `disable1m` を `"0"`（1M 有効）に戻す場合、`autoCompactWindow` / `autoCompactPct` も 1M 前提の値に見直すこと。理由は `settings.json.tmpl` 内の `{{/* */}}` コメントに記載。
 
 ## 外部リポジトリ
 

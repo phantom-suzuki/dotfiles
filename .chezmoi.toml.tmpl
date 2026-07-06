@@ -1,3 +1,13 @@
 [data]
     name = "{{ promptStringOnce . "name" "Git user name" }}"
     email = "{{ promptStringOnce . "email" "Git email" }}"
+
+# Claude Code settings.json.tmpl のマシン固有・個人固有の値を上書きする。
+# 未定義のままなら #22 で決めた default 値がレンダリングされる（後方互換）。
+# マシンごとに変えたいときだけ [data.claude] のコメントを外して値を設定する。
+# [data.claude]
+#     model = "claude-opus-4-8"      # モデル名（default: claude-opus-4-8）
+#     effortLevel = "medium"          # reasoning effort（default: medium）
+#     disable1m = "1"                 # 1M コンテキスト無効化（"1"=無効 / "0"=有効, default: "1"）
+#     autoCompactWindow = "200000"    # auto-compact のコンテキスト窓（default: 200000, 1M 無効前提）
+#     autoCompactPct = "65"           # auto-compact 発火閾値 %（default: 65, 1M 無効前提）

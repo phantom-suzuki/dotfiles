@@ -1,12 +1,14 @@
 {
-  "model": "claude-opus-4-8",
+  {{/* 上書き: data.claude.model で変更可。未定義なら下の default（#22 の決定値）。 */}}
+  "model": "{{ dig "claude" "model" "claude-opus-4-8" . }}",
   {{/*
     effort は medium で固定する。理由: Opus 4.8 + 1M context + high effort が
     Case B（tool_use ブロック欠落）の既知高リスク構成であり、下の 1M 無効化と
     セットで effort も落とすのが HANDOVER-tool-fabrication-2026-06-19.md の意図。
     個別セッションで負荷の高い作業をするときは `/effort high` で一時的に上げられる。
   */}}
-  "effortLevel": "medium",
+  {{/* 上書き: data.claude.effortLevel で変更可。未定義なら default（#22 の決定値）。 */}}
+  "effortLevel": "{{ dig "claude" "effortLevel" "medium" . }}",
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
     "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "64000",
@@ -19,7 +21,8 @@
       再有効化してよい条件: Fable 5 等で長大コンテキストが実際に必要になり、その構成で
       安定性を実測確認できた場合のみ。
     */}}
-    "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1",
+    {{/* 上書き: data.claude.disable1m（"1"=無効/"0"=有効）で変更可。未定義なら default（#22 の決定値=無効）。 */}}
+    "CLAUDE_CODE_DISABLE_1M_CONTEXT": "{{ dig "claude" "disable1m" "1" . }}",
     {{/*
       以下 2 つの auto-compact 設定は 1M 無効化（= 200k コンテキスト運用）に整合させた値。
       WINDOW=200000・PCT=65 で概ね 130k 到達時に compact が発火する。
@@ -27,8 +30,9 @@
       compact が発火し早すぎる。1M 無効化と PCT はセットの依存関係にあるため、1M を戻す
       場合はこの 2 値も 1M 前提（PCT=30・WINDOW 撤去）に合わせて見直すこと。
     */}}
-    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "200000",
-    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "65"
+    {{/* 上書き: data.claude.autoCompactWindow / data.claude.autoCompactPct で変更可。未定義なら default（#22 の決定値）。1M を戻す場合は上のコメント参照。 */}}
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "{{ dig "claude" "autoCompactWindow" "200000" . }}",
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "{{ dig "claude" "autoCompactPct" "65" . }}"
   },
   "permissions": {
     "allow": [
