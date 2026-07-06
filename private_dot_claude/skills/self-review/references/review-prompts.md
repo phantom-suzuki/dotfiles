@@ -330,18 +330,15 @@ PROMPT_BODY=$(build_prompt "$ASPECT" "$ATTACHED")
 
 PROMPT_FILE=$(mktemp "${TMPDIR:-/tmp}/self-review-prompt.XXXXXX.md")
 trap 'rm -f "$PROMPT_FILE"' EXIT
-{
-  echo "## 以下の diff を ${ASPECT} 観点でレビューしてください。"
-  echo ""
-  echo "## レビュー指示"
-  echo "$PROMPT_BODY"
-} > "$PROMPT_FILE"
+echo "$PROMPT_BODY" > "$PROMPT_FILE"
 
 echo "$DIFF" | bash "${CLAUDE_SKILL_DIR}/scripts/codex-review.sh" "$SCHEMA" "$PROMPT_FILE"
 ```
 
-スクリプト内部では、diff を `## DIFF` セクションとしてプロンプトに埋め込み、`-`（stdin 読み込み）を末尾に
-置いて `codex exec` へ渡す。
+`scripts/codex-review.sh` の `$2`（プロンプト本文ファイル）には**レビュー指示の本文のみ**を書く。
+「## 以下の diff を…」「## レビュー指示」「## DIFF」の見出しはスクリプト内部が組み立てるため、
+呼び出し側でこれらの見出しを含めると二重に付与されてしまう。スクリプトは diff を `## DIFF`
+セクションとして本文の後ろに埋め込み、`-`（stdin 読み込み）を末尾に置いて `codex exec` へ渡す。
 
 ### `--ignore-user-config` 対応判定（スクリプト内部で実施）
 
