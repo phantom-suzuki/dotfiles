@@ -17,6 +17,7 @@ Respond to PR review comments, including CodeRabbit automated reviews and human 
 gh pr checks <pr_number>
 ```
 
+- `<pr_number>` is obtained the same way as in step 3 (Fetch Review Threads): from `$ARGUMENTS` or `gh pr view --json number`
 - Do not use `--watch`. Poll explicitly (re-run the command) if checks are still pending
 - If any check has failed, find the workflow run and fetch failure logs:
   ```bash
