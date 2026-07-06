@@ -168,7 +168,9 @@ printf '%-42s %8s %8s %8s %8s\n' "session" "inject" "caseB" "caseA" "final"
 printf '%s\n' "--------------------------------------------------------------------------------"
 while read -r f; do
   [ -f "$f" ] || continue
-  out="$(classify_file "$f")"
+  # 破損/追記途中の JSONL 行に当たると jq が非0で終わる。set -e 発火で全集計を失わないよう
+  # コマンド置換の失敗を握りつぶす（risk モードの heredoc 経由と同じ堅牢性に揃える）。
+  out="$(classify_file "$f")" || out=""
   [ -n "$out" ] || continue
   finj=0; fcb=0; fca=0; ffin=0
   while IFS=$'\t' read -r tag model inj cb ca fin; do
