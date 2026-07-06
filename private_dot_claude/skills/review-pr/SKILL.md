@@ -188,7 +188,7 @@ After processing all threads, display a summary table:
 
 ### CI Checks
 - ✅ lint: passed
-- ❌ test: failed (flaky — reran via `gh run rerun`)
+- ❌ test: failed (flaky — rerun proposed via `gh run rerun`)
 - ❌ build: failed (type error) — fixed in <commit-hash>
 
 ### Addressed
