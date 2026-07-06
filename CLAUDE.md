@@ -22,6 +22,7 @@ Go template 構文（`{{ .variable }}`）を使用するファイル:
 | `dot_gitconfig.tmpl` | `~/.gitconfig` | `{{ .name }}`, `{{ .email }}` |
 | `dot_zshrc.tmpl` | `~/.zshrc` | なし（将来のマシン分岐用に `.tmpl` 維持） |
 | `.chezmoi.toml.tmpl` | `~/.config/chezmoi/chezmoi.toml` | `promptStringOnce` で初回入力 |
+| `private_dot_claude/settings.json.tmpl` | `~/.claude/settings.json` | `data.claude.*`（省略時は default 値。下表参照） |
 | `run_once_install-packages.sh.tmpl` | (実行のみ) | `{{ .chezmoi.sourceDir }}` |
 
 変数は `~/.config/chezmoi/chezmoi.toml` で定義:
@@ -31,6 +32,30 @@ Go template 構文（`{{ .variable }}`）を使用するファイル:
     name = "phantom-suzuki"
     email = "h.suzuki@sorenalab.com"
 ```
+
+### Claude Code settings の上書き変数（`data.claude.*`）
+
+`private_dot_claude/settings.json.tmpl`（`~/.claude/settings.json` を生成する chezmoi テンプレート）のマシン固有・個人固有になり得る値は、`data.claude.*` で上書きできる。`[data.claude]` を書かなければ**現行 main の設定と同一の JSON** が生成される（後方互換）。任意キー（effortLevel / disable1m / autoCompactWindow）は未定義ならキー自体を出力しない。なお 1M 無効化・effort=medium 固定を default にする案（PR #32）は不採用のため、default には採用していない（判断記録は Issue #22）。
+
+| 変数 | 意味 | default |
+|------|------|---------|
+| `data.claude.model` | モデル名 | `claude-opus-4-8` |
+| `data.claude.effortLevel` | reasoning effort | 未設定（キー非出力 = ハーネス既定） |
+| `data.claude.disable1m` | 1M コンテキスト無効化（`"1"`=無効 / `"0"`=有効） | 未設定（キー非出力 = 1M 有効） |
+| `data.claude.autoCompactWindow` | auto-compact のコンテキスト窓 | 未設定（キー非出力） |
+| `data.claude.autoCompactPct` | auto-compact 発火閾値 % | `30`（1M 前提の値） |
+
+マシンごとに変えたいときは `~/.config/chezmoi/chezmoi.toml` の `[data.claude]` に値を書く（例は `.chezmoi.toml.tmpl` のコメント参照）:
+
+```toml
+[data.claude]
+    effortLevel = "medium"
+    disable1m = "1"
+    autoCompactWindow = "200000"
+    autoCompactPct = "65"
+```
+
+> **注意（1M と auto-compact の依存）**: `disable1m = "1"`（1M 無効 = 200k 運用）にする場合、`autoCompactWindow` / `autoCompactPct` も 200k 前提の値（例: 200000 / 65）へセットで合わせること。default の `autoCompactPct = 30` は 1M 有効前提の値。詳細は `settings.json.tmpl` 内の `{{/* */}}` コメントに記載。
 
 ## 外部リポジトリ
 

@@ -1,9 +1,32 @@
 {
-  "model": "claude-opus-4-8",
+  {{- /* 上書き: data.claude.model で変更可。未定義なら現行 default。 */}}
+  "model": "{{ dig "claude" "model" "claude-opus-4-8" . }}",
+  {{- /*
+    effortLevel は data.claude.effortLevel を定義したマシンでのみ出力する。
+    未定義ならキー自体を出力しない（= ハーネス既定に従う。現行 main と同一出力）。
+  */}}
+  {{- if dig "claude" "effortLevel" "" . }}
+  "effortLevel": "{{ dig "claude" "effortLevel" "" . }}",
+  {{- end }}
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
     "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "64000",
-    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "30"
+    {{- /*
+      1M コンテキストの無効化（disable1m: "1"=無効 / "0"=明示的に有効）と
+      auto-compact 窓（autoCompactWindow）は、data.claude.* を定義したマシンでのみ出力する。
+      未定義ならキー自体を出力しない（= 1M 有効・窓はハーネス既定。現行 main と同一出力）。
+      1M 無効化（200k 運用）にするマシンでは、autoCompactPct も 200k 前提の値
+      （例: WINDOW=200000・PCT=65 で概ね 130k 到達時に compact 発火）へ合わせること。
+      default の PCT=30 は 1M 有効（大コンテキスト）前提の値。
+    */}}
+    {{- if dig "claude" "disable1m" "" . }}
+    "CLAUDE_CODE_DISABLE_1M_CONTEXT": "{{ dig "claude" "disable1m" "" . }}",
+    {{- end }}
+    {{- if dig "claude" "autoCompactWindow" "" . }}
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "{{ dig "claude" "autoCompactWindow" "" . }}",
+    {{- end }}
+    {{- /* 上書き: data.claude.autoCompactPct で変更可。未定義なら現行 default（30 = 1M 前提）。 */}}
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "{{ dig "claude" "autoCompactPct" "30" . }}"
   },
   "permissions": {
     "allow": [
