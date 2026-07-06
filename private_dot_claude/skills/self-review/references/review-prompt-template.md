@@ -16,7 +16,7 @@
     {
       "severity": "critical" | "warning" | "info",
       "category": "auto-fix" | "judgment" | "info",
-      "aspect": "bug" | "security" | "design" | "all",
+      "aspect": "bug" | "security" | "design" | "goal-achievement" | "spec-consistency" | "all",
       "file": "ファイルパス",
       "line": 行番号,
       "title": "問題の要約（1行）",
@@ -28,7 +28,8 @@
 }
 
 `aspect` フィールドは、呼び出し側が指定した観点（`<REVIEW_ASPECT>`）をそのまま記録すること。
-観点別モード（bug / security / design）では、その観点に絞った指摘のみを返す。`all` の場合は全観点を対象に返す。
+観点別モード（bug / security / design / goal-achievement / spec-consistency）では、その観点に絞った指摘のみを返す。`all` の場合は全観点を対象に返す。
+macro 観点（goal-achievement / spec-consistency）では、観点別テンプレート内の `<MACRO_CONTEXT>` に Step 0.5 で収集した PR / Issue / ADR / Spec / CLAUDE.md のコンテキストが差し込まれる。それを判断材料として使うこと。
 
 ## 重要なルール
 - スタイルやフォーマットの指摘はしない（リンターの領域）

@@ -48,30 +48,40 @@ references/
   review-prompt-bug.md        # バグ・ロジック観点
   review-prompt-security.md   # セキュリティ観点
   review-prompt-design.md     # 設計・アーキ観点
+  review-prompt-goal.md       # 目的達成観点（macro、deep モードのみ）
+  review-prompt-spec.md       # Spec 整合観点（macro、deep モードのみ）
 ```
 
-共通テンプレートには 2 つのプレースホルダがある:
+共通テンプレートには次のプレースホルダがある:
 
 - `<ASPECT_FOCUS>` — 観点別テンプレートの内容を差し込む場所
-- `<REVIEW_ASPECT>` — `bug` / `security` / `design` / `all` の識別子
+- `<REVIEW_ASPECT>` — `bug` / `security` / `design` / `goal-achievement` / `spec-consistency` / `all` の識別子
 - `<ATTACHED_FILES>` — B-1 の対象ファイル添付内容（未使用時は削除）
+- `<MACRO_CONTEXT>` — macro 観点（goal / spec）でのみ使う。Step 0.5 で収集した PR / Issue / AC / ADR / Spec / CLAUDE.md を差し込む。goal / spec の観点別テンプレート内にのみ出現するため、他観点では置換対象が存在せず no-op になる
 
 ### 組み立てアルゴリズム（擬似コード）
 
 ```text
-build_prompt(aspect, attached_files):
+build_prompt(aspect, attached_files, macro_context):
   common     = read("review-prompt-template.md")
   if aspect == "all":
     focus = <全観点の既存プロンプト>   # 後方互換: 現 review-prompt-template.md の「レビュー観点」章を内蔵
   else:
-    focus = read(f"review-prompt-{aspect}.md")
+    # goal-achievement → review-prompt-goal.md / spec-consistency → review-prompt-spec.md
+    fname = {"goal-achievement": "goal", "spec-consistency": "spec"}.get(aspect, aspect)
+    focus = read(f"review-prompt-{fname}.md")
 
   prompt = common
     .replace("<ASPECT_FOCUS>", focus)
     .replace("<REVIEW_ASPECT>", aspect)
     .replace("<ATTACHED_FILES>", attached_files or "（なし）")
+    .replace("<MACRO_CONTEXT>", macro_context or "（PR / Issue コンテキストなし）")
   return prompt
 ```
+
+`<MACRO_CONTEXT>` は `review-prompt-goal.md` / `review-prompt-spec.md` にのみ含まれるため、
+bug / security / design では置換対象が無く副作用は発生しない。`macro_context` は Step 0.5
+（コンテキスト収集）で組み立てた文字列を渡す。
 
 ### 対象ファイル添付（B-1、`--attach-full-file` opt-in 時のみ）
 
@@ -100,14 +110,20 @@ git diff --numstat "$BASE_BRANCH"..HEAD | \
 ## 観点別呼び出し（standard / deep）
 
 `standard`（デフォルト）は **bug + security の 2 並列**。
-`deep` または `--with-design` 指定時は **bug + security + design の 3 並列**。
+`--with-design` 指定時は **bug + security + design の 3 並列**。
+`deep` 指定時は **bug + security + design + goal-achievement + spec-consistency の 5 並列**（macro 観点を含む）。
 Gemini は `--with-gemini` 指定時のみ経路に入る。
 
-| 観点 | primary | fallback (順) |
-|-----|---------|--------------|
-| bug | Claude-p（`--ultrareview` 時は `claude ultrareview --json`） | Codex → Gemini（`--with-gemini` 時のみ） |
-| security | Codex | Claude-p → Gemini（`--with-gemini` 時のみ） |
-| design *(opt-in)* | Claude-p（`--with-gemini` 時は Gemini） | Codex |
+下表は「役割（一次レビュアー / 代替）＋その役割に現在割り当てているモデル（現行 …）」の併記で書く。
+役割を主語にしているので、将来モデルが入れ替わっても表の意味は壊れない（Epic #21 の方針A / 方針B）。
+
+| 観点 | 一次レビュアー | 代替（順） |
+|-----|--------------|----------|
+| bug | 現行 Claude-p（`--ultrareview` 時は `claude ultrareview --json`） | 現行 Codex → Gemini（`--with-gemini` 時のみ） |
+| security | 現行 Codex | 現行 Claude-p → Gemini（`--with-gemini` 時のみ） |
+| design *(opt-in)* | 現行 Claude-p（`--with-gemini` 時は Gemini） | 現行 Codex |
+| goal-achievement *(deep のみ)* | 現行 Claude-p | 現行 Gemini（`--with-gemini` 時のみ） → Codex |
+| spec-consistency *(deep のみ)* | 現行 Codex | 現行 Claude-p → Gemini（`--with-gemini` 時のみ） |
 
 ### 共通: 必須フラグ（再現性確保・パース失敗根絶）
 
@@ -219,6 +235,49 @@ bash "${CLAUDE_SKILL_DIR}/scripts/gemini-review.sh" <<< "$DIFF"
 `gemini-review.sh` は環境変数 `REVIEW_ASPECT` と `ATTACHED_FILES` を読み、
 内部で観点別テンプレートを結合する。未設定時は `REVIEW_ASPECT=all` として
 従来どおり全観点プロンプトで動作する（後方互換）。
+
+### 呼び出し例（macro 観点: goal-achievement / spec-consistency、`deep` 時のみ）
+
+macro 観点は Step 0.5 で収集した PR / Issue / ADR / Spec / CLAUDE.md のコンテキストを
+`build_prompt` の `macro_context` 引数として渡す点だけが micro 観点と異なる。レビュアーの
+呼び出しコマンド自体は同じ（一次レビュアーのモデル差だけ上の表に従う）。
+
+```bash
+# goal-achievement を一次レビュアー（現行 Claude-p）に投げる
+ASPECT=goal-achievement
+SCHEMA="${CLAUDE_SKILL_DIR}/references/schemas/finding-schema.json"
+ATTACHED=$(...対象ファイル添付、--attach-full-file 時のみ...)
+MACRO=$(cat "$MACRO_CONTEXT_FILE")          # Step 0.5 で組み立てたコンテキスト
+PROMPT=$(build_prompt "$ASPECT" "$ATTACHED" "$MACRO")
+
+echo "$DIFF" | claude -p \
+  $BARE_CLAUDE \
+  --model sonnet \
+  --output-format json \
+  --json-schema "$(cat "$SCHEMA")" \
+  --permission-mode dontAsk \
+  --allowedTools "Read" \
+  --append-system-prompt "あなたは ${ASPECT} 観点に特化したレビュアーです。$PROMPT"
+```
+
+```bash
+# spec-consistency を一次レビュアー（現行 Codex）に投げる
+ASPECT=spec-consistency
+SCHEMA="${CLAUDE_SKILL_DIR}/references/schemas/finding-schema.json"
+MACRO=$(cat "$MACRO_CONTEXT_FILE")
+PROMPT_BODY=$(build_prompt "$ASPECT" "$ATTACHED" "$MACRO")
+
+PROMPT_FILE=$(mktemp "${TMPDIR:-/tmp}/self-review-prompt.XXXXXX.md")
+trap 'rm -f "$PROMPT_FILE"' EXIT
+echo "$PROMPT_BODY" > "$PROMPT_FILE"
+
+echo "$DIFF" | bash "${CLAUDE_SKILL_DIR}/scripts/codex-review.sh" "$SCHEMA" "$PROMPT_FILE"
+```
+
+`$MACRO_CONTEXT_FILE` は Step 0.5（コンテキスト収集）が書き出す一時ファイル。PR / Issue が
+まだ無い（コミット前の self-review）場合、Step 0.5 はコミットメッセージ・ブランチ名・対象
+ディレクトリの CLAUDE.md だけでコンテキストを組み立てる。空になる場合は `build_prompt` が
+「（PR / Issue コンテキストなし）」で埋め、プロンプト側が推定依存の指摘を info 扱いにする。
 
 ### Fallback の回し方
 
@@ -405,7 +464,7 @@ bash "${CLAUDE_SKILL_DIR}/scripts/gemini-review.sh" <<< "$DIFF"
 
 ### 並列モードでの重複除去
 
-複数観点（standard なら bug + security、deep / `--with-design` なら + design）の結果をマージする際、以下のルールで重複を判定する:
+複数観点（standard なら bug + security、`--with-design` なら + design、deep なら + design + goal-achievement + spec-consistency）の結果をマージする際、以下のルールで重複を判定する:
 
 1. **同一ファイル + 同一行（±5行以内）+ 同一カテゴリ** → 重複とみなす
 2. 重複の場合、**severity が高いほうを採用**する
