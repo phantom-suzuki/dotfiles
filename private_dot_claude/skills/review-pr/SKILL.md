@@ -11,7 +11,38 @@ Respond to PR review comments, including CodeRabbit automated reviews and human 
 
 ## Procedure
 
-### 1. Fetch Review Threads (GraphQL API)
+### 1. Check CI Status
+
+```bash
+gh pr checks <pr_number>
+```
+
+- `<pr_number>` is obtained the same way as in step 3 (Fetch Review Threads): from `$ARGUMENTS` or `gh pr view --json number`
+- Do not use `--watch`. Poll explicitly (re-run the command) if checks are still pending
+- If any check has failed, find the workflow run and fetch failure logs:
+  ```bash
+  gh run list --branch <branch> --limit 5
+  gh run view <run-id> --log-failed
+  ```
+- If all checks pass, skip to step 3 (Fetch Review Threads)
+
+### 2. Classify & Handle CI Failures
+
+Classify each failure using the failed logs from step 1:
+
+| Category | Examples | Handling |
+|----------|----------------------------------|-----------------------------------------------|
+| ① Lint / format | ESLint, markdownlint, Prettier | Mechanically fixable — identify the fix and apply it |
+| ② Test failure | Unit / integration test failure | Needs root-cause analysis — do not auto-fix |
+| ③ Build / type error | Compile error, type check failure | Identify the fix and apply it |
+| ④ Infra / flaky | Runner failure, network timeout | Propose `gh run rerun <run-id>` (add `--failed` to retry only failed jobs) |
+
+- **① and ③**: identify and apply the fix. Who executes the fix (yourself vs. delegate) follows `~/.claude/skills/task-delegation/SKILL.md` — this skill does not duplicate that decision table
+- **②**: report the root cause and a proposed fix in the final summary; do not auto-fix
+- **④**: propose `gh run rerun <run-id>` instead of touching code
+- Fixes from ① and ③ are committed and pushed together with review-comment fixes in step 6 (Commit & Push)
+
+### 3. Fetch Review Threads (GraphQL API)
 
 ```bash
 gh api graphql -f query='
@@ -42,7 +73,7 @@ query($owner: String!, $repo: String!, $pr: Int!) {
 - Derive owner/repo from `gh repo view --json owner,name`
 - PR number from `$ARGUMENTS` or current branch's PR: `gh pr view --json number`
 
-### 2. Classify Comments
+### 4. Classify Comments
 
 **Skip** resolved threads (`isResolved: true`).
 
@@ -61,7 +92,7 @@ For unresolved threads, classify by source and severity:
 - `🟡` or "Minor" → Minor
 - `🛠️` or "Suggestion" → Suggestion
 
-### 3. Fix Code
+### 5. Fix Code
 
 For each actionable comment:
 1. Read the referenced file and line
@@ -69,15 +100,16 @@ For each actionable comment:
 3. Apply the fix
 4. Verify official documentation for SDK/API-related suggestions before applying
 
-### 4. Commit & Push
+### 6. Commit & Push
 
 Follow the `/commit` and `/push` skill workflows:
 - Stage specific files only
-- Use `fix: address review feedback` or similar Conventional Commits message
+- Use `fix: address review feedback` or similar Conventional Commits message (include CI fixes from step 2 in the same commit if they touch the same files, otherwise split logically)
 - Include Co-Authored-By trailer
 - Push to the current branch
+- After pushing, CI reruns automatically — no need to manually re-check unless the summary requires confirmed-green status
 
-### 5. Reply to Review Threads (GraphQL API)
+### 7. Reply to Review Threads (GraphQL API)
 
 #### Reply language rules
 
@@ -147,12 +179,17 @@ Out of scope for the current PR. Tracked in #<issue-number>.
 📝 <日本語の修正内容の要約>
 ```
 
-### 6. Output Summary
+### 8. Output Summary
 
 After processing all threads, display a summary table:
 
 ```
 ## Review Response Summary
+
+### CI Checks
+- ✅ lint: passed
+- ❌ test: failed (flaky — rerun proposed via `gh run rerun`)
+- ❌ build: failed (type error) — fixed in <commit-hash>
 
 ### Addressed
 - [file:line] <description> (commit: <hash>)
@@ -164,6 +201,8 @@ After processing all threads, display a summary table:
 - <count> threads
 ```
 
+- The CI Checks section lists every check name, its result, its category from step 2, and the action taken (fixed / reported / rerun proposed)
+
 ## Best Practices
 
 - **All threads must be resolved** — every review thread must end in a resolved state after processing
@@ -171,3 +210,4 @@ After processing all threads, display a summary table:
 - Include commit hashes in replies so reviewers can verify fixes
 - Verify SDK/API suggestions against official documentation before applying
 - **Out-of-scope items must have a tracking Issue** — always create an Issue before deferring, then resolve the thread with the Issue link
+- **CI failures must not be silently ignored** — even when CodeRabbit and human reviewers raise no comments, a failing check (e.g. lint errors CodeRabbit did not flag) must be caught in step 1 and either fixed or reported in the summary
