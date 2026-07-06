@@ -1,7 +1,7 @@
 # Global Codex CLI Instructions
 
 このファイルはグローバル AGENTS.md（`~/.codex/AGENTS.md`）です。Claude Code の
-司令塔（オーケストレータ。標準 Opus / Fable パイロットでは Fable）から委譲された
+司令塔（オーケストレーター。標準 Opus / Fable パイロットでは Fable）から委譲された
 タスクを実行するときの共通指針を定めます。
 
 ## AGENTS.md のスコープと優先順位
@@ -13,7 +13,7 @@ Codex は AGENTS.md を 2 層で読み込み、近い方が後勝ちで上書き
 - 競合したら **プロジェクト側が優先**（近い方が後勝ち）
 - 読み込みサイズは `project_doc_max_bytes`（config.toml）で制御。プロジェクト
   固有の規約はプロジェクト直下 AGENTS.md に置き、このファイルは短く保つ
-- config 優先順位: `CLI/--config > project > profile > user(~/.codex/config.toml) > system > defaults`
+- config 優先順位: `CLI/--config > project > profile > user(~/.codex/config.toml) > system(/etc/codex) > defaults`
 
 ## 実行モデル（あなたの役割）
 
