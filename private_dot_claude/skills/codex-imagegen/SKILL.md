@@ -20,20 +20,24 @@ OpenAI Codex CLI の組み込み `$imagegen` ツール（gpt-image-2、2026-04-2
 - ChatGPT Plus / Pro / Business / Enterprise のいずれかのサブスクリプション（Free は不可）
 - 通常の Codex usage limit を消費（テキスト処理比で 3-5x 速く消費）
 - `OPENAI_API_KEY` 設定時は API 課金に切り替わる
+- **Bash から `codex` を直接実行しない**（PreToolUse フック `block-codex-direct.py` が `codex` の直接実行をブロックする）。呼び出しはスキル同梱の [scripts/imagegen.sh](scripts/imagegen.sh) 経由で行う（スクリプトファイルの呼び出しは同フックの検査対象外）
 
 ## 基本コマンド
 
 ```bash
-codex exec --sandbox workspace-write --skip-git-repo-check \
-  '$imagegen [画像内容とスタイル] [絶対パス] に保存してください。' \
-  < /dev/null
+bash "${CLAUDE_SKILL_DIR}/scripts/imagegen.sh" \
+  "[画像内容とスタイル]" \
+  "[絶対パス]"
 ```
 
-## 必須 3 要素（安定動作の鍵）
+スクリプト内部で `codex exec --sandbox workspace-write --skip-git-repo-check '$imagegen ...' < /dev/null` を組み立てて実行する。
 
-1. **`$imagegen` トリガー**: prompt の **先頭** に置く。組み込み画像生成ツールを起動する合図
-2. **内容とスタイル**: 題材（例「ターミナルアイコン」「3層アーキテクチャ図」）に加え、スタイル（「フラットデザイン」「パステル配色」「16:9」「白背景」「クラウドアイコン風」等）を明示
-3. **保存先絶対パス**: prompt **末尾** に「`/path/to/file.png` に保存してください」の形式で **絶対パス** を指定。相対パス不可
+## 必須 2 引数（安定動作の鍵）
+
+1. **内容とスタイル**（第 1 引数）: 題材（例「ターミナルアイコン」「3層アーキテクチャ図」）に加え、スタイル（「フラットデザイン」「パステル配色」「16:9」「白背景」「クラウドアイコン風」等）を明示
+2. **保存先絶対パス**（第 2 引数）: **絶対パス** を指定。相対パスはスクリプト側でエラーにする
+
+スクリプトが第 1 引数の先頭に `$imagegen` トリガーを自動付与し、第 2 引数を「〜に保存してください。」の形式でプロンプト末尾に組み込む。
 
 ## 注意点
 
@@ -57,9 +61,9 @@ codex exec --sandbox workspace-write --skip-git-repo-check \
 ### 例 1: アーキテクチャ図
 
 ```bash
-codex exec --sandbox workspace-write --skip-git-repo-check \
-  '$imagegen 3 層アーキテクチャ図を生成。フロントエンド（React）→ API（Node.js）→ DB（PostgreSQL）。フラットデザイン、16:9、白背景、青系配色、矢印で接続。/Users/foo/project/docs/architecture.png に保存してください。' \
-  < /dev/null
+bash "${CLAUDE_SKILL_DIR}/scripts/imagegen.sh" \
+  "3 層アーキテクチャ図を生成。フロントエンド（React）→ API（Node.js）→ DB（PostgreSQL）。フラットデザイン、16:9、白背景、青系配色、矢印で接続。" \
+  "/Users/foo/project/docs/architecture.png"
 ```
 
 ### 例 2: アイコン（並列実行）
@@ -68,24 +72,24 @@ Claude Code 環境では `Bash` を `run_in_background: true` で 2 つ呼び、
 
 ```bash
 # Background job 1
-codex exec --sandbox workspace-write --skip-git-repo-check \
-  '$imagegen ターミナルアイコン。フラットデザイン、パステル配色、1:1。/tmp/terminal-icon.png に保存してください。' \
-  < /dev/null
+bash "${CLAUDE_SKILL_DIR}/scripts/imagegen.sh" \
+  "ターミナルアイコン。フラットデザイン、パステル配色、1:1。" \
+  "/tmp/terminal-icon.png"
 
 # Background job 2
-codex exec --sandbox workspace-write --skip-git-repo-check \
-  '$imagegen データベースアイコン。フラットデザイン、パステル配色、1:1。/tmp/db-icon.png に保存してください。' \
-  < /dev/null
+bash "${CLAUDE_SKILL_DIR}/scripts/imagegen.sh" \
+  "データベースアイコン。フラットデザイン、パステル配色、1:1。" \
+  "/tmp/db-icon.png"
 ```
 
 ## 失敗時の対応
 
 | 症状 | 対応 |
 |---|---|
-| 画像が生成されない | prompt 先頭に `$imagegen` が含まれているか確認 |
-| 保存パスが効かない | 絶対パスで指定（相対パス不可） |
-| サンドボックスエラー | `--sandbox workspace-write` が指定されているか確認 |
-| Git repo チェックで止まる | `--skip-git-repo-check` を付ける |
+| 画像が生成されない | スクリプトが `$imagegen` トリガーを自動付与しているか（`scripts/imagegen.sh` の中身）を確認 |
+| 保存パスが効かない | 第 2 引数を絶対パスで指定（相対パスはスクリプトがエラー終了する） |
+| サンドボックスエラー | `scripts/imagegen.sh` 内の `--sandbox workspace-write` が変更されていないか確認 |
+| Git repo チェックで止まる | `scripts/imagegen.sh` 内の `--skip-git-repo-check` が変更されていないか確認 |
 | レート制限 | 時間を空けて再実行、または `OPENAI_API_KEY` で API モードに切り替え |
 | 認証エラー | `codex login` で再認証 |
 

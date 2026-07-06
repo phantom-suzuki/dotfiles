@@ -28,7 +28,7 @@ argument-hint: "[doc-file-path-or-glob] [--skip-codex] [--with-gemini] [--scope 
 
 ## 前提条件
 
-- `--skip-codex` でなければ `codex` CLI が利用可能
+- `--skip-codex` でなければ `codex` CLI が利用可能。**Bash から `codex` を直接実行しない**（PreToolUse フック `block-codex-direct.py` にブロックされる）。呼び出しはスキル同梱の [scripts/codex-review.sh](scripts/codex-review.sh) 経由で行う
 - `--with-gemini` 指定時のみ `gemini` CLI が利用可能（Gemini は opt-in）
 - `jq` がインストール済み
 
@@ -93,16 +93,16 @@ referenced=$(grep -oE '\[[^]]*\]\(([^)]+\.md)\)' "$DOC_PATH" | sed -E 's/.*\(([^
 
 ### Step 3: L2 Codex セカンドオピニオン（デフォルト、オプションで Gemini）
 
-`--skip-codex` でなければ、Codex を L2 として実行する（デフォルト経路）。`peer-review/scripts/codex-review.sh` は PR 専用のため流用しない。
+`--skip-codex` でなければ、Codex を L2 として実行する（デフォルト経路）。`peer-review/scripts/codex-review.sh` は
+PR 専用（`codex exec review --base <branch>`）のため流用せず、review-doc 専用の
+[scripts/codex-review.sh](scripts/codex-review.sh) を使う。
+
+**Bash から `codex exec` を直接叩かない**（PreToolUse フック `block-codex-direct.py` にブロックされる）。
+プロンプトをファイルに書き出し、スクリプト経由で呼び出す（スクリプトファイルの呼び出しは同フックの検査対象外）:
 
 ```bash
-codex exec \
-  --full-auto \
-  --sandbox read-only \
-  --ignore-user-config \
-  --ignore-rules \
-  --output-last-message /tmp/review-doc-codex.txt \
-  "$(cat <<EOF
+PROMPT_FILE=$(mktemp)
+cat > "$PROMPT_FILE" <<EOF
 ## タスク
 以下のドキュメントを review-doc 観点でレビューし、L1 とは独立したセカンドオピニオンとして指摘を返してください。
 
@@ -120,8 +120,12 @@ codex exec \
 ## 対象ドキュメント
 <DOC_CONTENT>
 EOF
-)"
+
+bash "${CLAUDE_SKILL_DIR}/scripts/codex-review.sh" "$PROMPT_FILE" /tmp/review-doc-codex.txt
 ```
+
+`scripts/codex-review.sh` の内部で `--full-auto` / `--sandbox read-only` / `--ignore-user-config` /
+`--ignore-rules` / `--output-last-message` を組み立てて `codex exec` を実行する。
 
 `--with-gemini` 指定時のみ、Gemini を追加で実行する（opt-in）。Gemini が失敗しても Codex/L1 の経路で続行する。
 
@@ -143,7 +147,7 @@ cat "$PROMPT_FILE" | bash ~/.claude/skills/peer-review/scripts/gemini-review.sh 
 
 Codex が失敗した場合は L1 のみで続行し、`--with-gemini` 指定時のみ Gemini 結果を補助的に使う。
 
-**注意**: 上記 `codex exec` ブロックの `<DOC_CONTENT>` は呼び出し時に Opus 側でプレースホルダ展開する（対象ドキュメントの本文 + 必要なら関連ファイル見出しを差し込む）。シェルが展開する変数ではない。
+**注意**: 上記プロンプトの `<DOC_CONTENT>` は呼び出し時に Opus 側でプレースホルダ展開する（対象ドキュメントの本文 + 必要なら関連ファイル見出しを差し込む）。シェルが展開する変数ではない。
 
 ### Step 4: 統合と提示
 
