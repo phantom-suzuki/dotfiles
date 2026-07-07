@@ -65,8 +65,11 @@ GitHub は Mermaid をクライアント側でレンダリングし、**CI も C
 
 検証レシピ（一時ディレクトリで実行）:
 
+セッションの system prompt に scratchpad ディレクトリの案内があればそこを使う。案内がない場合は `mktemp -d` で一時ディレクトリを作る。`/tmp/mmcheck` のような固定パスを使い回さない（複数セッションが並行すると、同じディレクトリ・依存関係を取り合って競合するため）。
+
 ```bash
-cd /tmp && mkdir -p mmcheck && cd mmcheck
+WORKDIR="$(mktemp -d)/mmcheck"   # scratchpad ディレクトリの案内があればそちらのパスに置き換える
+mkdir -p "$WORKDIR" && cd "$WORKDIR"
 npm init -y >/dev/null 2>&1 && npm install mermaid@11 jsdom --no-audit --no-fund >/dev/null 2>&1
 cat > check.mjs <<'EOF'
 import { JSDOM } from 'jsdom';
