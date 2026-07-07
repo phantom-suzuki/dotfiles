@@ -79,6 +79,17 @@ description: 並列作業を依頼されたとき worktree × Agent Teams のパ
 
 起動: `wta <branch>` または `wti <issue#>` → 別 tmux window + 独立 Claude セッション。
 
+### Worktree shell commands（tmux 並列を明示要求された場合のみ）
+
+| Command | Action |
+|---------|--------|
+| `wta <branch>` | Create worktree + tmux window + Claude |
+| `wta <branch> -p "prompt"` | Same, with initial prompt |
+| `wti <issue#>` | Create worktree from GitHub Issue |
+| `wtl` / `wtm` / `wtr` / `wtprune` | List / merge+cleanup / remove / prune |
+
+リポジトリ root に executable な `.worktree-init` があれば `wta` 作成時に自動実行される。
+
 ## Teammate prompt 設計指針（パターン B / S 共通）
 
 `Agent` ツールで teammate を spawn する際、prompt に以下 3 要素を必ず含める:
