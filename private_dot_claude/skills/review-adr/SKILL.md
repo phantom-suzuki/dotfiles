@@ -88,12 +88,19 @@ done
 `--skip-codex` でなければ、Codex を L2 として実行する（デフォルト経路）。Codex は ADR ディレクトリ全体を grep して既存 ADR との矛盾を機械検証できる。
 
 **Bash から `codex exec` を直接叩かない**（PreToolUse フック `block-codex-direct.py` にブロックされる）。
-プロンプトをファイルに書き出し、スキル同梱の [scripts/codex-review.sh](scripts/codex-review.sh) を
-経由して呼び出す（スクリプトファイルの呼び出しは同フックの検査対象外）:
+プロンプトファイルは **Write ツールで作成**し、スキル同梱の [scripts/codex-review.sh](scripts/codex-review.sh) を
+経由して呼び出す（スクリプトファイルの呼び出しは同フックの検査対象外）。
 
-```bash
-PROMPT_FILE=$(mktemp)
-cat > "$PROMPT_FILE" <<EOF
+> **heredoc でプロンプトを組み立てない**: `cat <<EOF` に ADR 本文を展開すると、本文に
+> `codex ...` で始まる行が含まれる場合（Codex 関連の ADR 等）にフックが Bash コマンド全体を
+> ブロックする。フックは改行・パイプで分割した各セグメントのコマンド位置を検査するため、
+> heredoc の中身も検査対象になる。Write ツール経由なら本文は Bash コマンド文字列に載らない。
+
+1. Write ツールでプロンプトファイル（スクラッチパッド配下、例: `review-adr-prompt.md`）を作成する。
+   内容は以下のテンプレートの `<ADR_CONTENT>` に、対象 ADR の本文 + 既存 ADR インデックスを
+   差し込んだもの（Write 時に展開する。シェル変数ではない）:
+
+```markdown
 ## タスク
 以下の ADR を review-adr 観点でレビューし、L1 とは独立したセカンドオピニオンとして指摘を返してください。
 
@@ -110,9 +117,12 @@ cat > "$PROMPT_FILE" <<EOF
 
 ## 対象 ADR
 <ADR_CONTENT>
-EOF
+```
 
-bash "${CLAUDE_SKILL_DIR}/scripts/codex-review.sh" "$PROMPT_FILE" /tmp/review-adr-codex.txt
+2. 作成したファイルを渡してスクリプトを呼び出す:
+
+```bash
+bash "${CLAUDE_SKILL_DIR}/scripts/codex-review.sh" <プロンプトファイルのパス> /tmp/review-adr-codex.txt
 ```
 
 `scripts/codex-review.sh` の内部で `--full-auto` / `--sandbox read-only` / `--ignore-user-config` /
@@ -140,7 +150,6 @@ cat "$PROMPT_FILE" | bash ~/.claude/skills/peer-review/scripts/gemini-review.sh 
 
 Codex が失敗した場合は L1 のみで続行し、`--with-gemini` 指定時のみ Gemini 結果を補助的に使う。
 
-**注意**: 上記プロンプトの `<ADR_CONTENT>` は呼び出し時に Opus 側でプレースホルダ展開する（対象 ADR の本文 + 既存 ADR インデックスを差し込む）。シェルが展開する変数ではない。
 
 ### Step 4: 統合と提示
 

@@ -1,12 +1,16 @@
 #!/bin/bash
 # self-review 用 Codex CLI ラッパー（security / design 観点の L2 セカンドオピニオン）
 #
-# - PreToolUse フック block-codex-direct.py は Bash ツールに渡すコマンド文字列の
-#   「先頭トークン」だけを検査してブロックする。`codex exec ...` を Bash にそのまま渡すと
-#   ブロックされるが、`bash codex-review.sh ...` の形でスクリプトファイルを呼び出す分には
-#   検査対象外になる。そのため codex exec の呼び出しはこのスクリプト内に閉じ込める。
+# - PreToolUse フック block-codex-direct.py は Bash ツールに渡すコマンド文字列を
+#   改行・パイプ等でセグメント分割し、各セグメントのコマンド位置の basename が `codex` の
+#   場合にブロックする。`codex exec ...` を Bash にそのまま渡すとブロックされるが、
+#   `bash codex-review.sh ...` の形でスクリプトファイルを呼び出す分には検査対象外になる。
+#   そのため codex exec の呼び出しはこのスクリプト内に閉じ込める。
 # - スキーマ強制（--output-schema）付きで codex exec を実行し、finding-schema.json 準拠の
 #   JSON を stdout に出力する（--output-schema 非対応の `codex exec review` は使わない）。
+# - --model gpt-5 を明示する。--ignore-user-config で config.toml のモデル設定も無視されるため、
+#   未指定だと CLI 既定の gpt-5-codex に落ち、--output-schema が無視される既知バグ
+#   （openai/codex#15451）でスキーマ強制が黙って効かなくなる。
 #
 # Usage:
 #   cat <<'EOF' | bash codex-review.sh <schema-path> <prompt-body-file>
@@ -77,11 +81,12 @@ trap 'rm -f "$TMP"' EXIT
   cat -
   echo '```'
 } | codex exec \
+  --model gpt-5 \
   -c model_reasoning_effort=high \
   --output-schema "$SCHEMA" \
   --output-last-message "$TMP" \
   --sandbox read-only \
-  "${CODEX_REPRO_FLAGS[@]}" \
+  ${CODEX_REPRO_FLAGS[@]+"${CODEX_REPRO_FLAGS[@]}"} \
   -
 
 EXIT_CODE=$?

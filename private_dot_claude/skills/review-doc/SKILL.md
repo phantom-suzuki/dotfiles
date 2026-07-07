@@ -98,11 +98,17 @@ PR 専用（`codex exec review --base <branch>`）のため流用せず、review
 [scripts/codex-review.sh](scripts/codex-review.sh) を使う。
 
 **Bash から `codex exec` を直接叩かない**（PreToolUse フック `block-codex-direct.py` にブロックされる）。
-プロンプトをファイルに書き出し、スクリプト経由で呼び出す（スクリプトファイルの呼び出しは同フックの検査対象外）:
+プロンプトファイルは **Write ツールで作成**し、スクリプト経由で呼び出す（スクリプトファイルの呼び出しは同フックの検査対象外）。
 
-```bash
-PROMPT_FILE=$(mktemp)
-cat > "$PROMPT_FILE" <<EOF
+> **heredoc でプロンプトを組み立てない**: `cat <<EOF` にドキュメント本文を展開すると、本文に
+> `codex ...` で始まる行が含まれる場合（Codex 関連の手順書等）にフックが Bash コマンド全体を
+> ブロックする。Write ツール経由なら本文は Bash コマンド文字列に載らない。
+
+1. Write ツールでプロンプトファイル（スクラッチパッド配下、例: `review-doc-prompt.md`）を作成する。
+   内容は以下のテンプレートの `<DOC_CONTENT>` に対象ドキュメント本文を差し込んだもの
+   （Write 時に展開する。シェル変数ではない）:
+
+```markdown
 ## タスク
 以下のドキュメントを review-doc 観点でレビューし、L1 とは独立したセカンドオピニオンとして指摘を返してください。
 
@@ -119,9 +125,12 @@ cat > "$PROMPT_FILE" <<EOF
 
 ## 対象ドキュメント
 <DOC_CONTENT>
-EOF
+```
 
-bash "${CLAUDE_SKILL_DIR}/scripts/codex-review.sh" "$PROMPT_FILE" /tmp/review-doc-codex.txt
+2. 作成したファイルを渡してスクリプトを呼び出す:
+
+```bash
+bash "${CLAUDE_SKILL_DIR}/scripts/codex-review.sh" <プロンプトファイルのパス> /tmp/review-doc-codex.txt
 ```
 
 `scripts/codex-review.sh` の内部で `--full-auto` / `--sandbox read-only` / `--ignore-user-config` /
