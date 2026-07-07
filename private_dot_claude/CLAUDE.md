@@ -49,13 +49,9 @@
 
 ## Task Delegation
 
-実装・修正・リファクタ・レビュー対応・ドキュメント文章化等を依頼されたら **`task-delegation` スキル** を起動し、T1 Opus / T2 Codex / T3 Sonnet/Haiku の委譲先を判定してから実行する。判定スキップで Edit/Write/Bash に入るのはアンチパターン。
+実装・修正・リファクタ・レビュー対応・ドキュメント文章化等を依頼されたら **`task-delegation` スキル** を起動し、役割ベース（T1 司令塔 / T2 外部 CLI 委譲 = Codex / T3 実行サブエージェント）で委譲先を判定してから実行する。判定スキップで Edit/Write/Bash に入るのはアンチパターン。
 
-- **デフォルトは T2 Codex 委譲**（規模問わず、レビュー対応・ドキュメント文章化も含む）
-- Opus 直接実装は **対話を伴う場合のみ**（要件確認・ADR 議論中・複数案比較）
-- diff 検証とコミット判断は Opus に残す（git-safety.md）
-
-着手前必須チェック・Tier 定義・Codex 呼び出しテンプレート・アンチパターンは `~/.claude/skills/task-delegation/SKILL.md` を参照。
+委譲マトリクスの実体（司令塔のモデル、実行役が Codex か実行サブエージェントか）は環境によって変わる。着手前必須チェック・役割ベースの Tier 定義・Codex 未導入時のフォールバック分岐・Codex 呼び出しテンプレート・アンチパターンはすべて `~/.claude/skills/task-delegation/SKILL.md`（委譲体系の正本）を参照。
 
 ## Dotfiles — chezmoi 管理
 
