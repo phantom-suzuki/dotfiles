@@ -5,6 +5,8 @@
 # Claude Code settings.json.tmpl のマシン固有・個人固有の値を上書きする。
 # 未定義のままなら現行 main の設定と同一の JSON がレンダリングされる（後方互換）。
 # マシンごとに変えたいときだけ [data.claude] のコメントを外して値を設定する。
+# 値は必ず引用符付きの文字列で書くこと（整数・boolean で書くと、falsy 判定や
+# 出力値がドキュメントの想定と変わる。例: disable1m = 0 はキー自体が出力されない）。
 # [data.claude]
 #     model = "claude-opus-4-8"      # モデル名（default: claude-opus-4-8）
 #     effortLevel = "medium"          # reasoning effort（default: 未設定 = キー非出力、ハーネス既定）
