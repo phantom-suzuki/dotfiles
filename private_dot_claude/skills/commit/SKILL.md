@@ -40,14 +40,14 @@ Create a Conventional Commits compliant commit.
 5. **Generate commit message**:
    - Subject line: English, max 72 characters, imperative mood
    - Format: `<type>: <description>` or `<type>(<scope>): <description>`
-   - Always append the Co-Authored-By trailer
+   - Always append a Co-Authored-By trailer
 
-6. **Execute commit** using HEREDOC for proper formatting:
+6. **Execute commit** using HEREDOC for proper formatting. Follow the harness's default trailer (it embeds the current model name, e.g. `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`) — do not hardcode a specific model name here:
    ```bash
    git commit -m "$(cat <<'EOF'
    <type>: <description>
 
-   Co-Authored-By: Claude <noreply@anthropic.com>
+   Co-Authored-By: <harness-provided trailer>
    EOF
    )"
    ```

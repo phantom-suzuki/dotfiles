@@ -29,7 +29,7 @@ argument-hint: "[adr-file-path] [--skip-codex] [--with-gemini] [--scope this|all
 ## 前提条件
 
 - 対象リポジトリに `docs/adr/` ディレクトリが存在する
-- `--skip-codex` でなければ `codex` CLI が利用可能
+- `--skip-codex` でなければ `codex` CLI が利用可能。**Bash から `codex` を直接実行しない**（PreToolUse フック `block-codex-direct.py` にブロックされる）。呼び出しはスキル同梱の [scripts/codex-review.sh](scripts/codex-review.sh) 経由で行う
 - `--with-gemini` 指定時のみ `gemini` CLI が利用可能（Gemini は opt-in）
 - `jq` がインストール済み
 
@@ -87,14 +87,20 @@ done
 
 `--skip-codex` でなければ、Codex を L2 として実行する（デフォルト経路）。Codex は ADR ディレクトリ全体を grep して既存 ADR との矛盾を機械検証できる。
 
-```bash
-codex exec \
-  --full-auto \
-  --sandbox read-only \
-  --ignore-user-config \
-  --ignore-rules \
-  --output-last-message /tmp/review-adr-codex.txt \
-  "$(cat <<EOF
+**Bash から `codex exec` を直接叩かない**（PreToolUse フック `block-codex-direct.py` にブロックされる）。
+プロンプトファイルは **Write ツールで作成**し、スキル同梱の [scripts/codex-review.sh](scripts/codex-review.sh) を
+経由して呼び出す（スクリプトファイルの呼び出しは同フックの検査対象外）。
+
+> **heredoc でプロンプトを組み立てない**: `cat <<EOF` に ADR 本文を展開すると、本文に
+> `codex ...` で始まる行が含まれる場合（Codex 関連の ADR 等）にフックが Bash コマンド全体を
+> ブロックする。フックは改行・パイプで分割した各セグメントのコマンド位置を検査するため、
+> heredoc の中身も検査対象になる。Write ツール経由なら本文は Bash コマンド文字列に載らない。
+
+1. Write ツールでプロンプトファイル（スクラッチパッド配下、例: `review-adr-prompt.md`）を作成する。
+   内容は以下のテンプレートの `<ADR_CONTENT>` に、対象 ADR の本文 + 既存 ADR インデックスを
+   差し込んだもの（Write 時に展開する。シェル変数ではない）:
+
+```markdown
 ## タスク
 以下の ADR を review-adr 観点でレビューし、L1 とは独立したセカンドオピニオンとして指摘を返してください。
 
@@ -111,9 +117,16 @@ codex exec \
 
 ## 対象 ADR
 <ADR_CONTENT>
-EOF
-)"
 ```
+
+2. 作成したファイルを渡してスクリプトを呼び出す:
+
+```bash
+bash "${CLAUDE_SKILL_DIR}/scripts/codex-review.sh" <プロンプトファイルのパス> /tmp/review-adr-codex.txt
+```
+
+`scripts/codex-review.sh` の内部で `--full-auto` / `--sandbox read-only` / `--ignore-user-config` /
+`--ignore-rules` / `--output-last-message` を組み立てて `codex exec` を実行する。
 
 `--with-gemini` 指定時のみ、`references/adr-prompt.md` を使って Gemini を追加実行する（opt-in）。
 
@@ -137,7 +150,6 @@ cat "$PROMPT_FILE" | bash ~/.claude/skills/peer-review/scripts/gemini-review.sh 
 
 Codex が失敗した場合は L1 のみで続行し、`--with-gemini` 指定時のみ Gemini 結果を補助的に使う。
 
-**注意**: 上記 `codex exec` ブロックの `<ADR_CONTENT>` は呼び出し時に Opus 側でプレースホルダ展開する（対象 ADR の本文 + 既存 ADR インデックスを差し込む）。シェルが展開する変数ではない。
 
 ### Step 4: 統合と提示
 

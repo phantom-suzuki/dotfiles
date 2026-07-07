@@ -1,0 +1,63 @@
+# L2 Codex を worktree + codex:rescue で回す手順
+
+pr-reviewer の L2（実コード検証）を Codex で回すための、この環境固有の手順。
+
+## なぜこの手順が要るか
+
+2 つの制約がある。
+
+1. **Codex の Bash 直叩きはフックにブロックされる**。`codex exec` はもちろん、`peer-review` スキルの `codex-review.sh`（内部で `codex` を直叩き）も、この環境では失敗する（`line 76: : No such file or directory` 等の症状）。グローバル規約で Codex 直叩きが封じられているため。→ **`codex:codex-rescue` サブエージェント（codex-companion ランタイム）経由でのみ Codex を使う**。
+2. **Codex は「現在チェックアウト中のブランチと base の diff」を見る**。別のブランチで作業している最中に対象 PR をレビューさせると、無関係な diff を見てしまい失敗・誤レビューになる。→ **対象 PR ブランチを `git worktree add` で別ツリーに取り出し、そのパスを Codex に渡す**。
+
+## 手順
+
+### 1. 最新取得と worktree 作成
+
+```bash
+git fetch origin --quiet
+SCRATCH="<scratchpad ディレクトリ>"   # セッションの一時領域
+git worktree add "$SCRATCH/wt-<N>" origin/<PR の head ブランチ>
+```
+
+- head ブランチ名は `gh pr view <N> --json headRefName` で取得。
+- 複数 PR は worktree を並べて作る（`wt-1137` / `wt-1122` …）。detached HEAD で問題ない。
+
+### 2. codex:codex-rescue に委譲（複数 PR は並列）
+
+各 PR について `codex:codex-rescue` サブエージェントを起動する。複数 PR は同一メッセージで並列起動する。プロンプトに含める要素:
+
+- **作業ディレクトリ**: 該当 worktree の絶対パス
+- **文脈**: 「この worktree は PR #<N> のブランチ。base は origin/main」
+- **やること**: `git diff origin/main...HEAD` で変更を確認 → 独立したセカンドオピニオンとして俯瞰レビュー
+- **観点**: ドキュメント PR なら「文書の主張がリポジトリ実体（ファイルパス・script 定義・用語集）と整合するか、実際に grep/ls で確認」「参照リンク・アンカーの解決」「論理矛盾・抜け漏れ」。コード PR なら「変更の論理整合・実装到達度・実装レベルの security」
+- **出力形式**: must-fix / should-fix / nit / praise に分類し、各指摘に該当箇所（ファイル:行 or 節名）を添えて日本語で返す。actionable な指摘がなければ「actionable な指摘なし」と明記
+
+### 3. 結果の裏取り
+
+Codex の指摘も間違うことがある。**採用する前に自分で `grep`/`ls` して裏取り**する。特に「ファイルが実在しない」「script が未定義」「用語集と不一致」のような事実主張は、投稿前に必ず確認する。裏が取れた指摘だけを Step 3 の統合に回す。
+
+### 4. 後片付け
+
+レビュー・投稿が済んだら worktree を削除する。
+
+```bash
+git worktree remove "$SCRATCH/wt-<N>" --force
+git worktree prune
+git worktree list   # 元の作業ツリーだけ残ることを確認
+```
+
+## codex:rescue プロンプト雛形
+
+```text
+作業ディレクトリ: <worktree の絶対パス>
+
+このディレクトリは GitHub PR #<N> のブランチをチェックアウトした git worktree です（<owner>/<repo>）。base は origin/main です。
+
+以下を実施してください（Codex に委譲）:
+1. `git diff origin/main...HEAD` で PR の変更内容を確認する。
+2. 変更の概要: <ここに PR の内容を 1-2 文で>
+3. 独立したセカンドオピニオンとして俯瞰観点でレビュー:
+   - <観点を列挙。実体との整合は必ず grep/ls で確認させる>
+4. 指摘を must-fix / should-fix / nit / praise に分類し、各指摘に該当箇所（ファイル:行 or 節名）を添えて簡潔に返す。actionable な指摘がなければ「actionable な指摘なし」と明記。
+最終回答は日本語で、分類済みの箇条書きで返してください。
+```
