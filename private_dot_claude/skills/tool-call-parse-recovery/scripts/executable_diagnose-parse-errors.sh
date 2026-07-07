@@ -169,8 +169,9 @@ printf '%s\n' "-----------------------------------------------------------------
 while read -r f; do
   [ -f "$f" ] || continue
   # 破損/追記途中の JSONL 行に当たると jq が非0で終わる。set -e 発火で全集計を失わないよう
-  # コマンド置換の失敗を握りつぶす（risk モードの heredoc 経由と同じ堅牢性に揃える）。
-  out="$(classify_file "$f")" || out=""
+  # 失敗を警告に落とし、jq が破損行より前に出力できた部分集計は捨てずに使う
+  # （out を空に潰すと単一ファイル指定時に警告なしの全ゼロ＝「失敗なし」誤読になるため）。
+  out="$(classify_file "$f")" || err "warning: $(basename "$f") の一部を解析できませんでした（読めた範囲のみ集計）"
   [ -n "$out" ] || continue
   finj=0; fcb=0; fca=0; ffin=0
   while IFS=$'\t' read -r tag model inj cb ca fin; do
