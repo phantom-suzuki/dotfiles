@@ -26,8 +26,8 @@
           },
           "aspect": {
             "type": "string",
-            "enum": ["bug", "security", "design", "all"],
-            "description": "呼び出し側が指定した観点をそのまま記録する。"
+            "enum": ["bug", "security", "design", "goal-achievement", "spec-consistency", "all"],
+            "description": "呼び出し側が指定した観点をそのまま記録する。goal-achievement / spec-consistency は macro 観点（deep モードでのみ起動）。"
           },
           "file": {
             "type": "string",
