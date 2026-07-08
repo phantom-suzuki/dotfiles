@@ -132,7 +132,7 @@ Gemini は `--with-gemini` 指定時のみ経路に入る。
 - **`scripts/codex-review.sh`（内部で `codex exec` を実行）**: **Bash から `codex exec` を直接叩かない**（PreToolUse フック `block-codex-direct.py` にブロックされる）。呼び出しは [../scripts/codex-review.sh](../scripts/codex-review.sh) を経由する（スクリプトファイルの呼び出しは同フックの検査対象外）
   - スクリプト内部でサブコマンドは `exec` を使う（`exec review` は `--output-schema` を未サポート）、`--output-schema`、`--output-last-message <tmpfile>`、`--sandbox read-only` を組み立てる
   - `codex >= 0.122` 環境では `--ignore-user-config --ignore-rules` もスクリプト内部の判定で追加する（旧 `$CODEX_REPRO_FLAGS`、判定ロジックは Step 0 からスクリプトへ移設済み）
-  - 既知のバグ回避のため `--model gpt-5`（`gpt-5-codex` ではない）を推奨
+  - モデルはスクリプトが `-c model=`（default: `gpt-5.5`、環境変数 `CODEX_REVIEW_MODEL` で上書き可）で明示する。`--model gpt-5` と旧既定 `gpt-5.3-codex` は ChatGPT アカウント認証だと 400 で拒否されるため使わない（2026-07 実測）
   - レビュー指示は `--output-schema` 用プロンプト本文に「以下の diff をレビューせよ」と明示して埋め込む
 - **`claude ultrareview`**: `--json` を必須化。exit code 0=完了 / 1=失敗 / 130=Ctrl-C を尊重し、stdout のみパース対象とする
 
@@ -415,9 +415,12 @@ fi
 
 ### モデル選定の注意
 
-`gpt-5-codex` モデルは `--json` / `--output-schema` がツール起動時に無視される既知バグあり
+`gpt-5-codex` 系モデルは `--json` / `--output-schema` がツール起動時に無視される既知バグあり
 （[openai/codex#15451](https://github.com/openai/codex/issues/15451)）。
-スキーマ強制が要求される本スキルでは **`--model gpt-5`** を指定する。
+また `--model gpt-5` と旧既定 `gpt-5.3-codex` は ChatGPT アカウント認証だと
+400 invalid_request_error で拒否される（2026-07 実測）。
+スキーマ強制が要求される本スキルでは **`-c model=gpt-5.5`**（CLI 明示指定。
+`--ignore-user-config` 併用時も有効）を使う。上書きは環境変数 `CODEX_REVIEW_MODEL`。
 
 ### 出力フォーマット
 
