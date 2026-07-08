@@ -30,6 +30,7 @@
     {{- /* 上書き: data.claude.autoCompactPct で変更可。未定義なら現行 default（30 = 1M 前提）。 */}}
     "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": {{ dig "claude" "autoCompactPct" "30" . | toString | toJson }}
   },
+  {{- /* permissions / hooks は共通既定を維持する。許可コマンド未実行なら実害なしのため、個人差分は各自の chezmoi.toml の deny 追加で対応する運用。 */}}
   "permissions": {
     "allow": [
       "Read(*)",
@@ -237,13 +238,7 @@
     "type": "command",
     "command": "~/.claude/statusline.sh"
   },
-  "enabledPlugins": {
-    "gopls-lsp@claude-plugins-official": true,
-    "skill-creator@claude-plugins-official": true,
-    "codex@openai-codex": true,
-    "scrum-penguin@mationinc-claude-code-baseline": true,
-    "tameny-base@mationinc-claude-code-baseline": true
-  },
+  "enabledPlugins": {{ dig "claude" "enabledPlugins" (dict "gopls-lsp@claude-plugins-official" true "skill-creator@claude-plugins-official" true "codex@openai-codex" true "scrum-penguin@mationinc-claude-code-baseline" true "tameny-base@mationinc-claude-code-baseline" true) . | toJson }},
   "extraKnownMarketplaces": {
     "openai-codex": {
       "source": {
@@ -263,13 +258,6 @@
   "skipWorkflowUsageWarning": true,
   "teammateMode": "auto",
   "skipAutoPermissionPrompt": true,
-  "mcpServers": {
-    "playwright": {
-      "command": "npx",
-      "args": [
-        "@playwright/mcp@latest"
-      ]
-    }
-  },
+  "mcpServers": {{ dig "claude" "mcpServers" (dict "playwright" (dict "command" "npx" "args" (list "@playwright/mcp@latest"))) . | toJson }},
   "tui": "fullscreen"
 }
