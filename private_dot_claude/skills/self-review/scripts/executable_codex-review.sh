@@ -8,9 +8,15 @@
 #   そのため codex exec の呼び出しはこのスクリプト内に閉じ込める。
 # - スキーマ強制（--output-schema）付きで codex exec を実行し、finding-schema.json 準拠の
 #   JSON を stdout に出力する（--output-schema 非対応の `codex exec review` は使わない）。
-# - --model gpt-5 を明示する。--ignore-user-config で config.toml のモデル設定も無視されるため、
-#   未指定だと CLI 既定の gpt-5-codex に落ち、--output-schema が無視される既知バグ
-#   （openai/codex#15451）でスキーマ強制が黙って効かなくなる。
+# - モデルは `-c model=`（CLI 明示指定）で渡す。--ignore-user-config が付いても -c は効く。
+#   default は gpt-5.5（環境変数 CODEX_REVIEW_MODEL で上書き可）。モデル指定が必要な理由:
+#   - --ignore-user-config は config.toml のモデル設定も無視するため、未指定だと CLI 既定
+#     モデルに落ちる。gpt-5-codex 系は --output-schema がツール起動時に無視される既知バグ
+#     （openai/codex#15451）があり、スキーマ強制が黙って効かなくなる。
+#   - `--model gpt-5` と旧既定 gpt-5.3-codex は ChatGPT アカウント認証だと
+#     400 invalid_request_error で拒否される（2026-07 実測）。
+# - codex exec は git リポジトリ内（trusted directory）を cwd にして実行すること。
+#   リポジトリ外から呼ぶと "Not inside a trusted directory" で失敗する。
 #
 # Usage:
 #   cat <<'EOF' | bash codex-review.sh <schema-path> <prompt-body-file>
@@ -33,6 +39,8 @@
 #   1 - 依存コマンド不足 / 引数不足 / codex 実行失敗
 
 set -uo pipefail
+
+CODEX_MODEL="${CODEX_REVIEW_MODEL:-gpt-5.5}"
 
 if ! command -v codex >/dev/null 2>&1; then
   >&2 echo "[self-review] codex CLI が見つかりません。security/design 観点は他レビュアーにフォールバックしてください"
@@ -81,7 +89,7 @@ trap 'rm -f "$TMP"' EXIT
   cat -
   echo '```'
 } | codex exec \
-  --model gpt-5 \
+  -c model="$CODEX_MODEL" \
   -c model_reasoning_effort=high \
   --output-schema "$SCHEMA" \
   --output-last-message "$TMP" \

@@ -200,7 +200,7 @@ fallback (primary が失敗した場合):
 - Gemini を **デフォルト経路から完全除外**。`--with-gemini` 指定時のみプリフライトも含めて起動
 - 全 CLI 呼び出しに **再現性確保フラグを必須化**:
   - `claude -p`: `--bare --output-format json --json-schema <FINDING_SCHEMA>`
-  - `codex exec`: `--output-schema <FINDING_SCHEMA> --ignore-user-config --ignore-rules`、モデルは `gpt-5`（`gpt-5-codex` の schema 無視バグ回避）
+  - `codex exec`: `--output-schema <FINDING_SCHEMA> --ignore-user-config --ignore-rules`、モデルは `-c model=gpt-5.5`（`gpt-5-codex` 系の schema 無視バグ回避。`gpt-5` は ChatGPT アカウント認証で 400 のため不可）
   - `claude ultrareview`: `--json` 必須、exit code を尊重
 - judgment 上限を 5 → **3 件** に。4 件目以降は info 格下げ
 - 新設: `references/schemas/finding-schema.json`（claude -p / codex exec 両用の出力スキーマ）

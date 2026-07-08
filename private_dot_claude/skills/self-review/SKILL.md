@@ -382,7 +382,7 @@ git commit -m "refactor: self-review (simplify + review fixes)"
 | Gemini プリフライトが unavailable | `--with-gemini` 指定下で容量不足や CLI 未応答 | Gemini を利用可能リストから除外し、クールダウンを 15 分保持。自動で Codex フォールバックは行わないため、必要なら `--with-gemini` を外して再実行する |
 | Gemini 429 (MODEL_CAPACITY_EXHAUSTED) | サーバー容量不足 | scripts/gemini-review.sh が 1 回リトライ → モデルフォールバック → クールダウン記録し、`[self-review] gemini unavailable...` を返して終了。呼び出し側は `--with-gemini` を外すか手動続行で対応する |
 | Codex レート制限 | 5時間ウィンドウ超過 | 次のレビュアー (Claude-p) へフォールバック。Simplify を Codex に委譲する `--simplify-via=codex` は特にレートを食う |
-| Codex `--output-schema` 違反 | gpt-5-codex モデルでツール起動時に schema が無視される既知バグ | `gpt-5` モデル指定 / `--output-last-message` の組合せで回避。Schema 違反検出時は Claude-p フォールバック |
+| Codex `--output-schema` 違反 | gpt-5-codex 系モデルでツール起動時に schema が無視される既知バグ | `-c model=gpt-5.5`（default、`CODEX_REVIEW_MODEL` で上書き可）+ `--output-last-message` の組合せで回避。Schema 違反検出時は Claude-p フォールバック |
 | Claude-p タイムアウト | ネットワークまたはAPI負荷 | 120秒タイムアウトで次のレビュアーへ |
 | ultrareview 失敗 (`exit 1`) | 課金枠超過 / API 障害 | 通常の `claude -p --bare` にフォールバック |
 | 全レビュアー失敗 | 全CLIが利用不可 | ユーザーに報告、Simplify 結果のみで判断を仰ぐ |
