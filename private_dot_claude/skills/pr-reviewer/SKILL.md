@@ -51,12 +51,12 @@ Step 5  後片付け（worktree 削除）→ 最終サマリ
 
 ## Step 1: 各 PR のトリアージ
 
-各 PR について以下を並列取得し、**「新規レビューか / 既にレビュー済みか」**を判定する。
+各 PR について以下を並列取得し、**「新規レビューか / 既にレビュー済みか」**を判定する。`<owner>/<repo>` はStep 0 で特定した対象リポジトリを渡す（Step 0 はリポジトリ横断で対象を探すが、Step 1 以降は対象を取り違えないよう常に `--repo` を明示する）。
 
 ```bash
-gh pr view <N> --json number,title,author,state,isDraft,reviewDecision,mergeStateStatus,baseRefName,headRefName,additions,deletions,changedFiles,files,body,reviews,commits,labels
-gh pr diff <N>
-gh pr checks <N>
+gh pr view <N> --repo <owner>/<repo> --json number,title,author,state,isDraft,reviewDecision,mergeStateStatus,baseRefName,headRefName,additions,deletions,changedFiles,files,body,reviews,commits,labels
+gh pr diff <N> --repo <owner>/<repo>
+gh pr checks <N> --repo <owner>/<repo>
 gh api /repos/<owner>/<repo>/pulls/<N>/comments  # 行コメント
 ```
 
@@ -127,5 +127,6 @@ L1 と L2 の指摘を統合し、`peer-review` の分類（must-fix / should-fi
 ## 関連
 
 - `peer-review` スキル（単一 PR の観点定義・分類基準・投稿形式の土台）
+- `review-pr` スキル（名前が紛らわしいが対象が逆。`review-pr` は**自分の PR** に付いたレビューコメントへの対応、本スキル `pr-reviewer` は**他者の PR** のレビュー統率）
 - `coderabbit-approve` スキル（CodeRabbit の正式 APPROVED を得る運用）
 - `~/.claude/rules/git-safety.md`（投稿・マージの安全原則）

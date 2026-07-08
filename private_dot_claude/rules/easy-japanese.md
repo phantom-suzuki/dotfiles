@@ -235,6 +235,3 @@ Claude → ユーザへの日本語出力 (チャット応答 / Issue / PR / コ
 
 - `tameny-base:explain-discipline` スキル — **結論ファースト / 同義反復回避 /
   意図再言語化** を強制する上位レイヤ。本ルールは文単位の組み立て規律を担う
-- [`explain-learning.md`](./explain-learning.md) — 困惑サイン発火時の学習ループ。
-  本ルール違反が原因で困惑が起きた場合は同 rule に従って正本化する
-- [`citation.md`](./citation.md) — 外部識別子の引用規約 (R6 のあいまい回避と関連)
