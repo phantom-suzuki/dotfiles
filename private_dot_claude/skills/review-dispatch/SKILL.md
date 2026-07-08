@@ -1,5 +1,5 @@
 ---
-description: レビュー依頼を受けたとき、6 つのレビュースキル（self-review / review-pr / peer-review / review-adr / review-doc / dependabot-review）から最適なものを判定する分岐ガイド。「どのレビュー使う？」「レビュースキル使い分け」「review-dispatch」「レビュー判定」等の依頼時、または対象が曖昧で起点となるレビュースキルを 1 つに絞れないときに使用。
+description: レビュー依頼を受けたとき、7 つのレビュースキル（self-review / review-pr / pr-reviewer / peer-review / review-adr / review-doc / dependabot-review）から最適なものを判定する分岐ガイド。「どのレビュー使う？」「レビュースキル使い分け」「review-dispatch」「レビュー判定」等の依頼時、または対象が曖昧で起点となるレビュースキルを 1 つに絞れないときに使用。
 argument-hint: ""
 ---
 
@@ -11,16 +11,19 @@ argument-hint: ""
 
 このスキル自体はレビューを実行しない。判定後に該当スキルを起動する。
 
-## 6 スキル早見表
+## 7 スキル早見表
 
 | スキル | 対象 | 修正権限 | 出力先 | 主観点 |
 |---|---|---|---|---|
 | `/self-review` | 自分のコード差分 (changed/staged/all) | あり（自動コミット） | git commit | バグ・品質・複雑さ |
 | `/review-pr` | 自分の PR についたレビューコメント | あり（コード修正 + GraphQL 返信） | review thread reply + resolve | 受けた指摘への対応 |
+| `/pr-reviewer` | 自分がレビューリクエストを受けた他者の PR、または番号/URL 指定の他者 PR | なし（コメント投稿のみ） | PR コメント | トリアージ・要約・投稿判定の対話統率（peer-review の上位ラッパー） |
 | `/peer-review` | 他者の PR | なし | PR review API（行コメント + トップ） | security / arch / goal / alternatives / spec |
 | `/review-adr` | 単一 ADR (.md, docs/adr/) | なし（提案のみ） | 標準出力（Edit は承認後、L2 は Codex 既定 / Gemini は opt-in） | 論理一貫性・既存矛盾・抜け漏れ・軸選定・表記 |
 | `/review-doc` | 通常 Markdown ドキュメント（ADR 以外） | なし（提案のみ） | 標準出力（Edit は承認後、L2 は Codex 既定 / Gemini は opt-in） | 可読性・前後整合・参照リンク・更新漏れ |
 | `/dependabot-review` | Bot 作成 PR (Dependabot/Renovate) | なし（追従 PR は承認後・別ブランチ） | PR コメント upsert | バージョン bump 追従漏れ（grep） |
+
+`pr-reviewer` と `peer-review` はどちらも「他者の PR」を対象にするが、境界がある。**他者 PR の入口は `pr-reviewer`**（レビューリクエストのトリアージ・要約・投稿判定の対話を統率）で、**単一 PR の観点定義・実行本体は `peer-review`**（`pr-reviewer` はその上位ラッパーとして内部で使う）。単発で「この PR の観点をすぐ評価してほしい」と対象が明確な場合は `peer-review` を直接起動してもよい。
 
 ## 判定フロー
 
@@ -33,7 +36,7 @@ Q1: 対象は何か？
   └─ コード / 普通の PR → Q2 へ
 
 Q2: 対象は誰のもの？
-  ├─ 他者の PR ─────────────────────────→ /peer-review
+  ├─ 他者の PR（レビューリクエストが届いた / 番号・URL 指定） → /pr-reviewer
   └─ 自分のもの → Q3 へ
 
 Q3: 自分のもののどのフェーズ？
@@ -49,7 +52,8 @@ Q3: 自分のもののどのフェーズ？
 |---|---|---|
 | 「セルフレビュー」「レビュー回して」「self-review」 | 自分のコード差分 | `/self-review` |
 | 「レビュー対応」「レビューコメントに返信」「review-pr」 | 自分の PR についたレビュー | `/review-pr` |
-| 「PR レビュー」「ピアレビュー」「他者の PR を見て」 | 他者の PR | `/peer-review` |
+| 「レビューリクエストを見て」「レビュー依頼が来てる」「PR をレビューして」「#123 をレビュー」 | 他者の PR（入口） | `/pr-reviewer` |
+| 「ピアレビュー」「peer-review」（対象 PR が明確で観点評価だけ即時に欲しい場合） | 他者の PR（単発の観点評価） | `/peer-review` |
 | 「ADR レビュー」「ADR を見て」 | ADR (.md, docs/adr/) | `/review-adr` |
 | 「ドキュメントレビュー」「ガイドを見て」「Markdown レビュー」 | 通常 Markdown | `/review-doc` |
 | 「dependabot レビュー」「依存性 PR を見て」「bot PR チェック」 | Bot 作成 PR | `/dependabot-review` |
@@ -96,7 +100,7 @@ PR 全体を `/peer-review` で俯瞰しつつ、ADR ファイルは個別に `/
 → 通常の Markdown とは性質が異なるため、`/review-doc` の対象外。
 - 設計レビュー（観点・構造） → `/skill-design` 関連の助言を仰ぐ
 - 実装変更を含む PR → `/self-review`（コード扱い）
-- 他者の SKILL.md PR → `/peer-review`
+- 他者の SKILL.md PR → `/pr-reviewer`
 
 ## 実行手順（このスキル自体）
 
@@ -128,10 +132,11 @@ PR 全体を `/peer-review` で俯瞰しつつ、ADR ファイルは個別に `/
 
 ## 関連スキル
 
-すべての判定先スキルは前掲「6 スキル早見表」を参照。
+すべての判定先スキルは前掲「7 スキル早見表」を参照。
 
 - `/self-review`
 - `/review-pr`
+- `/pr-reviewer`
 - `/peer-review`
 - `/review-adr`
 - `/review-doc`
