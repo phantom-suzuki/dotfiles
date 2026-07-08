@@ -51,7 +51,7 @@ Step 5  後片付け（worktree 削除）→ 最終サマリ
 
 ## Step 1: 各 PR のトリアージ
 
-各 PR について以下を並列取得し、**「新規レビューか / 既にレビュー済みか」**を判定する。`<owner>/<repo>` はStep 0 で特定した対象リポジトリを渡す（Step 0 はリポジトリ横断で対象を探すが、Step 1 以降は対象を取り違えないよう常に `--repo` を明示する）。
+各 PR について以下を並列取得し、**「新規レビューか / 既にレビュー済みか」**を判定する。`<owner>/<repo>` には Step 0 で特定した対象リポジトリを指定する。（Step 0 はリポジトリ横断で対象を探すため、Step 1 以降は対象取り違え防止に `--repo` を常に明示する）
 
 ```bash
 gh pr view <N> --repo <owner>/<repo> --json number,title,author,state,isDraft,reviewDecision,mergeStateStatus,baseRefName,headRefName,additions,deletions,changedFiles,files,body,reviews,commits,labels
@@ -79,7 +79,7 @@ gh api /repos/<owner>/<repo>/pulls/<N>/comments  # 行コメント
 ### L2（Codex・実コード検証）
 **この環境では Codex の Bash 直叩き（`codex exec` / `codex-review.sh`）はフックにブロックされる**。必ず `codex:codex-rescue` サブエージェント経由で回す。また Codex は「現在チェックアウト中のブランチと base の diff」を見るため、別ブランチで作業中だと対象 PR を解決できない。**対象 PR ブランチを `git worktree add` で取り出し、その worktree パスを rescue に渡す**。
 
-手順の詳細（worktree 作成・codex:rescue へのプロンプト・後片付け）は [references/codex-worktree.md](references/codex-worktree.md) を参照。
+手順の詳細（worktree 作成・codex:codex-rescue へのプロンプト・後片付け）は [references/codex-worktree.md](references/codex-worktree.md) を参照。
 
 L2 が見つける典型（L1 が見落としやすい）: ドキュメントの主張と実物の不一致（実在しないファイルパス・未定義の script・用語集違反）、コード変更の論理整合。今回の運用実績でも、L1 単独では approve 相当だった PR に L2 が事実誤認を複数検出した。**L2 の指摘は必ず自分でも grep/ls で裏取りしてから採用する**（Codex の指摘も間違うことがある）。
 
