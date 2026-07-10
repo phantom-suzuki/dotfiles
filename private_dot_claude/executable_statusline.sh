@@ -25,25 +25,93 @@ model=$(echo "$input" | jq -r '.model.display_name // "?"')
 used=$(echo "$input" | jq -r '.context_window.used_percentage // 0' | cut -d. -f1)
 cost=$(echo "$input" | jq -r '.cost.total_cost_usd // 0')
 
+# Secondary fields, fetched in one jq call to keep render-path process count low.
+# Space-joined single line; "-" marks an absent value (no field ever contains a
+# space, so a plain `read` split is safe). Order must match the read below.
+extras=$(echo "$input" | jq -r '[
+  (.effort.level // "-"),
+  ((.fast_mode // false) | tostring),
+  ((.exceeds_200k_tokens // false) | tostring),
+  ((.context_window.total_input_tokens // 0) | floor | tostring),
+  ((.context_window.context_window_size // 0) | floor | tostring),
+  ((.cost.total_lines_added // 0) | floor | tostring),
+  ((.cost.total_lines_removed // 0) | floor | tostring),
+  ((.cost.total_duration_ms // 0) | floor | tostring),
+  ((.rate_limits.five_hour.used_percentage // "-") | tostring),
+  ((.rate_limits.five_hour.resets_at // "-") | tostring),
+  ((.rate_limits.seven_day.used_percentage // "-") | tostring),
+  ((.rate_limits.seven_day.resets_at // "-") | tostring)
+] | join(" ")' 2>/dev/null) || extras=""
+[[ -n "$extras" ]] || extras='- false false 0 0 0 0 0 - - - -'
+read -r effort_level fast_mode over200k tokens_in win_size lines_add lines_del dur_ms five_h rl5_reset seven_d rl7_reset <<EOF
+$extras
+EOF
+[[ "$effort_level" == "-" ]] && effort_level=""
+[[ "$five_h" == "-" ]] && five_h=""
+[[ "$rl5_reset" == "-" ]] && rl5_reset=""
+[[ "$seven_d" == "-" ]] && seven_d=""
+[[ "$rl7_reset" == "-" ]] && rl7_reset=""
+
+# 97242 -> 97k, 1000000 -> 1M (token counts and context-window sizes)
+fmt_tokens() {
+  if (( $1 >= 1000000 )); then printf '%dM' $(( $1 / 1000000 ))
+  elif (( $1 >= 1000 )); then printf '%dk' $(( $1 / 1000 ))
+  else printf '%d' "$1"
+  fi
+}
+
+fmt_duration() {
+  local ms="$1" total_mins hours mins
+  (( ms > 0 )) || return 0
+  total_mins=$(( ms / 60000 ))
+  (( total_mins > 0 )) || total_mins=1
+  if (( total_mins < 60 )); then
+    printf '%dm' "$total_mins"
+  else
+    hours=$(( total_mins / 60 ))
+    mins=$(( total_mins % 60 ))
+    printf '%dh%02dm' "$hours" "$mins"
+  fi
+}
+
+reset_hm() {
+  local ts="${1%%.*}"
+  [[ "$ts" =~ ^[0-9]+$ ]] || return 0
+  date -r "$ts" +%H:%M 2>/dev/null || date -d "@$ts" +%H:%M 2>/dev/null || true
+}
+
 # --- Git branch (cached per project, 5s TTL) ---
 cache_dir="/tmp/claude-statusline"
 mkdir -p "$cache_dir"
 cache_file="$cache_dir/$(echo "$project_dir" | tr '/' '_')"
 now=$(date +%s)
 
-branch=""
+# Cache format: line1=timestamp line2=branch line3=dirty(1/0). Older 2-line
+# caches yield an empty dirty flag -> treated as unknown, rendered unmarked.
+branch=""; dirty_flag=""
 if [[ -n "$project_dir" && ( -d "$project_dir/.git" || -f "$project_dir/.git" ) ]]; then
   if [[ -f "$cache_file" ]]; then
     cached_time=$(head -1 "$cache_file")
+    cached_time=${cached_time//[^0-9]/}; cached_time=${cached_time:-0}
     if (( now - cached_time < 5 )); then
-      branch=$(tail -1 "$cache_file")
+      branch=$(sed -n 2p "$cache_file")
+      dirty_flag=$(sed -n 3p "$cache_file")
     fi
   fi
   if [[ -z "$branch" ]]; then
     branch=$(git -C "$project_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
-    printf '%s\n%s\n' "$now" "$branch" > "$cache_file"
+    dirty_flag=0
+    if [[ -n "$branch" ]]; then
+      # Tracked files only (-uno): keeps the check cheap and stops untracked
+      # noise (build artifacts etc.) from lighting the marker.
+      dirty_out=$(git -C "$project_dir" status --porcelain -uno 2>/dev/null || true)
+      [[ -n "$dirty_out" ]] && dirty_flag=1
+    fi
+    printf '%s\n%s\n%s\n' "$now" "$branch" "$dirty_flag" > "$cache_file"
   fi
 fi
+branch_disp="$branch"
+[[ "$dirty_flag" == "1" ]] && branch_disp="${branch}*"
 
 # --- Open PR for current branch (read cache only; never blocks the render path) ---
 # Replicates the open-PR indicator Claude Code's default statusline used to show.
@@ -171,44 +239,75 @@ cost_fmt=$(printf '$%.2f' "$cost")
 # Thresholds overridable via env. All reads are guarded for absence (set -euo pipefail safe).
 RL_WARN=${CLAUDE_RL_WARN:-80}   # yellow gauge
 RL_CRIT=${CLAUDE_RL_CRIT:-90}   # red + macOS notification ("switch account")
-rl_full=""; rl_short=""
-five_h=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
-seven_d=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
+rl_short=""; rl_wide=""
 rl_max=0; rl_label=""; rl_reset=""
 if [[ -n "$five_h" ]]; then
-  v=${five_h%%.*}; v=${v:-0}; rl_max=$v; rl_label="5h"
-  rl_reset=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty')
+  v=${five_h%%.*}; v=${v:-0}; rl_max=$v; rl_label="5h"; rl_reset="$rl5_reset"
 fi
 if [[ -n "$seven_d" ]]; then
   v=${seven_d%%.*}; v=${v:-0}
   if (( v > rl_max )); then
-    rl_max=$v; rl_label="7d"
-    rl_reset=$(echo "$input" | jq -r '.rate_limits.seven_day.resets_at // empty')
+    rl_max=$v; rl_label="7d"; rl_reset="$rl7_reset"
   fi
+fi
+
+# Wide shows BOTH windows, each colored by its own severity; once a window
+# crosses the warn threshold its reset time is attached.
+rl_pair() {
+  local p=${2%%.*}; p=${p:-0}
+  local color hm seg
+  [[ "$p" =~ ^[0-9]+$ ]] || p=0
+  if (( p >= RL_CRIT )); then color="31;1"
+  elif (( p >= RL_WARN )); then color="33"
+  else color="32"
+  fi
+  seg="\033[${color}m${1}:${p}%\033[0m"
+  if (( p >= RL_WARN )) && [[ -n "$3" ]]; then
+    hm=$(reset_hm "$3")
+    [[ -n "$hm" ]] && seg+="\033[2m(→${hm})\033[0m"
+  fi
+  printf '%s' "$seg"
+}
+[[ -n "$five_h" ]] && rl_wide="$(rl_pair 5h "$five_h" "$rl5_reset")"
+if [[ -n "$seven_d" ]]; then
+  [[ -n "$rl_wide" ]] && rl_wide+=" "
+  rl_wide+="$(rl_pair 7d "$seven_d" "$rl7_reset")"
 fi
 if [[ -n "$rl_label" ]]; then
   if (( rl_max >= RL_CRIT )); then
-    rl_full="\033[31;1m⚠ ${rl_label}:${rl_max}% 切替検討\033[0m"
     rl_short="\033[31;1m⚠${rl_max}%\033[0m"
     # Desktop notification — macOS only, debounced once per reset window, backgrounded
     if [[ "$(uname)" == "Darwin" && -n "$rl_reset" ]]; then
       flag="$cache_dir/rl-notified-${rl_reset%%.*}"
       if [[ ! -f "$flag" ]]; then
-        hm=$(date -r "${rl_reset%%.*}" +%H:%M 2>/dev/null || echo "?")
+        hm=$(reset_hm "$rl_reset"); hm=${hm:-?}
         ( osascript -e "display notification \"${rl_label} 使用率 ${rl_max}%。${hm} にリセット。別アカウントへの切替を検討してください\" with title \"Claude Code rate limit\" sound name \"Sosumi\"" >/dev/null 2>&1 & )
         : > "$flag"
       fi
     fi
   elif (( rl_max >= RL_WARN )); then
-    rl_full="\033[33m${rl_label}:${rl_max}%\033[0m"; rl_short="\033[33m${rl_max}%\033[0m"
+    rl_short="\033[33m${rl_max}%\033[0m"
   else
-    # Normal: show gauge on wide/medium only; keep narrow uncluttered
-    rl_full="\033[32m${rl_label}:${rl_max}%\033[0m"; rl_short=""
+    # Normal: wide shows detailed limits; narrow stays uncluttered.
+    rl_short=""
   fi
 fi
 
+token_window_seg=""
+if (( win_size > 0 )); then
+  token_window_seg=" ($(fmt_tokens "$tokens_in")/$(fmt_tokens "$win_size"))"
+fi
+model_seg="$model"
+[[ "$fast_mode" == "true" ]] && model_seg="⚡${model_seg}"
+[[ -n "$effort_level" ]] && model_seg+=" \033[2m·${effort_level}\033[0m"
+lines_seg=""
+if (( lines_add > 0 || lines_del > 0 )); then
+  lines_seg="\033[32m+${lines_add}\033[0m/\033[31m-${lines_del}\033[0m"
+fi
+duration_seg=$(fmt_duration "$dur_ms")
+
 # --- Compose lines (responsive; wide/medium render two rows) ---
-# Row 1 = identity (project | branch | PR), Row 2 = metrics (context | model | cost | rate-limit).
+# Row 1 = identity (project | branch | PR), Row 2 = metrics (context | model | cost | usage).
 # Narrow stays a single row. Using printf '%b' for reliable escape handling across shells.
 line1=""; line2=""
 if (( cols >= 90 )); then
@@ -223,23 +322,30 @@ if (( cols >= 90 )); then
 
   # Row 1: project | branch | PR
   line1="\033[36;1m${project}\033[0m"
-  [[ -n "$branch" ]] && line1+=" \033[2m|\033[0m \033[35m${branch}\033[0m"
+  [[ -n "$branch" ]] && line1+=" \033[2m|\033[0m \033[35m${branch_disp}\033[0m"
   [[ -n "$pr_seg" ]] && line1+=" \033[2m|\033[0m ${pr_seg}"
-  # Row 2: ▓▓▓░░ XX% | model $X.XX | rate-limit
+  # Row 2: ▓▓▓░░ XX% (tokens/window) | model | $X.XX | +/- | duration | rate-limits
   line2="\033[${bar_color}m${bar}\033[0m \033[${bar_color}m${used}%\033[0m"
-  line2+=" \033[2m|\033[0m ${model} \033[2m${cost_fmt}\033[0m"
-  [[ -n "$rl_full" ]] && line2+=" \033[2m|\033[0m ${rl_full}"
+  [[ "$over200k" == "true" ]] && line2+=" \033[31;1m⚠200k+\033[0m"
+  line2+="${token_window_seg}"
+  line2+=" \033[2m|\033[0m ${model_seg}"
+  line2+=" \033[2m|\033[0m ${cost_fmt}"
+  [[ -n "$lines_seg" ]] && line2+=" \033[2m|\033[0m ${lines_seg}"
+  [[ -n "$duration_seg" ]] && line2+=" \033[2m|\033[0m ${duration_seg}"
+  [[ -n "$rl_wide" ]] && line2+=" \033[2m|\033[0m ${rl_wide}"
 
 elif (( cols >= 60 )); then
   # Medium
   # Row 1: project | branch | PR
   line1="\033[36;1m${project}\033[0m"
-  [[ -n "$branch" ]] && line1+=" \033[2m|\033[0m \033[35m${branch}\033[0m"
+  [[ -n "$branch" ]] && line1+=" \033[2m|\033[0m \033[35m${branch_disp}\033[0m"
   [[ -n "$pr_seg" ]] && line1+=" \033[2m|\033[0m ${pr_seg}"
-  # Row 2: XX% | $X.XX | rate-limit
+  # Row 2: XX% | model | $X.XX | duration | rate-limit (warn/crit only)
   line2="\033[${bar_color}m${used}%\033[0m"
-  line2+=" \033[2m|\033[0m \033[2m${cost_fmt}\033[0m"
-  [[ -n "$rl_full" ]] && line2+=" \033[2m|\033[0m ${rl_full}"
+  line2+=" \033[2m|\033[0m ${model}"
+  line2+=" \033[2m|\033[0m ${cost_fmt}"
+  [[ -n "$duration_seg" ]] && line2+=" \033[2m|\033[0m ${duration_seg}"
+  [[ -n "$rl_short" ]] && line2+=" \033[2m|\033[0m ${rl_short}"
 
 else
   # Narrow: single row — project XX% $X.XX (rate-limit shown only when critical)
