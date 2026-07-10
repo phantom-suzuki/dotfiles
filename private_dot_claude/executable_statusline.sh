@@ -50,10 +50,22 @@ fi
 # gh is a blocking network call, so it never runs inline here. A detached background
 # job refreshes the cache; this script only reads whatever is already on disk, even
 # if stale — a stale PR badge beats no statusline at all.
+
+# Read line N from a PR cache file (empty string if the file or line is missing).
+pr_cache_line() {
+  sed -n "${1}p" "$2" 2>/dev/null || true
+}
+
 refresh_pr_cache() {
   local proj_dir="$1" br="$2" cfile="$3"
   local pcache="${cfile}.pr"
-  local lock_dir="${pcache}.lock"
+  # Not `local`: this function only ever runs inside its own backgrounded
+  # process, so leaving it in the process-global scope is safe, and it lets
+  # the EXIT trap below reference it by name (single-quoted, expanded at fire
+  # time) instead of splicing the path into the trap string — untrusted path
+  # bytes (quotes, shell metacharacters) in a double-quoted trap would be
+  # re-parsed as shell syntax at signal time (CWE-78).
+  lock_dir="${pcache}.lock"
   local now_ts
   now_ts=$(date +%s)
 
@@ -67,12 +79,14 @@ refresh_pr_cache() {
       return 0
     fi
   fi
-  # Expand lock_dir into the trap string now, not at fire time — it's a local
-  # variable that goes out of scope once this function returns, and under
-  # `set -u` a delayed `$lock_dir` reference at EXIT would be unbound.
-  # shellcheck disable=SC2064
-  trap "rmdir '$lock_dir' 2>/dev/null || true" EXIT
+  # ${lock_dir:-} keeps this safe under `set -u` even if the trap somehow
+  # fires before lock_dir is assigned; rmdir on an empty/missing path just
+  # fails and `|| true` swallows it.
+  trap 'rmdir "${lock_dir:-}" 2>/dev/null || true' EXIT
 
+  # `env` is a no-op prefix used when no timeout binary is found. Kept as a
+  # non-empty array element on purpose: macOS ships bash 3.2, where `set -u`
+  # treats expanding an empty array as an unbound-variable error.
   local -a timeout_prefix=(env)
   if command -v timeout >/dev/null 2>&1; then
     timeout_prefix=(timeout 10)
@@ -80,31 +94,31 @@ refresh_pr_cache() {
     timeout_prefix=(gtimeout 10)
   fi
 
-  local err_file
-  err_file=$(mktemp)
+  # `gh pr list` (unlike `gh pr view`) exits 0 with `[]` when there's no open
+  # PR for the branch, so a missing PR and a failed call are cleanly distinguished
+  # by exit code alone — no stderr text matching needed. `--head` only matches
+  # on branch name, so a same-named fork branch's cross-repository PR would
+  # otherwise be shown as our own; fetch a few candidates (limit 1 would already
+  # cut the list before we can filter) and exclude isCrossRepository ones. If we
+  # only ever open PRs from a fork ourselves, our badge simply won't show — an
+  # accepted trade-off for not misattributing someone else's PR.
   local pr_json="" gh_exit=0
-  pr_json=$(cd "$proj_dir" && "${timeout_prefix[@]}" gh pr view --json number,url,state 2>"$err_file") || gh_exit=$?
-  local err_content
-  err_content=$(cat "$err_file" 2>/dev/null || echo "")
-  rm -f "$err_file"
+  pr_json=$(cd "$proj_dir" && "${timeout_prefix[@]}" gh pr list --head "$br" --state open --json number,url,isCrossRepository --limit 10 2>/dev/null) || gh_exit=$?
 
   local new_number="" new_url=""
   if (( gh_exit == 0 )); then
-    local state
-    state=$(echo "$pr_json" | jq -r '.state // empty' 2>/dev/null || echo "")
-    if [[ "$state" == "OPEN" ]]; then
-      new_number=$(echo "$pr_json" | jq -r '.number' 2>/dev/null || echo "")
-      new_url=$(echo "$pr_json" | jq -r '.url' 2>/dev/null || echo "")
+    local line
+    line=$(echo "$pr_json" | jq -r '[.[] | select(.isCrossRepository | not)] | if length > 0 then "\(.[0].number)\t\(.[0].url)" else "" end' 2>/dev/null || echo "")
+    if [[ "$line" == *$'\t'* ]]; then
+      new_number="${line%%$'\t'*}"
+      new_url="${line#*$'\t'}"
     fi
-  elif echo "$err_content" | grep -qi "no pull requests found"; then
-    new_number=""; new_url=""
-  else
-    # Transient failure (network, auth, etc.) — keep whatever PR value was cached
-    # before and only bump the timestamp, so we retry in 60s without blanking the badge.
-    if [[ -f "$pcache" ]]; then
-      new_number=$(sed -n '3p' "$pcache" 2>/dev/null || echo "")
-      new_url=$(sed -n '4p' "$pcache" 2>/dev/null || echo "")
-    fi
+  elif [[ -f "$pcache" ]] && [[ "$(pr_cache_line 2 "$pcache")" == "$br" ]]; then
+    # Transient failure (network, auth, etc.) — keep the cached PR value, but
+    # only when it belongs to this same branch, so we retry in 60s without
+    # blanking the badge and never carry a stale branch's PR into this one.
+    new_number=$(pr_cache_line 3 "$pcache")
+    new_url=$(pr_cache_line 4 "$pcache")
   fi
 
   local tmp_file="${pcache}.tmp.$$"
@@ -117,16 +131,16 @@ if [[ -n "$branch" && -n "$project_dir" ]] && command -v gh >/dev/null 2>&1; the
   pr_cache="${cache_file}.pr"
   need_refresh=1
   if [[ -f "$pr_cache" ]]; then
-    pr_ctime=$(sed -n '1p' "$pr_cache" 2>/dev/null || echo 0); pr_ctime=${pr_ctime//[^0-9]/}; pr_ctime=${pr_ctime:-0}
-    pr_cbranch=$(sed -n '2p' "$pr_cache" 2>/dev/null || echo "")
+    pr_ctime=$(pr_cache_line 1 "$pr_cache"); pr_ctime=${pr_ctime//[^0-9]/}; pr_ctime=${pr_ctime:-0}
+    pr_cbranch=$(pr_cache_line 2 "$pr_cache")
     if [[ "$pr_cbranch" == "$branch" ]]; then
-      pr_number=$(sed -n '3p' "$pr_cache" 2>/dev/null || echo "")
-      pr_url=$(sed -n '4p' "$pr_cache" 2>/dev/null || echo "")
+      pr_number=$(pr_cache_line 3 "$pr_cache")
+      pr_url=$(pr_cache_line 4 "$pr_cache")
       (( now - pr_ctime < 60 )) && need_refresh=0
     fi
   fi
   if (( need_refresh )); then
-    ( refresh_pr_cache "$project_dir" "$branch" "$cache_file" ) >/dev/null 2>&1 &
+    refresh_pr_cache "$project_dir" "$branch" "$cache_file" >/dev/null 2>&1 &
   fi
 fi
 
@@ -234,7 +248,5 @@ else
 fi
 
 printf '%b\n' "$line1"
-if [[ -n "$line2" ]]; then
-  printf '%b\n' "$line2"
-fi
+[[ -n "$line2" ]] && printf '%b\n' "$line2"
 exit 0
