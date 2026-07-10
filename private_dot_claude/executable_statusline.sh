@@ -7,15 +7,16 @@ set -euo pipefail
 
 input=$(cat)
 
-# --- Terminal width guard ---
-# WezTerm pane split may report incorrect width before initialization.
-# Also skip during session startup (before first API response) since
-# Claude Code's TUI renderer may not have the correct dimensions yet.
-cols=${COLUMNS:-$(tput cols 2>/dev/null || echo 0)}
-(( cols < 30 )) && exit 0
-
-duration=$(echo "$input" | jq -r '.cost.total_duration_ms // 0' | cut -d. -f1)
-(( duration == 0 )) && exit 0
+# --- Terminal width ---
+# COLUMNS is set by Claude Code v2.1.153+. In environments where it's absent
+# (older Claude Code, or the shell has no TERM), `tput cols` doesn't work since
+# this script isn't attached to a terminal — so fall back to 80 instead of
+# calling tput. Never exit early on a small/unknown width: narrow layout
+# renders a short single row, so there's no reason to blank the whole bar.
+cols="${COLUMNS:-}"
+if [[ -z "$cols" || ! "$cols" =~ ^[0-9]+$ || "$cols" -eq 0 ]]; then
+  cols=80
+fi
 
 # --- Extract fields via jq ---
 project_dir=$(echo "$input" | jq -r '.workspace.project_dir // empty')
@@ -44,32 +45,88 @@ if [[ -n "$project_dir" && ( -d "$project_dir/.git" || -f "$project_dir/.git" ) 
   fi
 fi
 
-# --- Open PR for current branch (cached per branch, 60s TTL) ---
+# --- Open PR for current branch (read cache only; never blocks the render path) ---
 # Replicates the open-PR indicator Claude Code's default statusline used to show.
-# gh is a network call, so cache aggressively and guard every read (set -euo pipefail safe).
+# gh is a blocking network call, so it never runs inline here. A detached background
+# job refreshes the cache; this script only reads whatever is already on disk, even
+# if stale — a stale PR badge beats no statusline at all.
+refresh_pr_cache() {
+  local proj_dir="$1" br="$2" cfile="$3"
+  local pcache="${cfile}.pr"
+  local lock_dir="${pcache}.lock"
+  local now_ts
+  now_ts=$(date +%s)
+
+  if ! mkdir "$lock_dir" 2>/dev/null; then
+    local lock_age
+    lock_age=$(( now_ts - $(stat -f %m "$lock_dir" 2>/dev/null || stat -c %Y "$lock_dir" 2>/dev/null || echo "$now_ts") ))
+    if (( lock_age > 120 )); then
+      rmdir "$lock_dir" 2>/dev/null || true
+      mkdir "$lock_dir" 2>/dev/null || return 0
+    else
+      return 0
+    fi
+  fi
+  # Expand lock_dir into the trap string now, not at fire time — it's a local
+  # variable that goes out of scope once this function returns, and under
+  # `set -u` a delayed `$lock_dir` reference at EXIT would be unbound.
+  # shellcheck disable=SC2064
+  trap "rmdir '$lock_dir' 2>/dev/null || true" EXIT
+
+  local -a timeout_prefix=(env)
+  if command -v timeout >/dev/null 2>&1; then
+    timeout_prefix=(timeout 10)
+  elif command -v gtimeout >/dev/null 2>&1; then
+    timeout_prefix=(gtimeout 10)
+  fi
+
+  local err_file
+  err_file=$(mktemp)
+  local pr_json="" gh_exit=0
+  pr_json=$(cd "$proj_dir" && "${timeout_prefix[@]}" gh pr view --json number,url,state 2>"$err_file") || gh_exit=$?
+  local err_content
+  err_content=$(cat "$err_file" 2>/dev/null || echo "")
+  rm -f "$err_file"
+
+  local new_number="" new_url=""
+  if (( gh_exit == 0 )); then
+    local state
+    state=$(echo "$pr_json" | jq -r '.state // empty' 2>/dev/null || echo "")
+    if [[ "$state" == "OPEN" ]]; then
+      new_number=$(echo "$pr_json" | jq -r '.number' 2>/dev/null || echo "")
+      new_url=$(echo "$pr_json" | jq -r '.url' 2>/dev/null || echo "")
+    fi
+  elif echo "$err_content" | grep -qi "no pull requests found"; then
+    new_number=""; new_url=""
+  else
+    # Transient failure (network, auth, etc.) — keep whatever PR value was cached
+    # before and only bump the timestamp, so we retry in 60s without blanking the badge.
+    if [[ -f "$pcache" ]]; then
+      new_number=$(sed -n '3p' "$pcache" 2>/dev/null || echo "")
+      new_url=$(sed -n '4p' "$pcache" 2>/dev/null || echo "")
+    fi
+  fi
+
+  local tmp_file="${pcache}.tmp.$$"
+  printf '%s\n%s\n%s\n%s\n' "$now_ts" "$br" "$new_number" "$new_url" > "$tmp_file"
+  mv -f "$tmp_file" "$pcache"
+}
+
 pr_number=""; pr_url=""
 if [[ -n "$branch" && -n "$project_dir" ]] && command -v gh >/dev/null 2>&1; then
   pr_cache="${cache_file}.pr"
-  use_pr_cache=""
+  need_refresh=1
   if [[ -f "$pr_cache" ]]; then
     pr_ctime=$(sed -n '1p' "$pr_cache" 2>/dev/null || echo 0); pr_ctime=${pr_ctime//[^0-9]/}; pr_ctime=${pr_ctime:-0}
     pr_cbranch=$(sed -n '2p' "$pr_cache" 2>/dev/null || echo "")
-    if [[ "$pr_cbranch" == "$branch" ]] && (( now - pr_ctime < 60 )); then
+    if [[ "$pr_cbranch" == "$branch" ]]; then
       pr_number=$(sed -n '3p' "$pr_cache" 2>/dev/null || echo "")
       pr_url=$(sed -n '4p' "$pr_cache" 2>/dev/null || echo "")
-      use_pr_cache=1
+      (( now - pr_ctime < 60 )) && need_refresh=0
     fi
   fi
-  if [[ -z "$use_pr_cache" ]]; then
-    pr_line=$( (cd "$project_dir" && gh pr view --json number,url,state 2>/dev/null) \
-      | jq -r 'select(.state=="OPEN") | "\(.number)\t\(.url)"' 2>/dev/null || true )
-    if [[ "$pr_line" == *$'\t'* ]]; then
-      pr_number="${pr_line%%$'\t'*}"
-      pr_url="${pr_line#*$'\t'}"
-    else
-      pr_number=""; pr_url=""
-    fi
-    printf '%s\n%s\n%s\n%s\n' "$now" "$branch" "$pr_number" "$pr_url" > "$pr_cache"
+  if (( need_refresh )); then
+    ( refresh_pr_cache "$project_dir" "$branch" "$cache_file" ) >/dev/null 2>&1 &
   fi
 fi
 
@@ -177,4 +234,7 @@ else
 fi
 
 printf '%b\n' "$line1"
-[[ -n "$line2" ]] && printf '%b\n' "$line2"
+if [[ -n "$line2" ]]; then
+  printf '%b\n' "$line2"
+fi
+exit 0
