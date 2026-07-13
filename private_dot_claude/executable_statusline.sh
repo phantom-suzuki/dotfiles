@@ -14,8 +14,13 @@ input=$(cat)
 # calling tput. Never exit early on a small/unknown width: narrow layout
 # renders a short single row, so there's no reason to blank the whole bar.
 cols="${COLUMNS:-}"
-if [[ -z "$cols" || ! "$cols" =~ ^[0-9]+$ || "$cols" -eq 0 ]]; then
+if [[ ! "$cols" =~ ^[0-9]+$ ]]; then
   cols=80
+else
+  # Force base-10: a value like "08"/"09" is decimal here but would trip bash's
+  # octal parser in later `(( ))` arithmetic ("value too great for base").
+  cols=$((10#$cols))
+  (( cols == 0 )) && cols=80
 fi
 
 # --- Extract fields via jq ---
@@ -152,14 +157,20 @@ refresh_pr_cache() {
   # fails and `|| true` swallows it.
   trap 'rmdir "${lock_dir:-}" 2>/dev/null || true' EXIT
 
-  # `env` is a no-op prefix used when no timeout binary is found. Kept as a
-  # non-empty array element on purpose: macOS ships bash 3.2, where `set -u`
-  # treats expanding an empty array as an unbound-variable error.
+  # Bound the gh call so a stalled network request can't leave an unbounded
+  # background process holding the lock (later renders would take the stale lock
+  # after 120s and spawn *another* gh, accumulating hung processes). `perl`'s
+  # SIGALRM idiom survives exec and is present on stock macOS/Linux, so the bare
+  # `env` no-op only remains as a last resort when even perl is missing. `env`
+  # is kept as a non-empty array element on purpose: macOS ships bash 3.2, where
+  # `set -u` treats expanding an empty array as an unbound-variable error.
   local -a timeout_prefix=(env)
   if command -v timeout >/dev/null 2>&1; then
     timeout_prefix=(timeout 10)
   elif command -v gtimeout >/dev/null 2>&1; then
     timeout_prefix=(gtimeout 10)
+  elif command -v perl >/dev/null 2>&1; then
+    timeout_prefix=(perl -e 'alarm shift; exec @ARGV' 10)
   fi
 
   # `gh pr list` (unlike `gh pr view`) exits 0 with `[]` when there's no open
