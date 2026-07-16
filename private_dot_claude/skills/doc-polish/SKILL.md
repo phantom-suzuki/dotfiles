@@ -112,7 +112,7 @@ git diff                                  # 全文レビュー
 図を追加・変更した場合は push 前に必須:
 
 ```bash
-bash /Users/h-suzuki/.claude/skills/doc-polish/scripts/check-mermaid.sh <対象 md の絶対パス>
+bash ~/.claude/skills/doc-polish/scripts/check-mermaid.sh <対象 md の絶対パス>
 ```
 
 全ブロック `PASS` を確認する。`FAIL` が出たら該当図を修正して再実行する。

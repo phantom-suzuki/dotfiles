@@ -92,7 +92,7 @@ sol 不可」は現在は誤り。過去に ChatGPT 認証で 400 になった `
 | 場所 | 現在の pin | 追従方針 |
 |---|---|---|
 | `config.toml` / `config.seed.toml` の `model` | `gpt-5.6-terra`（更新済み） | 委譲パスの既定。ここで消費を調整 |
-| self-review `scripts/codex-review.sh` | `-c model=`（default `gpt-5.5`、`CODEX_REVIEW_MODEL` で上書き可） | `--output-schema` 順守が要件。5.6 系が schema を守るか要検証してから bump |
+| self-review `scripts/codex-review.sh` | `-c model=`（default `gpt-5.6-terra`、`CODEX_REVIEW_MODEL` で上書き可） | `--output-schema` 順守を実挙動で確認済み（2026-07-14）。terra を既定として使用 |
 | peer-review `scripts/codex-review.sh` | model 未指定 + `--ignore-user-config` | codex 組み込み既定に追従（＝バージョンで漂う）。決定論が要るなら `-c model=gpt-5.6-sol` を検討 |
 | codex-imagegen | `gpt-image-2`（画像モデル） | テキストモデルとは別領域。対象外 |
 

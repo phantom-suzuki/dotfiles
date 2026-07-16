@@ -7,7 +7,15 @@ set -euo pipefail
 
 DOC="${1:?usage: check-mermaid.sh <markdown-file> [workdir]}"
 DOC="$(cd "$(dirname "$DOC")" && pwd)/$(basename "$DOC")"
-WORKDIR="${2:-$(mktemp -d)/mmcheck}"
+
+# workdir を明示指定したときは node_modules を再利用（キャッシュ用途）するので削除しない。
+# 省略時は mktemp -d 配下に作り、終了時に必ず後始末する（/tmp に残骸と node_modules を残さない）。
+if [ -n "${2:-}" ]; then
+  WORKDIR="$2"
+else
+  WORKDIR="$(mktemp -d)/mmcheck"
+  trap 'rm -rf "$WORKDIR"' EXIT
+fi
 
 mkdir -p "$WORKDIR"
 cd "$WORKDIR"
