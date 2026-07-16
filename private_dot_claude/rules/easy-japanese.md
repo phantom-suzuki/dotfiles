@@ -15,8 +15,8 @@ Claude → ユーザへの日本語出力 (チャット応答 / Issue / PR / コ
 
 ## スコープ外 (採用しなかった記事ルール)
 
-- **「重要情報から伝える (結論ファースト)」**: `tameny-base:explain-discipline`
-  スキルが既に強制しているため重複させない
+- **「重要情報から伝える (結論ファースト)」**: [`communication-style.md`](./communication-style.md)
+  の「報告・回答の型」が既に強制しているため重複させない
 - **「ふりがなを付ける」**: ネイティブ向けには過剰
 
 ## ルール
@@ -233,5 +233,6 @@ Claude → ユーザへの日本語出力 (チャット応答 / Issue / PR / コ
 
 ## 関連 rule / skill
 
-- `tameny-base:explain-discipline` スキル — **結論ファースト / 同義反復回避 /
-  意図再言語化** を強制する上位レイヤ。本ルールは文単位の組み立て規律を担う
+- [`communication-style.md`](./communication-style.md) — **結論ファースト / 同義反復回避 /
+  意図再言語化** を担う上位レイヤ（旧 `explain-discipline` スキルを 2026-07-17 に統合）。
+  本ルールは文単位の組み立て規律を担う

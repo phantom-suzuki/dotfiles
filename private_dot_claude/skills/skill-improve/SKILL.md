@@ -45,7 +45,7 @@ jq -r 'select(.type=="user" and (.isMeta != true))
   | grep -v '^$'
 ```
 
-下の「signal カタログ」のパターンに該当する箇所を拾う。**grep ヒットがスキル定義・ルールの例示文言（例: `explain-discipline` の否定語リスト）でないかは必ず目視確認する。**
+下の「signal カタログ」のパターンに該当する箇所を拾う。**grep ヒットがスキル定義・ルールの例示文言（例: `communication-style.md` の不満サイン語リスト）でないかは必ず目視確認する。**
 
 parse 失敗は **grep のカウントを signal にしない**。`grep -c "malformed..."` はドキュメント本文やその語に触れた発言まで数え過大になる（実測: 実エラー 0 件を 12 件と誤カウント）。実際に parse 失敗が起きたかは「同一ツール呼び出しの連続 retry」「ユーザーが malformed を報告」で裏取りし、裏が取れなければ signal にしない:
 
@@ -68,7 +68,7 @@ signal を優先度順（再発頻度 × 影響度）に並べ、各々につい
 
 該当スキルが無い場合は、新規スキル追加 or 既存 rule への追記を提案する。
 
-> 提示は `explain-discipline` に従い、結論（何を直すか）を先に出し、比較が要るときは案を表で出す。長い本文をターミナルにベタ書きしない。
+> 提示は `communication-style.md` の「報告・回答の型」に従い、結論（何を直すか）を先に出し、比較が要るときは案を表で出す。長い本文をターミナルにベタ書きしない。
 
 ### Step 5: 人間承認
 
@@ -106,13 +106,13 @@ chezmoi apply   # ユーザー確認後
 
 | signal 種別 | 検出の手がかり | 典型的な改善先 |
 |---|---|---|
-| ユーザー修正・否定 | 「いえ」「ちがう/違う」「そうじゃない」「ではなく」「やり直し」「論点」「同じ話」「おちょくって」「わからない」「冗長」「長い」 | 該当スキルの手順・`explain-discipline` |
+| ユーザー修正・否定 | 「いえ」「ちがう/違う」「そうじゃない」「ではなく」「やり直し」「論点」「同じ話」「おちょくって」「わからない」「冗長」「長い」 | 該当スキルの手順・`communication-style.md` |
 | 同一/類似指示の繰り返し | ユーザーが同じ要求を 2 回以上言っている | スキルが指示を取りこぼす箇所 |
 | tool call parse 失敗の頻発 | "malformed and could not be parsed" 等 | `tool-call-hygiene` / `tool-call-parse-recovery` |
 | レビュースキルの指摘 | self-review / peer-review が挙げた finding | 指摘対象のスキル/コード規約 |
 | 手戻り・方針転換 | 「やっぱり」「方針変更」「戻して」 | 着手前確認が足りないスキル |
 
-> サインは `explain-discipline` のトリガー語と意図的に揃えている。同スキルが「不満サイン検知時のリカバリ」を担い、本スキルは「サインを後から集約して恒久対策に変える」役割。
+> サインは `communication-style.md` の「不満サイン検知時のリカバリ」の語彙と意図的に揃えている（旧 `explain-discipline` スキルから 2026-07-17 に統合）。同ルールがリアルタイムのリカバリを担い、本スキルは「サインを後から集約して恒久対策に変える」役割。
 
 ## 将来拡張（MVP では未実装）
 
@@ -125,7 +125,7 @@ chezmoi apply   # ユーザー確認後
 
 ## 関連
 
-- `~/.claude/skills/explain-discipline/SKILL.md`（不満サイン検知時のリアルタイム対処。本スキルは事後集約）
+- `~/.claude/rules/communication-style.md`（不満サイン検知時のリアルタイム対処。旧 `explain-discipline` スキルを統合。本スキルは事後集約）
 - `~/.claude/rules/tool-call-hygiene.md` / `~/.claude/skills/tool-call-parse-recovery/`（parse 失敗 signal の対処）
 - `~/.claude/skills/self-review/`（finding を signal 源として利用）
 - `~/.claude/CLAUDE.md` の chezmoi 編集ワークフロー（反映先の制約）
