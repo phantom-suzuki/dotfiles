@@ -76,7 +76,12 @@ else
 fi
 
 umask 077
-TMP=$(mktemp "${TMPDIR:-/tmp}/self-review-codex.XXXXXX.json")
+# mktemp のテンプレートは X が末尾でないと macOS(BSD) では乱数化されず固定名になり、
+# 並列実行（bug / security の 2 観点同時起動）で "File exists" 衝突する。
+# 末尾 XXXXXX で作成してから .json へ rename する。
+TMP=$(mktemp "${TMPDIR:-/tmp}/self-review-codex.XXXXXX")
+mv "$TMP" "${TMP}.json"
+TMP="${TMP}.json"
 trap 'rm -f "$TMP"' EXIT
 
 >&2 echo "[self-review] Codex レビュー実行中..."
