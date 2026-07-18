@@ -29,7 +29,15 @@ commands; a few pre-existing false negatives are intentionally out of scope
   - wrapper options that take a separate value word (`sudo -u root codex`);
   - process substitution / compound command substitution (`cat <(codex …)`,
     `$( { codex; } )`);
-  - `<<` inside the deprecated `$[ … ]` arithmetic or an array subscript.
+  - a `<<` used as a left shift inside a *bare* array subscript written with
+    spaces (`a[1 << EOF ]`), or a `$[ … ]` arithmetic expansion split across
+    lines — single-line `$(( … ))` / `$[ … ]` arithmetic is handled, but a bare
+    `a[ … ]` is left untracked (to avoid a glob `[` leaking state) and `$[ … ]`
+    is only consumed within the line it opens on.
+`<<` inside single-line `$(( … ))` / `$[ … ]` arithmetic and `${ … }` expansions
+is read as a left shift, not a heredoc. Other mis-parses fall back to an
+untrusted delimiter whose body is scanned line by line rather than dropped, so a
+hidden `codex` still blocks.
 """
 import sys
 import json
@@ -47,6 +55,13 @@ WRAPPERS = {
 
 ENV_ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 DURATION = re.compile(r"^\d+[smhd]?$")
+# A here-doc delimiter we are confident we parsed correctly and can drop the
+# body of silently. Real delimiters are plain words (EOF, END, MSG, PYEOF,
+# _EOF_, ...). A `<<` mis-read inside `$[ … ]` / an array subscript / an exotic
+# quoted form yields a "delimiter" with other characters (`]`, `=`, `/`, `}`,
+# `"`, whitespace, …); those are treated as untrusted and their body is scanned
+# line by line so a hidden `codex` can never slip through.
+SIMPLE_DELIM = re.compile(r"^[A-Za-z0-9_.-]+$")
 HEX_DIGITS = "0123456789abcdefABCDEF"
 # Single-char ANSI-C escapes ($'...'); bash keeps the backslash for anything not
 # listed here (e.g. $'\z' -> \z).
@@ -234,16 +249,21 @@ def _read_heredoc_delim(line, j, out):
 def _scan_line(line, quote, arith, brace):
     """Scan one line, carrying quote / arithmetic / `${}` state across lines.
 
-    Returns `(stripped, delims, quote, arith, brace)` where `stripped` is the
-    line with any trailing `#` comment removed and `delims` is the list of
+    Returns `(stripped, delims, quote, arith, brace)` where `stripped`
+    is the line with any trailing `#` comment removed and `delims` is the list of
     `(delimiter, dashed)` here-document operators that open on this line.
 
-    A `<<` counts as a here-document operator only when it is unquoted, not the
-    here-string `<<<`, and not inside arithmetic (`$(( a << b ))` is a left
-    shift) or a `${...}` parameter expansion (`${x//<<x/Y}`). Quote / arithmetic
-    / brace state carries across lines so a `<<` that merely appears inside a
-    multi-line quoted string or expansion is not read as a bogus heredoc that
-    would swallow the following command.
+    Each delim is `(delimiter, dashed, trusted)`; `trusted` is False when the
+    parsed delimiter does not look like a real one (see SIMPLE_DELIM), which
+    signals the caller to scan the body rather than drop it blindly.
+
+    A `<<` counts as a here-document operator only when it is unquoted, is a run
+    of exactly two `<` (not the here-string `<<<`), and is not inside `$(( … ))`
+    arithmetic (a left shift) or a `${...}` parameter expansion (`${x//<<x/Y}`).
+    Deprecated `$[ … ]` arithmetic is consumed inline where it opens. Quote /
+    arithmetic / brace state carries across lines so a `<<` that merely appears
+    inside a multi-line quoted string or expansion is not read as a bogus heredoc
+    that would swallow the following command.
     """
     out = []
     delims = []
@@ -306,6 +326,24 @@ def _scan_line(line, quote, arith, brace):
             i += 2
             at_word_start = False
             continue
+        if c == "$" and i + 1 < n and line[i + 1] == "[":
+            # $[…] deprecated arithmetic: consume the whole balanced region in
+            # one step (matching nested `[]`) so an inner `<<` is never read as a
+            # heredoc. Reading it inline avoids carrying an ambiguous bracket
+            # depth across lines (a stray glob `[` must not suppress a later
+            # heredoc).
+            out.append("$[")
+            i += 2
+            depth = 1
+            while i < n and depth > 0:
+                if line[i] == "[":
+                    depth += 1
+                elif line[i] == "]":
+                    depth -= 1
+                out.append(line[i])
+                i += 1
+            at_word_start = False
+            continue
         if c == "(" and i + 1 < n and line[i + 1] == "(":
             arith += 1
             out.append("((")
@@ -324,12 +362,19 @@ def _scan_line(line, quote, arith, brace):
             i += 1
             at_word_start = False
             continue
-        if (
-            c == "<"
-            and i + 1 < n
-            and line[i + 1] == "<"
-            and not (i + 2 < n and line[i + 2] == "<")  # not here-string <<<
-        ):
+        if c == "<" and i + 1 < n and line[i + 1] == "<":
+            # Consume the whole run of `<` in one step so that `<<<` (a here-
+            # string) is never re-examined one character at a time and mistaken
+            # for `<` followed by a `<<` heredoc. Only a run of exactly two is a
+            # heredoc operator.
+            run = 2
+            while i + run < n and line[i + run] == "<":
+                run += 1
+            if run != 2:  # here-string `<<<` (or longer): not a heredoc
+                out.append("<" * run)
+                i += run
+                at_word_start = False
+                continue
             out.append("<<")
             j = i + 2
             # `<<` in arithmetic (left shift) or a `${}` expansion is not a heredoc.
@@ -347,7 +392,7 @@ def _scan_line(line, quote, arith, brace):
                 j += 1
             delim, j = _read_heredoc_delim(line, j, out)
             if delim:
-                delims.append((delim, dashed))
+                delims.append((delim, dashed, bool(SIMPLE_DELIM.match(delim))))
             i = j
             at_word_start = False
             continue
@@ -360,19 +405,24 @@ def _scan_line(line, quote, arith, brace):
     return "".join(out), delims, quote, arith, brace
 
 
-def preprocess(cmd: str) -> str:
+def preprocess(cmd: str):
     """Strip `#` comments and here-document bodies before segment analysis.
 
-    Runs a single quote-, arithmetic-, and `${}`-aware scan (state carried across
-    lines) so that neither a comment nor a construct inside a quoted string /
-    arithmetic / parameter expansion can be mistaken for something that hides a
-    real `codex` command. Comment text and terminated here-doc bodies are
-    dropped; if a here-doc's closing delimiter never appears (malformed), its
-    buffered lines are kept so a real command can never hide behind an
-    unterminated here-doc.
+    Returns `(text, force_block)`. Runs a single quote-, arithmetic-, and
+    `${}`-aware scan (state carried across lines) so that neither a comment nor a
+    construct inside a quoted string / arithmetic / parameter expansion can be
+    mistaken for something that hides a real `codex` command.
+
+    Comment text and here-doc bodies with a trusted delimiter are dropped. For an
+    untrusted delimiter (one we may have mis-parsed) the dropped body is scanned
+    line by line first; if any line invokes `codex`, `force_block` is set so the
+    caller blocks anyway. If a here-doc's closing delimiter never appears
+    (malformed), its buffered lines are kept so a real command can never hide
+    behind an unterminated here-doc.
     """
     lines = cmd.split("\n")
     out = []
+    force_block = False
     i, n = 0, len(lines)
     quote = None
     arith = 0
@@ -383,7 +433,7 @@ def preprocess(cmd: str) -> str:
         )
         out.append(stripped)
         i += 1
-        for delim, dashed in delims:
+        for delim, dashed, trusted in delims:
             body = []
             terminated = False
             while i < n:
@@ -396,7 +446,13 @@ def preprocess(cmd: str) -> str:
                 body.append(bl)
             if not terminated:
                 out.extend(body)
-    return "\n".join(out)
+            elif not trusted and any(
+                _segment_invokes_codex(seg)
+                for bl in body
+                for seg in split_segments(bl)
+            ):
+                force_block = True
+    return "\n".join(out), force_block
 
 
 def split_segments(cmd: str):
@@ -531,7 +587,9 @@ def invokes_codex(cmd: str) -> bool:
     # still run `codex` once the shell resolves quotes / escapes. Always run the
     # full quote-, comment-, and heredoc-aware analysis.
     cmd = join_continuations(cmd)
-    cmd = preprocess(cmd)
+    cmd, force_block = preprocess(cmd)
+    if force_block:
+        return True
     for seg in split_segments(cmd):
         if _segment_invokes_codex(seg):
             return True

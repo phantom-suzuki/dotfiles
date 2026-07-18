@@ -59,9 +59,21 @@ CASES = [
     ("quoted env value then codex", 'FOO="a b" codex exec', True),
     ("env wrapper quoted value", "env FOO='a b' codex exec", True),
     ("command sub heredoc delim", "cat <<$(printf EOF)\n$(printf EOF)\ncodex exec\n$(printf EOF)", True),
+    # --- MUST BLOCK: bypass regressions found in team-lead's external review ---
+    ("herestring not heredoc (EOF)", "cat <<<EOF\ncodex exec foo\nEOF", True),
+    ("herestring not heredoc (word)", "cat <<<XYZ123\ncodex exec\nXYZ123", True),
+    ("dollar-bracket arith not heredoc", "x=$[1 << EOF]\ncodex exec\nEOF]", True),
+    ("array subscript arith not heredoc", "a[1<<2]=x\ncodex exec\n2]=x", True),
+    ("dollar-bracket simple delim via ;", "x=$[1 << EOF;]\ncodex exec\nEOF", True),
+    ("dollar-bracket multiline quote body", 'x=$[1 << EOF]\nFOO="a\nb" codex exec\nEOF]', True),
+    ("nested subscript in dollar-bracket", "x=$[a[1] << EOF ]\ncodex exec\nEOF", True),
+    # a here-string followed by a real heredoc still drops the real body
+    ("herestring then real heredoc body", "cat <<<HS\ncat <<EOF\ncodex text\nEOF", False),
     ("trailing comment same line", "ls foo # codex exec", False),
     # real arithmetic + a real heredoc body must still be handled correctly
     ("arithmetic then heredoc body", "n=$((1 << 2)); cat <<EOF\ncodex exec\nEOF", False),
+    # an array subscript before a genuine heredoc must not suppress body-dropping
+    ("subscript then heredoc body", "echo ${arr[0]}\ncat <<EOF\ncodex is great\nEOF", False),
     # --- MUST NOT BLOCK: false positives the old regex produced ---------------
     ("grep arg", "grep codex file.txt", False),
     ("echo substring in dquotes", 'echo "codex exec is blocked"', False),
