@@ -14,7 +14,9 @@
 
 # 既定モデルと reasoning effort。委譲パス（task-delegation T2 / /codex:rescue）はこの
 # default を尊重するため、Codex のレート消費はまずこの値で調整する（普段は medium で節約）。
-model = "gpt-5.5"
+# 既定は GPT-5.6 系のバランス型 terra（サブスク認証で動作確認済み・消費は sol の半分）。
+# 重い調査・実装だけ都度 --model gpt-5.6-sol に切り替える運用（正本は codex-config.md）。
+model = "gpt-5.6-terra"
 model_reasoning_effort = "medium"
 
 [features]

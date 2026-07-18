@@ -1,0 +1,4 @@
+# chezmoi apply 時にターゲット側から削除するパス（ソース削除だけでは実ファイルは残るため）
+# 2026-07-17: explain-discipline スキルを廃止し communication-style.md へ統合（PR #63）
+.claude/skills/explain-discipline
+.claude/skills/explain-discipline/**

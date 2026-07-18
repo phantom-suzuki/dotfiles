@@ -9,12 +9,15 @@
 # - スキーマ強制（--output-schema）付きで codex exec を実行し、finding-schema.json 準拠の
 #   JSON を stdout に出力する（--output-schema 非対応の `codex exec review` は使わない）。
 # - モデルは `-c model=`（CLI 明示指定）で渡す。--ignore-user-config が付いても -c は効く。
-#   default は gpt-5.5（環境変数 CODEX_REVIEW_MODEL で上書き可）。モデル指定が必要な理由:
+#   default は gpt-5.6-terra（環境変数 CODEX_REVIEW_MODEL で上書き可）。モデル指定が必要な理由:
 #   - --ignore-user-config は config.toml のモデル設定も無視するため、未指定だと CLI 既定
 #     モデルに落ちる。gpt-5-codex 系は --output-schema がツール起動時に無視される既知バグ
 #     （openai/codex#15451）があり、スキーマ強制が黙って効かなくなる。
+#   - gpt-5.6-terra は --output-schema を順守することを実挙動で確認済み（2026-07-14、
+#     ChatGPT サブスク認証・schema 準拠 JSON を exit 0 で出力）。旧 default の gpt-5.5 から
+#     bump した。sol/luna も同系列なので CODEX_REVIEW_MODEL で切替可。
 #   - `--model gpt-5` と旧既定 gpt-5.3-codex は ChatGPT アカウント認証だと
-#     400 invalid_request_error で拒否される（2026-07 実測）。
+#     400 invalid_request_error で拒否される（2026-07 実測。5.6 系は影響なし）。
 # - codex exec は git リポジトリ内（trusted directory）を cwd にして実行すること。
 #   リポジトリ外から呼ぶと "Not inside a trusted directory" で失敗する。
 #
@@ -40,7 +43,7 @@
 
 set -uo pipefail
 
-CODEX_MODEL="${CODEX_REVIEW_MODEL:-gpt-5.5}"
+CODEX_MODEL="${CODEX_REVIEW_MODEL:-gpt-5.6-terra}"
 
 if ! command -v codex >/dev/null 2>&1; then
   >&2 echo "[self-review] codex CLI が見つかりません。security/design 観点は他レビュアーにフォールバックしてください"
@@ -73,7 +76,12 @@ else
 fi
 
 umask 077
-TMP=$(mktemp "${TMPDIR:-/tmp}/self-review-codex.XXXXXX.json")
+# mktemp のテンプレートは X が末尾でないと macOS(BSD) では乱数化されず固定名になり、
+# 並列実行（bug / security の 2 観点同時起動）で "File exists" 衝突する。
+# 末尾 XXXXXX で作成してから .json へ rename する。
+TMP=$(mktemp "${TMPDIR:-/tmp}/self-review-codex.XXXXXX")
+mv "$TMP" "${TMP}.json"
+TMP="${TMP}.json"
 trap 'rm -f "$TMP"' EXIT
 
 >&2 echo "[self-review] Codex レビュー実行中..."
