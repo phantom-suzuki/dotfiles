@@ -18,12 +18,12 @@
           {
             "type": "command",
             "command": "python3 '{{ .chezmoi.homeDir }}/.codex/hooks/notify.py'",
-            "timeout": 5000
+            "timeout": 5
           },
           {
             "type": "command",
             "command": "bash '{{ .chezmoi.homeDir }}/.codex/hooks/cleanup.sh'",
-            "timeout": 5000
+            "timeout": 60
           }
         ]
       }
