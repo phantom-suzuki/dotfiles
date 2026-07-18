@@ -13,7 +13,7 @@
 - **`AskUserQuestion` で質問したら回答まで待つ（ブロッキング）**。タイムアウトを離席・省略の許可と解釈しない。正本は `~/.claude/rules/question-blocking.md`
 - **日本語出力は「やさしい日本語」規律に従う**（一文を短く / 主語明示 / 二重否定回避 等）。正本は `~/.claude/rules/easy-japanese.md`
 
-技術的説明・設計議論・「なぜ」「理由」を問われた場面、およびユーザーが「わからない」「同じ話」等の不満サインを発した場面では **`explain-discipline` スキル** を必ず起動する（詳細は `~/.claude/rules/communication-style.md`）。
+説明規律（結論ファースト / 同義反復回避 / 不満サイン検知時のリカバリ / 実装語彙の翻訳）は、旧 `explain-discipline` スキルから `~/.claude/rules/communication-style.md` に統合済み（2026-07-17 にスキル廃止）。スキル起動は不要で、常時適用する。
 
 ## Parallel Work
 
@@ -28,6 +28,12 @@
 実装・修正・リファクタ・レビュー対応・ドキュメント文章化等を依頼されたら **`task-delegation` スキル** を起動し、役割ベース（T1 司令塔 / T2 外部 CLI 委譲 = Codex / T3 実行サブエージェント）で委譲先を判定してから実行する。判定スキップで Edit/Write/Bash に入るのはアンチパターン。
 
 委譲マトリクスの実体（司令塔のモデル、実行役が Codex か実行サブエージェントか）は環境によって変わる。着手前必須チェック・役割ベースの Tier 定義・Codex 未導入時のフォールバック分岐・Codex 呼び出しテンプレート・アンチパターンはすべて `~/.claude/skills/task-delegation/SKILL.md`（委譲体系の正本）を参照。
+
+## Markdown ドキュメント作成 — doc-polish 必須
+
+リポジトリに残す Markdown ドキュメント（docs/ 配下・README・ADR・計画文書・ガイド等）を新規作成、または大幅に改稿したら、完成報告の前に必ず **`doc-polish` スキル**を通して表現を研磨する（観点: 一般的でない表現 / 難しい言い回し / 造語・略語 / 図の不足）。スキップして完成報告するのはアンチパターン。
+
+対象外: scratchpad の一時ファイル / メモリファイル / コミットメッセージ / Issue・PR 本文（これらは easy-japanese 規律のみ適用）。
 
 ## Dotfiles — chezmoi 管理
 
@@ -65,7 +71,9 @@ chezmoi apply
 |-----------|--------|-----------------|
 | `~/.gitconfig` | `dot_gitconfig.tmpl` | `{{ .name }}`, `{{ .email }}` |
 | `~/.zshrc` | `dot_zshrc.tmpl` | なし（クリーンアップ済み、将来のマシン分岐用） |
-| `~/.claude/settings.json` | `private_dot_claude/settings.json.tmpl` | なし（変数未使用。将来マシン分岐・チーム共有向けに汎用化予定） |
+| `~/.claude/settings.json` | `private_dot_claude/settings.json.tmpl` | `data.claude.model`, `data.claude.effortLevel`, `data.claude.disable1m`, `data.claude.autoCompactWindow`, `data.claude.autoCompactPct`, `data.claude.mcpServers`, `data.claude.enabledPlugins` |
+
+> **重要（`data.claude.mcpServers` / `enabledPlugins` の安全な運用）**: これらは `chezmoi.toml` の値をそのまま `settings.json` に出力する。①`mcpServers` の `command` / `args` / `env` に API キー・トークンを直書きしない（秘密は環境変数参照や外部 secret manager 経由にする）。②生成済みの `~/.claude/settings.json` を `chezmoi add` / `re-add` しない（秘密が混入した実ファイルをリポジトリに取り込まないため。tmpl 側だけを編集する）。③`enabledPlugins` は信頼済みの marketplace / plugin ID のみ指定する。
 
 > **重要（tmpl の落とし穴）**: tmpl 管理ファイルは `chezmoi re-add` では更新されない（テンプレート構造を壊さないよう実ファイルの差分が取り込まれない）。tmpl の内容を変えるときは **ソースの `*.tmpl` を直接編集 → `chezmoi apply`** で反映すること。`settings.json` のように変数を含まない tmpl でも同様。
 

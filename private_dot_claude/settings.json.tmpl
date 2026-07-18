@@ -2,7 +2,7 @@
   {{- /* 上書き: data.claude.model で変更可。未定義なら現行 default。
          値は toString | toJson で「文字列化 + JSON エスケープ」してから埋め込む
          （quote や制御文字を含む値でも出力 JSON が壊れないようにするため）。 */}}
-  "model": {{ dig "claude" "model" "claude-opus-4-8" . | toString | toJson }},
+  "model": {{ dig "claude" "model" "claude-fable-5[1m]" . | toString | toJson }},
   {{- /*
     effortLevel は data.claude.effortLevel を定義したマシンでのみ出力する。
     未定義ならキー自体を出力しない（= ハーネス既定に従う。現行 main と同一出力）。
@@ -30,6 +30,7 @@
     {{- /* 上書き: data.claude.autoCompactPct で変更可。未定義なら現行 default（30 = 1M 前提）。 */}}
     "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": {{ dig "claude" "autoCompactPct" "30" . | toString | toJson }}
   },
+  {{- /* permissions / hooks は共通既定を維持する。許可コマンド未実行なら実害なしのため、個人差分の deny は各自がこのソース tmpl の deny リストを直接編集して対応する運用（deny 用の data 変数は未提供）。 */}}
   "permissions": {
     "allow": [
       "Read(*)",
@@ -237,13 +238,7 @@
     "type": "command",
     "command": "~/.claude/statusline.sh"
   },
-  "enabledPlugins": {
-    "gopls-lsp@claude-plugins-official": true,
-    "skill-creator@claude-plugins-official": true,
-    "codex@openai-codex": true,
-    "scrum-penguin@mationinc-claude-code-baseline": true,
-    "tameny-base@mationinc-claude-code-baseline": true
-  },
+  "enabledPlugins": {{ dig "claude" "enabledPlugins" (dict "gopls-lsp@claude-plugins-official" true "skill-creator@claude-plugins-official" true "codex@openai-codex" true "scrum-penguin@mationinc-claude-code-baseline" true "tameny-base@mationinc-claude-code-baseline" true) . | toJson }},
   "extraKnownMarketplaces": {
     "openai-codex": {
       "source": {
@@ -263,13 +258,6 @@
   "skipWorkflowUsageWarning": true,
   "teammateMode": "auto",
   "skipAutoPermissionPrompt": true,
-  "mcpServers": {
-    "playwright": {
-      "command": "npx",
-      "args": [
-        "@playwright/mcp@latest"
-      ]
-    }
-  },
+  "mcpServers": {{ dig "claude" "mcpServers" (dict "playwright" (dict "command" "npx" "args" (list "@playwright/mcp@latest"))) . | toJson }},
   "tui": "fullscreen"
 }
