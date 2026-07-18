@@ -34,67 +34,12 @@
 
 ## Dotfiles — chezmoi 管理
 
-個人設定ファイル（Ghostty, Neovim, zsh, tmux, Claude Code 等）は **chezmoi** で管理されている。ターミナルは現在 **Ghostty**（`dot_config/ghostty/config.tmpl`）を使用。WezTerm 設定（`dot_config/wezterm/`）も旧環境用に管理下に残しているが、現行のターミナル依存作業は Ghostty を前提にする。
+個人設定ファイル（Ghostty, Neovim, zsh, tmux, Claude Code 等）は **chezmoi** で管理されている。ソースは `~/.local/share/chezmoi/`（リポジトリ `github.com/phantom-suzuki/dotfiles`）。ターミナルは現在 **Ghostty**（`dot_config/ghostty/config.tmpl`）を使用。WezTerm 設定（`dot_config/wezterm/`）も旧環境用に管理下に残しているが、現行のターミナル依存作業は Ghostty を前提にする。
 
-- **ソースディレクトリ**: `~/.local/share/chezmoi/`
-- **リポジトリ**: `github.com/phantom-suzuki/dotfiles`
-- **設定**: `~/.config/chezmoi/chezmoi.toml`
+**コア規範（必ず守る）**:
 
-### 編集ワークフロー（重要）
+- **必ずソース側を編集する**。ターゲット（`~/.config/...` 等）の直接編集は禁止（次回 `chezmoi apply` で上書きされ変更が失われる）。やむを得ずターゲットを編集したら直後に `chezmoi re-add <file>` でソースへ反映する
+- **tmpl（テンプレート）は `chezmoi re-add` では更新されない**。tmpl の内容を変えるときはソースの `*.tmpl` を直接編集 → `chezmoi apply` で反映する（変数を含まない tmpl でも同様）
+- **秘密情報を混入させない**: 生成済みの `~/.claude/settings.json` を `chezmoi add` / `re-add` しない。API キー・トークンを tmpl に直書きしない
 
-chezmoi 管理下のファイルを変更する場合、**必ずソース側を編集**すること。
-
-```bash
-# 1. ソースファイルを編集（chezmoi edit がソースを開く）
-chezmoi edit ~/.config/wezterm/appearance.lua
-
-# 2. 差分確認
-chezmoi diff
-
-# 3. 適用
-chezmoi apply
-```
-
-**ターゲットファイル（`~/.config/...` 等）を直接編集してはならない。**
-次回 `chezmoi apply` で上書きされ、変更が失われる。
-
-やむを得ずターゲットを編集した場合は、直後に `chezmoi re-add <file>` でソースに反映すること。
-
-### テンプレートファイル
-
-以下のファイルは Go template を使用しており、ソースでのみ編集可能:
-
-| ターゲット | ソース | テンプレート変数 |
-|-----------|--------|-----------------|
-| `~/.gitconfig` | `dot_gitconfig.tmpl` | `{{ .name }}`, `{{ .email }}` |
-| `~/.zshrc` | `dot_zshrc.tmpl` | なし（クリーンアップ済み、将来のマシン分岐用） |
-| `~/.claude/settings.json` | `private_dot_claude/settings.json.tmpl` | `data.claude.model`, `data.claude.effortLevel`, `data.claude.disable1m`, `data.claude.autoCompactWindow`, `data.claude.autoCompactPct`, `data.claude.mcpServers`, `data.claude.enabledPlugins` |
-
-> **重要（`data.claude.mcpServers` / `enabledPlugins` の安全な運用）**: これらは `chezmoi.toml` の値をそのまま `settings.json` に出力する。①`mcpServers` の `command` / `args` / `env` に API キー・トークンを直書きしない（秘密は環境変数参照や外部 secret manager 経由にする）。②生成済みの `~/.claude/settings.json` を `chezmoi add` / `re-add` しない（秘密が混入した実ファイルをリポジトリに取り込まないため。tmpl 側だけを編集する）。③`enabledPlugins` は信頼済みの marketplace / plugin ID のみ指定する。
-
-> **重要（tmpl の落とし穴）**: tmpl 管理ファイルは `chezmoi re-add` では更新されない（テンプレート構造を壊さないよう実ファイルの差分が取り込まれない）。tmpl の内容を変えるときは **ソースの `*.tmpl` を直接編集 → `chezmoi apply`** で反映すること。`settings.json` のように変数を含まない tmpl でも同様。
-
-### 変更後のコミット
-
-dotfiles の変更後は chezmoi ソースディレクトリでコミット:
-
-```bash
-chezmoi cd  # → ~/.local/share/chezmoi/
-git add -A && git commit -m "feat: update wezterm appearance"
-git push
-```
-
-### 新しいファイルの追加
-
-```bash
-chezmoi add ~/.config/some/new-config.toml
-```
-
-> **新規ファイル追加直後の apply の落とし穴**: ソース側に新規ファイルを作った直後、ターゲットを個別指定して `chezmoi apply ~/.claude/skills/foo/SKILL.md` のように適用すると、ターゲットの親ディレクトリがまだ無い場合に `stat ...: no such file or directory` で失敗する。引数なしの `chezmoi apply`（全体適用、親ディレクトリも作る）を使うか、先に `mkdir -p` でターゲット親ディレクトリを作ってから個別 apply すること。
-
-### chezmoi 管理対象の確認
-
-```bash
-chezmoi managed          # 管理対象一覧
-chezmoi source-path ~/.<file>  # ソースパスの確認
-```
+編集ワークフローの手順例・テンプレート一覧・落とし穴（新規ファイル追加直後の apply エラー等）の詳細は `~/.claude/docs/chezmoi-workflow.md` を参照。
