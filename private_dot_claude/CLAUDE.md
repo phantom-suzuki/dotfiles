@@ -13,7 +13,7 @@
 - **`AskUserQuestion` で質問したら回答まで待つ（ブロッキング）**。タイムアウトを離席・省略の許可と解釈しない。正本は `~/.claude/rules/question-blocking.md`
 - **日本語出力は「やさしい日本語」規律に従う**（一文を短く / 主語明示 / 二重否定回避 等）。正本は `~/.claude/rules/easy-japanese.md`
 
-技術的説明・設計議論・「なぜ」「理由」を問われた場面、およびユーザーが「わからない」「同じ話」等の不満サインを発した場面では **`explain-discipline` スキル** を必ず起動する（詳細は `~/.claude/rules/communication-style.md`）。
+説明規律（結論ファースト / 同義反復回避 / 不満サイン検知時のリカバリ / 実装語彙の翻訳）は、旧 `explain-discipline` スキルから `~/.claude/rules/communication-style.md` に統合済み（2026-07-17 にスキル廃止）。スキル起動は不要で、常時適用する。
 
 ## Parallel Work
 
