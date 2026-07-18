@@ -104,8 +104,16 @@ function mdv() {
 # e.g. typing `./README.md` or `README.md` runs mdv on it
 alias -s md=mdv
 
-# Claude Code: effort high で起動（モデルは Default = Opus 4.7 1M context）
-alias claude='claude --effort high'
+# Opus 4.8 用の品質プロファイル起動（1M 無効 + auto-compact を約 130k で早期発火）
+# 背景: dotfiles Issue #66（Opus の捏造・parse error は長 context + extended thinking で悪化する）
+# 注意: env はプロセス起動時にのみ読まれる。Fable セッション内の /model 切り替えでは適用されない。
+#       Opus を使うときは claude-opus で起動し直すこと。
+claude-opus() {
+  CLAUDE_CODE_DISABLE_1M_CONTEXT=1 \
+  CLAUDE_CODE_AUTO_COMPACT_WINDOW=200000 \
+  CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=65 \
+  command claude --model claude-opus-4-8 "$@"
+}
 
 # ─── Codex CLI: マルチアカウント切替 ───────────────────────────────
 # 主アカウントは既定の ~/.codex（env 不要）。もう一方は ~/.codex-work に置く。
