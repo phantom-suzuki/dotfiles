@@ -12,9 +12,15 @@ Codex は AGENTS.md を「グローバル + プロジェクト階層」で読み
 - **プロジェクト階層**: repo root から作業ディレクトリ（cwd）までの**各ディレクトリ**の
   `AGENTS.md` を順に連結 — リポジトリ固有・サブディレクトリ固有の規約
 - 競合したら **cwd に近い側が優先**（近い方が後勝ち）
+- 各階層で `AGENTS.override.md` は同階層の `AGENTS.md` に優先する（グローバルスコープでも同様）。
+  一時的・機械固有の上書きは override 側に置くと本体を汚さずに済む
 - 読み込み合計サイズは `project_doc_max_bytes`（config.toml、デフォルト 32KiB）で制御。
   プロジェクト固有の規約はプロジェクト側 AGENTS.md に置き、このファイルは短く保つ
-- config 優先順位: `CLI/--config > project > profile > user(~/.codex/config.toml) > system(/etc/codex) > defaults`
+- config 優先順位（概略）: `CLI/--config` が最優先、次いで profile / project スコープ、
+  その下に user（`~/.codex/config.toml`）、最後に defaults。公式ドキュメントは完全な全順序を
+  明示していない（profile と project の上下も含め確定ではない）ため、上書きが効かないときは
+  `--config` 明示で回避する。なお project スコープは provider / auth / notification /
+  profile 選択 / telemetry などマシンローカルなキーを上書きできない
 
 ## 実行モデル（あなたの役割）
 

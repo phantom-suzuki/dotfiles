@@ -24,16 +24,40 @@ js_repl = false
 
 # --- 拡張機構（skills / hooks / MCP）の dotfiles 化方針 ---
 #
-# Codex は Claude Code の拡張機構に 1:1 対応する仕組みを持つ（Issue #14 の調査）:
-#   - skills … config.toml の [skills] で SKILL.md を自動トリガ、per-skill enable/disable
-#   - hooks  … hooks.json / inline [hooks]。PreToolUse / PostToolUse / SessionStart 等。
-#              type=command のハンドラのみ実行（prompt / agent ハンドラは未実装）
+# Codex は Claude Code の拡張機構に 1:1 対応する仕組みを持つ（Issue #14 の調査、
+# 2026-07 に公式ドキュメントで再検証済み）:
+#   - skills … 実体は .agents/skills（repo / $HOME/.agents/skills / /etc/codex/skills /
+#              Codex 同梱）に置く。config.toml 側は [[skills.config]]（配列テーブル）で
+#              per-skill の enable/disable のみを持つ。SKILL.md frontmatter の description で
+#              自動トリガ（implicit invocation）。※ config.toml の [skills] で SKILL.md 本体を
+#              管理するわけではない点に注意
+#   - hooks  … hooks.json / inline [hooks]。SessionStart / PreToolUse / PermissionRequest /
+#              PostToolUse / PreCompact / PostCompact / UserPromptSubmit / SubagentStart /
+#              SubagentStop / Stop の 10 イベント。type=command のハンドラのみ実行
+#              （prompt / agent ハンドラは parse されるが skip）
 #   - mcp    … [mcp_servers]。stdio / streamable HTTP、enabled_tools/disabled_tools の
-#              allow/denylist、default_tools_approval_mode
+#              allow/denylist、default_tools_approval_mode（auto / prompt / approve）
 #
-# これらの「実体」の dotfiles 化はこの seed には未収録（フォローアップで対応）。理由:
-# 実機の hooks / MCP 定義はマシン固有の絶対パス・SHA256・app バージョンを含み、そのまま
-# 追跡すると別マシンで有害・常時 churn になる（config.toml 本体を管理外にしたのと同じ問題）。
-# seed 方式に載せるには chezmoi tmpl 化によるパス抽象化の設計が別途必要。
+# dotfiles 化ステータス（Issue #14 で対応）:
+#   - hooks … 収録済み。dot_codex/hooks/（block-codex-direct.py / cleanup.sh / notify.py）+
+#             dot_codex/hooks.json.tmpl（絶対パスは {{ .chezmoi.homeDir }} で抽象化）。
+#   - skills … 未収録（意図的）。実機 $HOME/.agents/skills は Claude 側 skills と大半が重複し、
+#              private_dot_claude/skills/ で既に版管理済み。二重管理・churn を避けるため seed に
+#              載せない。Codex 固有の独自スキルを作る場合のみ、その時点で dot_agents/skills/ 等へ
+#              収録を検討する。
+#   - mcp … config.toml 本体は管理外（node_repl は Codex.app が生成する絶対パス・SHA256・app
+#           バージョンを含みマシン固有）。ポータブルに移植したいサーバーだけを下記のコメント
+#           サンプルとして seed に残す（新マシンで config.toml へ手で反映する）。
 #
 # 詳細な方針・分担の正本は ~/.claude/rules/codex-config.md を参照。
+#
+# --- MCP ポータブルサンプル（新マシンで config.toml に手で反映する。値は各自調整） ---
+# node_repl は Codex.app 生成のためここには載せない（管理外）。
+#
+# [mcp_servers.chrome-devtools]
+# command = "npx"
+# args = ["-y", "chrome-devtools-mcp@latest", "--browserUrl=http://127.0.0.1:9222"]
+#
+# [mcp_servers.playwright]
+# command = "npx"   # 実機は nvm の絶対パスだが、PATH が通っていれば npx で可搬
+# args = ["@playwright/mcp@latest", "--user-data-dir=<各自のキャッシュディレクトリ>"]

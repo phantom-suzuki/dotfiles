@@ -1,0 +1,32 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 '{{ .chezmoi.homeDir }}/.codex/hooks/block-codex-direct.py'",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 '{{ .chezmoi.homeDir }}/.codex/hooks/notify.py'",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash '{{ .chezmoi.homeDir }}/.codex/hooks/cleanup.sh'",
+            "timeout": 5000
+          }
+        ]
+      }
+    ]
+  }
+}
