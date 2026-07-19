@@ -1,0 +1,162 @@
+#!/usr/bin/env python3
+"""Regression tests for the block-codex-direct PreToolUse hook.
+
+Run with:  python3 tests/test_block_codex_direct.py
+
+Loads the hook module by file path (its filename is hyphenated and prefixed
+with chezmoi's `executable_` attribute prefix) and exercises `invokes_codex`
+against a table of commands that must / must not be blocked.
+"""
+import importlib.util
+import os
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+HOOK_PATH = os.path.join(
+    HERE, "..", "private_dot_claude", "hooks", "executable_block-codex-direct.py"
+)
+
+spec = importlib.util.spec_from_file_location("block_codex_direct", HOOK_PATH)
+hook = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(hook)
+
+# Each case: (label, command, should_block)
+CASES = [
+    # --- MUST BLOCK: genuine direct codex invocations -------------------------
+    ("direct exec", "codex exec 'do the thing'", True),
+    ("timeout wrapper", "timeout 60 codex exec", True),
+    ("env prefix", "FOO=1 codex", True),
+    ("env-only prefix", "CODEX_HOME=/x codex exec", True),
+    ("chained after &&", "echo x && codex", True),
+    ("chained after ;", "echo x; codex exec", True),
+    ("chained after |", "echo x | codex", True),
+    ("absolute path", "/usr/local/bin/codex", True),
+    ("command sub $()", "echo $(codex exec)", True),
+    ("command sub inside dquotes", 'echo "$(codex exec)"', True),
+    ("backtick sub", "echo `codex exec`", True),
+    ("quoted command name", '"codex" exec', True),
+    ("env wrapper word", "env codex exec", True),
+    ("nested in subshell close", "(cd /tmp && codex)", True),
+    ("chained after &&, spaced", "cat foo && codex exec", True),
+    # --- MUST BLOCK: obfuscated / regression cases found in security review ---
+    ("split by empty dquotes", 'co"dex" exec', True),
+    ("split by backslash escapes", "co\\d\\ex exec", True),
+    ("fake heredoc in comment", "# <<STOP\ncodex exec", True),
+    ("unclosed quote in comment", '# "\ncodex exec', True),
+    ("quoted heredoc delimiter word", 'cat <<E"OF"\nbody\nEOF\ncodex exec', True),
+    ("unterminated heredoc keeps body", "cat <<EOF\ncodex exec", True),
+    ("arithmetic left shift not heredoc", "n=$((1 << 2))\ncodex exec", True),
+    ("multiline quote fake heredoc", 'x="\n<<EOF"\ncodex exec\nEOF', True),
+    ("escaped quote in heredoc delim", 'cat <<"E\\"OF"\nbody\nE"OF\ncodex exec', True),
+    ("ansi-c quoted heredoc delim", "cat <<$'EOF'\nbody\nEOF\ncodex exec\n$EOF", True),
+    ("locale quoted heredoc delim", 'cat <<$"EOF"\nbody\nEOF\ncodex exec\n$EOF', True),
+    ("backslash non-special in dquote delim", 'cat <<"E\\qOF"\nbody\nE\\qOF\ncodex exec', True),
+    ("param expansion << not heredoc", "x=${x//<<x/Y}\ncodex exec\nx/Y}", True),
+    ("ansi-c escape in heredoc delim", "cat <<$'E\\tOF'\nE\tOF\ncodex exec\nE\\tOF", True),
+    ("line continuation before codex", "echo x | \\\ncodex exec", True),
+    ("line continuation within word", "co\\\ndex exec", True),
+    ("line continuation in heredoc delim", "cat <<EO\\\nF\nEOF\ncodex exec", True),
+    ("quoted env value then codex", 'FOO="a b" codex exec', True),
+    ("env wrapper quoted value", "env FOO='a b' codex exec", True),
+    ("command sub heredoc delim", "cat <<$(printf EOF)\n$(printf EOF)\ncodex exec\n$(printf EOF)", True),
+    # --- MUST BLOCK: bypass regressions found in team-lead's external review ---
+    ("herestring not heredoc (EOF)", "cat <<<EOF\ncodex exec foo\nEOF", True),
+    ("herestring not heredoc (word)", "cat <<<XYZ123\ncodex exec\nXYZ123", True),
+    ("dollar-bracket arith not heredoc", "x=$[1 << EOF]\ncodex exec\nEOF]", True),
+    ("array subscript arith not heredoc", "a[1<<2]=x\ncodex exec\n2]=x", True),
+    ("dollar-bracket simple delim via ;", "x=$[1 << EOF;]\ncodex exec\nEOF", True),
+    ("dollar-bracket multiline quote body", 'x=$[1 << EOF]\nFOO="a\nb" codex exec\nEOF]', True),
+    ("nested subscript in dollar-bracket", "x=$[a[1] << EOF ]\ncodex exec\nEOF", True),
+    # --- MUST BLOCK: subshell / ANSI-C quick wins found in CodeRabbit review --
+    ("subshell direct", "(codex exec)", True),
+    ("subshell chained", "(cd /tmp && codex exec)", True),
+    ("subshell with wrapper", "(timeout 60 codex exec)", True),
+    ("subshell no space after paren", "(codex)", True),
+    ("subshell inside cmdsub", "echo $( (codex exec) )", True),
+    ("process substitution", "cat <(codex exec)", True),
+    # \u / \U must expand so the delimiter resolves to `EOF` and the body (with a
+    # codex line) is correctly dropped -- without the fix the delimiter keeps a
+    # literal backslash, never matches `EOF`, and the body is wrongly scanned.
+    ("ansi-c u delim drops body", "cat <<$'\\u0045OF'\ncodex exec inside\nEOF\necho ok", False),
+    ("ansi-c U delim drops body", "cat <<$'\\U00000045OF'\ncodex exec inside\nEOF\necho ok", False),
+    ("ansi-c u delim then codex", "cat <<$'\\u0045OF'\nbody\nEOF\ncodex exec", True),
+    # \c control-char escape must parse without error (delimiter is untrusted; an
+    # unterminated body keeps the codex line so it still blocks).
+    ("ansi-c control delim parses", "cat <<$'\\cAX'\nbody\ncodex exec", True),
+    # arithmetic evaluation `(( ... ))` reads a variable, it does not run codex
+    ("arith eval not command", "(( codex ))", False),
+    ("arith eval no space", "((codex))", False),
+    ("arith eval with math", "((1 + 2))", False),
+    # array assignment whose first element is the word codex does not run it
+    ("array assignment codex elem", "arr=(codex bar)", False),
+    ("numeric array assignment", "nums=(1 2 3)", False),
+    # a here-string followed by a real heredoc still drops the real body
+    ("herestring then real heredoc body", "cat <<<HS\ncat <<EOF\ncodex text\nEOF", False),
+    ("trailing comment same line", "ls foo # codex exec", False),
+    # real arithmetic + a real heredoc body must still be handled correctly
+    ("arithmetic then heredoc body", "n=$((1 << 2)); cat <<EOF\ncodex exec\nEOF", False),
+    # an array subscript before a genuine heredoc must not suppress body-dropping
+    ("subscript then heredoc body", "echo ${arr[0]}\ncat <<EOF\ncodex is great\nEOF", False),
+    # --- MUST NOT BLOCK: false positives the old regex produced ---------------
+    ("grep arg", "grep codex file.txt", False),
+    ("echo substring in dquotes", 'echo "codex exec is blocked"', False),
+    ("companion mjs path", "node /p/codex-companion.mjs run", False),
+    ("git commit msg with ; codex", 'git commit -m "fix: ...; codex 連携を修正"', False),
+    ("review script exception", "bash ~/.claude/skills/self-review/scripts/codex-review.sh", False),
+    ("cd into codex dir", "cd codex-work && ls", False),
+    ("variable expansion", "echo ${codex}", False),
+    ("codex as filename arg", "cat codex.log", False),
+    ("single-quoted substring", "echo 'run codex exec here'", False),
+    (
+        "heredoc body (unquoted delim)",
+        "cat <<EOF\ncodex exec should be ignored\nmore text\nEOF",
+        False,
+    ),
+    (
+        "heredoc body (quoted delim)",
+        "cat <<'END'\ncodex exec ignored\nEND",
+        False,
+    ),
+    (
+        "heredoc dash delim with tabs",
+        "cat <<-EOF\n\tcodex exec ignored\n\tEOF",
+        False,
+    ),
+    (
+        "heredoc then real command after",
+        "cat <<EOF > f\ncodex line ignored\nEOF\necho done",
+        False,
+    ),
+    (
+        "gh body-file heredoc with codex text",
+        "gh issue comment 1 -F - <<'MSG'\nWe block codex exec here.\nMSG",
+        False,
+    ),
+]
+
+
+def main() -> int:
+    failures = []
+    for label, cmd, expected in CASES:
+        got = hook.invokes_codex(cmd)
+        status = "ok " if got == expected else "FAIL"
+        verdict = "BLOCK" if got else "allow"
+        want = "BLOCK" if expected else "allow"
+        print(f"[{status}] {label:38s} got={verdict:5s} want={want}")
+        if got != expected:
+            failures.append((label, cmd, expected, got))
+
+    print()
+    total = len(CASES)
+    passed = total - len(failures)
+    print(f"{passed}/{total} passed")
+    if failures:
+        print("\nFAILURES:")
+        for label, cmd, expected, got in failures:
+            print(f"  - {label}: want={expected} got={got}\n      cmd={cmd!r}")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
