@@ -27,8 +27,8 @@ commands; a few pre-existing false negatives are intentionally out of scope
 (they never occur in real usage and predate this parser):
   - a redirection glued to the command name (`codex>/dev/null`);
   - wrapper options that take a separate value word (`sudo -u root codex`);
-  - process substitution / compound command substitution (`cat <(codex …)`,
-    `$( { codex; } )`);
+  - a brace-group compound command substitution (`$( { codex; } )`); plain
+    subshells `(codex …)` and process substitution `<(codex …)` ARE caught;
   - a `<<` used as a left shift inside a *bare* array subscript written with
     spaces (`a[1 << EOF ]`), or a `$[ … ]` arithmetic expansion split across
     lines — single-line `$(( … ))` / `$[ … ]` arithmetic is handled, but a bare
@@ -180,6 +180,34 @@ def _read_heredoc_delim(line, j, out):
                             k += 1
                         dchars.append(chr(int(hexs, 16)) if hexs else "x")
                         j = k
+                    elif e in "uU":
+                        # \uHHHH / \UHHHHHHHH Unicode escapes (up to 4 / 8 hex).
+                        out.append(e)
+                        limit = 4 if e == "u" else 8
+                        k, hexs = j + 2, ""
+                        while k < n and len(hexs) < limit and line[k] in HEX_DIGITS:
+                            hexs += line[k]
+                            out.append(line[k])
+                            k += 1
+                        if hexs:
+                            try:
+                                dchars.append(chr(int(hexs, 16)))
+                            except (ValueError, OverflowError):
+                                pass  # out-of-range codepoint: bash emits nothing
+                        else:
+                            dchars.append(e)
+                        j = k
+                    elif e == "c":
+                        # \cX control char: ctrl-X == toupper(X) XOR 0x40.
+                        out.append(e)
+                        if j + 2 < n:
+                            ctrl = line[j + 2]
+                            out.append(ctrl)
+                            dchars.append(chr(ord(ctrl.upper()) ^ 0x40))
+                            j += 3
+                        else:
+                            dchars.append("c")
+                            j += 2
                     elif e in "01234567":
                         k, octs = j + 1, ""
                         while k < n and len(octs) < 3 and line[k] in "01234567":
@@ -546,6 +574,25 @@ def split_segments(cmd: str):
         # Unquoted context (top is None or "$(").
         if c in ";|&\n":
             flush()
+            i += 1
+            continue
+        if c == "(":
+            # `((` opens an arithmetic evaluation, whose body is not a command
+            # (`(( codex ))` reads the *variable* codex, it does not run it):
+            # keep it in the current segment. A lone `(` opens a subshell whose
+            # body IS its own command list (`(codex exec)` runs codex), so it is
+            # a segment boundary -- unless it directly follows a `name=` token,
+            # where `name=(...)` is an array assignment, not a subshell.
+            if i + 1 < n and cmd[i + 1] == "(":
+                buf.append("((")
+                i += 2
+                continue
+            pending = "".join(buf).rstrip()
+            last_tok = pending.rsplit(None, 1)[-1] if pending else ""
+            if last_tok.endswith("=") and ENV_ASSIGN.match(last_tok):
+                buf.append(c)  # array assignment `name=( ... )`
+            else:
+                flush()  # subshell: drop the `(`, its body is a new segment
             i += 1
             continue
         if c == ")":  # stray close paren -> segment boundary (regex parity)

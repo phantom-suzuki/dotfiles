@@ -67,6 +67,29 @@ CASES = [
     ("dollar-bracket simple delim via ;", "x=$[1 << EOF;]\ncodex exec\nEOF", True),
     ("dollar-bracket multiline quote body", 'x=$[1 << EOF]\nFOO="a\nb" codex exec\nEOF]', True),
     ("nested subscript in dollar-bracket", "x=$[a[1] << EOF ]\ncodex exec\nEOF", True),
+    # --- MUST BLOCK: subshell / ANSI-C quick wins found in CodeRabbit review --
+    ("subshell direct", "(codex exec)", True),
+    ("subshell chained", "(cd /tmp && codex exec)", True),
+    ("subshell with wrapper", "(timeout 60 codex exec)", True),
+    ("subshell no space after paren", "(codex)", True),
+    ("subshell inside cmdsub", "echo $( (codex exec) )", True),
+    ("process substitution", "cat <(codex exec)", True),
+    # \u / \U must expand so the delimiter resolves to `EOF` and the body (with a
+    # codex line) is correctly dropped -- without the fix the delimiter keeps a
+    # literal backslash, never matches `EOF`, and the body is wrongly scanned.
+    ("ansi-c u delim drops body", "cat <<$'\\u0045OF'\ncodex exec inside\nEOF\necho ok", False),
+    ("ansi-c U delim drops body", "cat <<$'\\U00000045OF'\ncodex exec inside\nEOF\necho ok", False),
+    ("ansi-c u delim then codex", "cat <<$'\\u0045OF'\nbody\nEOF\ncodex exec", True),
+    # \c control-char escape must parse without error (delimiter is untrusted; an
+    # unterminated body keeps the codex line so it still blocks).
+    ("ansi-c control delim parses", "cat <<$'\\cAX'\nbody\ncodex exec", True),
+    # arithmetic evaluation `(( ... ))` reads a variable, it does not run codex
+    ("arith eval not command", "(( codex ))", False),
+    ("arith eval no space", "((codex))", False),
+    ("arith eval with math", "((1 + 2))", False),
+    # array assignment whose first element is the word codex does not run it
+    ("array assignment codex elem", "arr=(codex bar)", False),
+    ("numeric array assignment", "nums=(1 2 3)", False),
     # a here-string followed by a real heredoc still drops the real body
     ("herestring then real heredoc body", "cat <<<HS\ncat <<EOF\ncodex text\nEOF", False),
     ("trailing comment same line", "ls foo # codex exec", False),
