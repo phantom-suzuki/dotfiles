@@ -106,8 +106,12 @@ alias -s md=mdv
 
 # Opus 4.8 用の品質プロファイル起動（1M 無効 + auto-compact を約 130k で早期発火）
 # 背景: dotfiles Issue #66（Opus の捏造・parse error は長 context + extended thinking で悪化する）
-# 注意: env はプロセス起動時にのみ読まれる。Fable セッション内の /model 切り替えでは適用されない。
-#       Opus を使うときは claude-opus で起動し直すこと。
+# 注意: env はプロセス起動時にのみ読まれ、セッション中の /model 切り替えでは compact 窓の
+#       指定は適用されない（auto-compact 閾値自体は現在モデルの窓に自動追従する。v2.1.215 実装確認）。
+#       - セッション中に Opus へ切り替えるときは必ず「Opus 4.8」（1M なし）を選ぶこと。
+#         「Opus 4.8 (1M context)」は [1m] 明示が env より優先されるため危険（1M + 遅い compact）。
+#       - フルプロファイル（1M 無効 + 約 130k で compact 発火）に切り替えたいときは、いったん
+#         閉じて claude-opus --resume（または claude-opus -c）で会話を引き継いで開き直す（実測確認済み）。
 claude-opus() {
   CLAUDE_CODE_DISABLE_1M_CONTEXT=1 \
   CLAUDE_CODE_AUTO_COMPACT_WINDOW=200000 \
