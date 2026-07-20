@@ -9,7 +9,8 @@
 - **戦略判定**: `develop` ブランチが有れば **GitFlow**、無ければ **GitHub Flow**（`git branch -a | grep -E '(^|/)develop$'`）
 - **GitFlow**: `feature/*`（base=develop, merge=develop）/ `release/*`（base=develop, merge=main+develop）/ `hotfix/*`（base=main, merge=main+develop）
 - **GitHub Flow**: `feature/*`・`hotfix/*`（base=main, merge=main via PR）
-- **命名**: 小文字ハイフン区切り、Issue 番号を含める。例: `feature/123-add-user-auth`。有効 prefix: `feature/` `hotfix/` `release/` `bugfix/` `chore/`
+- **命名**: 小文字ハイフン区切り、Issue 番号を含める。例: `feature/123-add-user-auth`
+- **有効 prefix**: 戦略が定義するのは `feature/` `hotfix/`（`release/` は GitFlow のみ）。補助 prefix `bugfix/` `chore/` は base/merge を `feature/` と同じフローに従わせる
 
 ## コミット
 

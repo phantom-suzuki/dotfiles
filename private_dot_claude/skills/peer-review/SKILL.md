@@ -230,4 +230,4 @@ gh pr view <PR> --json reviews --jq '.reviews[-1] | {author, state, submittedAt}
 - **Codex 呼び出しは `codex-review.sh` 経由**: 直叩きすると `--base + PROMPT` 排他エラーや agent_message 抽出の差異で時間を溶かす。スクリプトを更新したい場合は scripts/ 側を直す
 - **任意の代替経路**: `openai/codex-plugin-cc` プラグイン導入済みなら `/codex:review --background --base <ref>` で session 管理付き呼び出しに切り替え可能（次フェーズで本実装に統合する想定）
 - **`self-review` や `review-pr` と混同しないこと**: 3 者は対象も操作も異なる
-- **文体**: 日本語、敬体、git-conventions.md 準拠。CodeRabbit への言及は日本語で OK（返信ではなく言及なので）
+- **文体**: 日本語、敬体、git-conventions.md の Issue / PR 節に準拠。CodeRabbit への言及は日本語で OK（返信ではなく言及なので）

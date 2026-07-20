@@ -34,7 +34,7 @@ chezmoi apply
 | `~/.claude/settings.json` | `private_dot_claude/settings.json.tmpl` | `data.claude.model`, `data.claude.effortLevel`, `data.claude.disable1m`, `data.claude.autoCompactWindow`, `data.claude.autoCompactPct`, `data.claude.mcpServers`, `data.claude.enabledPlugins` |
 
 > **重要（`data.claude.mcpServers` / `enabledPlugins` の安全な運用）**: これらは `chezmoi.toml` の値をそのまま `settings.json` に出力する。①`mcpServers` の `command` / `args` / `env` に API キー・トークンを直書きしない（秘密は環境変数参照や外部 secret manager 経由にする）。②生成済みの `~/.claude/settings.json` を `chezmoi add` / `re-add` しない（秘密が混入した実ファイルをリポジトリに取り込まないため。tmpl 側だけを編集する）。③`enabledPlugins` は信頼済みの marketplace / plugin ID のみ指定する。
-
+>
 > **重要（tmpl の落とし穴）**: tmpl 管理ファイルは `chezmoi re-add` では更新されない（テンプレート構造を壊さないよう実ファイルの差分が取り込まれない）。tmpl の内容を変えるときは **ソースの `*.tmpl` を直接編集 → `chezmoi apply`** で反映する。`settings.json` のように変数を含まない tmpl でも同様。
 
 ## 変更後のコミット
@@ -43,7 +43,11 @@ dotfiles の変更後は chezmoi ソースディレクトリでコミット:
 
 ```bash
 chezmoi cd  # → ~/.local/share/chezmoi/
-git add -A && git commit -m "feat: update ghostty appearance"
+git status                       # 意図しない変更が混ざっていないか確認する
+git add dot_config/ghostty/config  # 変更したパスだけを個別に stage する（git add -A は避ける）
+git diff --cached                # stage 内容を確認してからコミットする
+git commit -m "feat: update ghostty appearance"
+git branch --show-current        # push 先が保護ブランチでないか確認する（git-safety.md 参照）
 git push
 ```
 
