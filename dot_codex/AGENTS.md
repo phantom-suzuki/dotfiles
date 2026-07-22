@@ -49,6 +49,10 @@ Codex は AGENTS.md を「グローバル + プロジェクト階層」で読み
 - **新規ファイルの作成は、タスクに必要な場合のみ** — 不要なヘルパーや抽象化を追加しない
 - **機密情報（.env / credentials / secrets / auth.json）を読み取ったり出力に含めない**
 
+## 対外メッセージのドラフト・添削
+
+ユーザー名義のチャットメッセージ（Slack 等）のドラフト・変換・添削を委譲されたら、文体規範の正本 `~/.claude/skills/message-draft/references/style-guide.md` を必ず読んでから書く。実事例が `~/work/workspace/message-drafts/examples/` に存在すれば直近 2〜3 件のみ参照する（全件は読まない）。
+
 ## リポジトリ規約への追従
 
 - 作業ディレクトリの **プロジェクト AGENTS.md / CLAUDE.md / rules / ADR** を尊重する
