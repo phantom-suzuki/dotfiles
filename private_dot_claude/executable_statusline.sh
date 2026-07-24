@@ -27,6 +27,9 @@ fi
 project_dir=$(echo "$input" | jq -r '.workspace.project_dir // empty')
 project=$(basename "${project_dir:-unknown}")
 model=$(echo "$input" | jq -r '.model.display_name // "?"')
+# `//` only substitutes null/false, not "" — an empty display_name would slip
+# through and render a blank model slot. Treat empty/whitespace as unknown too.
+[[ -z "${model//[[:space:]]/}" ]] && model="?"
 used=$(echo "$input" | jq -r '.context_window.used_percentage // 0' | cut -d. -f1)
 cost=$(echo "$input" | jq -r '.cost.total_cost_usd // 0')
 
@@ -311,6 +314,10 @@ fi
 model_seg="$model"
 [[ "$fast_mode" == "true" ]] && model_seg="⚡${model_seg}"
 [[ -n "$effort_level" ]] && model_seg+=" \033[2m·${effort_level}\033[0m"
+# Compact model for the narrow single-row layout: drop the " (1M context)"-style
+# parenthetical so the name still fits beside project/percent/cost.
+model_short="${model%% (*}"
+[[ "$fast_mode" == "true" ]] && model_short="⚡${model_short}"
 lines_seg=""
 if (( lines_add > 0 || lines_del > 0 )); then
   lines_seg="\033[32m+${lines_add}\033[0m/\033[31m-${lines_del}\033[0m"
@@ -359,8 +366,8 @@ elif (( cols >= 60 )); then
   [[ -n "$rl_short" ]] && line2+=" \033[2m|\033[0m ${rl_short}"
 
 else
-  # Narrow: single row — project XX% $X.XX (rate-limit shown only when critical)
-  line1="\033[36m${project}\033[0m \033[${bar_color}m${used}%\033[0m \033[2m${cost_fmt}\033[0m"
+  # Narrow: single row — project model XX% $X.XX (rate-limit shown only when critical)
+  line1="\033[36m${project}\033[0m \033[2m${model_short}\033[0m \033[${bar_color}m${used}%\033[0m \033[2m${cost_fmt}\033[0m"
   (( rl_max >= RL_CRIT )) && [[ -n "$rl_short" ]] && line1+=" ${rl_short}"
 fi
 
