@@ -9,17 +9,34 @@
 	ps = push
 	mg = merge
 
+{{- /*
+  SSH commit 署名はマシンごとの opt-in。chezmoi.toml に次の 2 つを書いたマシンでのみ有効になる。
+
+      git_signing_enabled = true
+      git_signing_key = "/Users/<user>/.ssh/<key>.pub"   # 公開鍵のパス（絶対パス）
+
+  未定義のマシンでは署名なしの .gitconfig が生成される。
+  `default false .git_signing_enabled` ではなく `dig` を使うのは、chezmoi が未定義キーの
+  参照自体をエラーにするため（default が働く前に停止し、chezmoi apply が丸ごと失敗する）。
+*/}}
+{{- $signingEnabled := dig "git_signing_enabled" false . }}
+{{- $signingKey := dig "git_signing_key" "" . }}
+{{- if and $signingEnabled (not $signingKey) }}
+{{- fail "chezmoi.toml: git_signing_enabled = true のときは git_signing_key（公開鍵の絶対パス）も設定してください" }}
+{{- end }}
 [user]
 	name = {{ .name }}
 	email = {{ .email }}
-{{- if default false .git_signing_enabled }}
-	signingkey = {{ .git_signing_key }}
+{{- if $signingEnabled }}
+	signingkey = {{ $signingKey }}
 {{- end }}
 [core]
 	filemode = false
-{{- if default false .git_signing_enabled }}
+{{- if $signingEnabled }}
 [gpg]
 	format = ssh
+[gpg "ssh"]
+	allowedSignersFile = {{ joinPath .chezmoi.homeDir ".config" "git" "allowed_signers" }}
 [commit]
 	gpgsign = true
 {{- end }}

@@ -69,7 +69,7 @@ chezmoi apply
 
 | ターゲット | ソース | テンプレート変数 |
 |-----------|--------|-----------------|
-| `~/.gitconfig` | `dot_gitconfig.tmpl` | `{{ .name }}`, `{{ .email }}` |
+| `~/.gitconfig` | `dot_gitconfig.tmpl` | `{{ .name }}`, `{{ .email }}`, `git_signing_enabled`, `git_signing_key` |
 | `~/.zshrc` | `dot_zshrc.tmpl` | なし（クリーンアップ済み、将来のマシン分岐用） |
 | `~/.claude/settings.json` | `private_dot_claude/settings.json.tmpl` | `data.claude.model`, `data.claude.effortLevel`, `data.claude.disable1m`, `data.claude.autoCompactWindow`, `data.claude.autoCompactPct`, `data.claude.mcpServers`, `data.claude.enabledPlugins`, `data.claude.voice` |
 
@@ -85,6 +85,20 @@ chezmoi apply
 > | `/voice` | `data.claude.voice.mode` / `data.claude.voice.enabled` |
 >
 > なお `settings.json` がコマンドで書き換わっていると `chezmoi apply` は「chezmoi が書いた後に変更されている」と検出して確認を求める。**確認を求められたら、まず `chezmoi diff` で意図しない巻き戻りが含まれていないかを見る**。`--force` で押し切る前に必ず差分を読むこと。
+
+<!-- -->
+
+> **SSH commit 署名の有効化（マシンごとの opt-in）**: 既定は署名なし。有効にしたいマシンだけ `~/.config/chezmoi/chezmoi.toml` の `[data]` に次の 2 つを書く。片方だけだとテンプレートの展開がエラーで止まる。
+>
+> ```toml
+> [data]
+>     git_signing_enabled = true
+>     git_signing_key = "/Users/<user>/.ssh/<key>.pub"   # 公開鍵の絶対パス
+> ```
+>
+> 加えて、その公開鍵を GitHub に **Signing Key として登録する**（Settings → SSH and GPG keys → New SSH key → Key type = Signing Key）。認証用（Authentication Key）として登録済みでも、署名用は別枠での登録が必要。登録しないと GitHub 上で Unverified のままになる。
+>
+> 手元で `git log --show-signature` を通すための「信頼する署名者」一覧（`gpg.ssh.allowedSignersFile`）は自動で用意される。`dot_config/git/allowed_signers.tmpl` が `chezmoi apply` の時点でローカルの公開鍵から `~/.config/git/allowed_signers` を生成する（**鍵の中身はリポジトリに入らない**）。署名を使わないマシンでは、このファイルは生成されない。
 
 <!-- -->
 
