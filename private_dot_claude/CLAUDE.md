@@ -69,11 +69,23 @@ chezmoi apply
 
 | ターゲット | ソース | テンプレート変数 |
 |-----------|--------|-----------------|
-| `~/.gitconfig` | `dot_gitconfig.tmpl` | `{{ .name }}`, `{{ .email }}` |
+| `~/.gitconfig` | `dot_gitconfig.tmpl` | `{{ .name }}`, `{{ .email }}`, `git_signing_enabled`, `git_signing_key` |
 | `~/.zshrc` | `dot_zshrc.tmpl` | なし（クリーンアップ済み、将来のマシン分岐用） |
 | `~/.claude/settings.json` | `private_dot_claude/settings.json.tmpl` | `data.claude.model`, `data.claude.effortLevel`, `data.claude.disable1m`, `data.claude.autoCompactWindow`, `data.claude.autoCompactPct`, `data.claude.mcpServers`, `data.claude.enabledPlugins` |
 
 > **重要（`data.claude.mcpServers` / `enabledPlugins` の安全な運用）**: これらは `chezmoi.toml` の値をそのまま `settings.json` に出力する。①`mcpServers` の `command` / `args` / `env` に API キー・トークンを直書きしない（秘密は環境変数参照や外部 secret manager 経由にする）。②生成済みの `~/.claude/settings.json` を `chezmoi add` / `re-add` しない（秘密が混入した実ファイルをリポジトリに取り込まないため。tmpl 側だけを編集する）。③`enabledPlugins` は信頼済みの marketplace / plugin ID のみ指定する。
+
+> **SSH commit 署名の有効化（マシンごとの opt-in）**: 既定は署名なし。有効にしたいマシンだけ `~/.config/chezmoi/chezmoi.toml` の `[data]` に次の 2 つを書く。片方だけだとテンプレートの展開がエラーで止まる。
+>
+> ```toml
+> [data]
+>     git_signing_enabled = true
+>     git_signing_key = "/Users/<user>/.ssh/<key>.pub"   # 公開鍵の絶対パス
+> ```
+>
+> 加えて、その公開鍵を GitHub に **Signing Key として登録する**（Settings → SSH and GPG keys → New SSH key → Key type = Signing Key）。認証用（Authentication Key）として登録済みでも、署名用は別枠での登録が必要。登録しないと GitHub 上で Unverified のままになる。
+>
+> 手元で `git log --show-signature` を通したい場合は、信頼する署名者の一覧ファイル（`gpg.ssh.allowedSignersFile`）の設定が別途必要。GitHub 上の Verified 表示には不要。
 
 > **重要（tmpl の落とし穴）**: tmpl 管理ファイルは `chezmoi re-add` では更新されない（テンプレート構造を壊さないよう実ファイルの差分が取り込まれない）。tmpl の内容を変えるときは **ソースの `*.tmpl` を直接編集 → `chezmoi apply`** で反映すること。`settings.json` のように変数を含まない tmpl でも同様。
 
