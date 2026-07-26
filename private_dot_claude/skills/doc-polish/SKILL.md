@@ -134,7 +134,7 @@ bash ~/.claude/skills/doc-polish/scripts/check-mermaid.sh <対象 md の絶対�
 |---|---|---|
 | checkout が untracked と衝突 | main に旧 tracked ファイルの残骸 | worktree に展開する（Step 1）。untracked を消さない |
 | Codex が制約を破った（見出し・数値変更） | プロンプトの制約が曖昧 | 該当箇所を司令塔が Edit で戻すか、制約を具体化して再委譲 |
-| Mermaid parse FAIL | 日本語ノード ID・構文誤り | `mermaid-conventions.md` の落とし穴節を参照して修正 |
+| Mermaid parse FAIL | 日本語ノード ID・構文誤り | `~/.claude/docs/mermaid-conventions.md` の落とし穴節を参照して修正 |
 | Codex 未導入 | プラグインなし | T3 実行サブエージェント（重い実行役）へフォールバック |
 
 ## 関連

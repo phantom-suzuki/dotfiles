@@ -10,7 +10,7 @@
 #   1. Codex.app を起動して config.toml を自動生成させる
 #   2. 下記の値を ~/.codex/config.toml の該当キーに反映する（先頭 model 2 行 + [features]）
 #
-# Effort 運用方針の正本は ~/.claude/rules/codex-config.md を参照。
+# Effort 運用方針の正本は ~/.claude/docs/codex-config.md を参照。
 
 # 既定モデルと reasoning effort。委譲パス（task-delegation T2 / /codex:rescue）はこの
 # default を尊重するため、Codex のレート消費はまずこの値で調整する（普段は medium で節約）。
@@ -49,7 +49,7 @@ js_repl = false
 #           バージョンを含みマシン固有）。ポータブルに移植したいサーバーだけを下記のコメント
 #           サンプルとして seed に残す（新マシンで config.toml へ手で反映する）。
 #
-# 詳細な方針・分担の正本は ~/.claude/rules/codex-config.md を参照。
+# 詳細な方針・分担の正本は ~/.claude/docs/codex-config.md を参照。
 #
 # --- MCP ポータブルサンプル（新マシンで config.toml に手で反映する。値は各自調整） ---
 # node_repl は Codex.app 生成のためここには載せない（管理外）。

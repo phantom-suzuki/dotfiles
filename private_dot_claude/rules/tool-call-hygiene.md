@@ -31,9 +31,9 @@ Case B の比率はモデル・環境で変わる。連発したら思い込み�
 
 ## codex を Bash のコマンド位置に書かない
 
-Codex 委譲は `codex:rescue` 経由（対話は `/codex:rescue` スキル、委譲は `codex-rescue` サブエージェント）に統一する。フック `block-codex-direct.py` が deny するのは、**コマンド位置のトークンの basename が codex の実行**のみ（`codex exec` / `timeout 60 codex exec` / `FOO=1 codex` / `echo x && codex` / 絶対パス / `$(codex ...)` / バッククォート）。
+Codex 委譲は `codex:rescue` 経由（対話は `/codex:rescue` スキル、委譲は `codex-rescue` サブエージェント）に統一する。フック `block-codex-direct.py` が deny するのは、**コマンド位置のトークンの basename が codex の実行**（`codex exec` / `timeout 60 codex exec` / `FOO=1 codex` / `echo x && codex` / 絶対パス / `$(codex ...)` / バッククォート）。
 
-フックはクォート・heredoc 本文・コメントを認識する（PR #75）ため、heredoc やクォート内に codex で始まる語・行があっても誤ブロックされない（Write ツールでファイル化して回避する必要はない）。
+**現行フックはクォート・heredoc の中身も機械的に分割して検査する**。grep パターンや heredoc 本文であっても codex で始まるセグメントを command 文字列に含めるとブロックされる。プロンプト等の本文は Write ツールでファイル化して渡すこと。
 
 **例外**: レビュー系スキル同梱の `bash .../codex-review.sh` 等スクリプト呼び出しは検査対象外（basename が codex でないため）。
 
