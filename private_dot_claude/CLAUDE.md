@@ -85,7 +85,7 @@ chezmoi apply
 >
 > 加えて、その公開鍵を GitHub に **Signing Key として登録する**（Settings → SSH and GPG keys → New SSH key → Key type = Signing Key）。認証用（Authentication Key）として登録済みでも、署名用は別枠での登録が必要。登録しないと GitHub 上で Unverified のままになる。
 >
-> 手元で `git log --show-signature` を通したい場合は、信頼する署名者の一覧ファイル（`gpg.ssh.allowedSignersFile`）の設定が別途必要。GitHub 上の Verified 表示には不要。
+> 手元で `git log --show-signature` を通すための「信頼する署名者」一覧（`gpg.ssh.allowedSignersFile`）は自動で用意される。`dot_config/git/allowed_signers.tmpl` が `chezmoi apply` の時点でローカルの公開鍵から `~/.config/git/allowed_signers` を生成する（**鍵の中身はリポジトリに入らない**）。署名を使わないマシンでは、このファイルは生成されない。
 
 > **重要（tmpl の落とし穴）**: tmpl 管理ファイルは `chezmoi re-add` では更新されない（テンプレート構造を壊さないよう実ファイルの差分が取り込まれない）。tmpl の内容を変えるときは **ソースの `*.tmpl` を直接編集 → `chezmoi apply`** で反映すること。`settings.json` のように変数を含まない tmpl でも同様。
 
