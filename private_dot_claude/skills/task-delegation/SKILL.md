@@ -234,6 +234,7 @@ git diff <base>..HEAD --name-only | grep -E '\.terraform/|terraform-provider-|\.
 ## 関連
 
 - `~/.claude/CLAUDE.md` の Task Delegation セクション（概要ポインタ。常時注入されるのはこの 1 節のみ）
+- `~/.claude/docs/codex-config.md` — Codex の設定管理と reasoning effort 制御マップの正本。どの呼び出し経路が `config.toml` を尊重するかを載せている。レート消費を調べるときはここから入る
 - `~/.claude/rules/git-safety.md`（コミット判断の制約）
 
 ## 改訂ログ

@@ -39,7 +39,7 @@
 # Mermaid 記述規約（必須）
 
 - `classDef` でノード色を指定する場合、`color` を必ず明示する（GitHub ダークモードで文字が埋もれるため）
-- 推奨色: Done=`fill:#1a7f37,stroke:#1a7f37,color:#ffffff` / In Progress=`fill:#bf8700,stroke:#9a6700,color:#ffffff` / Warning=`fill:#cf222e,stroke:#82071e,color:#ffffff` / Info=`fill:#0969da,stroke:#0969da,color:#ffffff`。パステル色は禁止
+- 推奨色: Done=`fill:#1a7f37,stroke:#1a7f37,color:#ffffff` / In Progress=`fill:#9a6700,stroke:#7d4e00,color:#ffffff` / Warning=`fill:#cf222e,stroke:#82071e,color:#ffffff` / Info=`fill:#0969da,stroke:#0969da,color:#ffffff`。パステル色は禁止（正本は `~/.claude/docs/mermaid-conventions.md`）
 - 色を使う図の直前に凡例を 1 行併記する（例: `> カラールール: 🟢 完了 / 🟡 進行中 / 🔴 警告`）
 - ノード ID は ASCII、ラベルは日本語（`id[日本語ラベル]` 形式）。ノード ID とラベルの記号（案 A/B/D 等）を食い違わせない。`stateDiagram-v2` + 日本語 ID はレキサーエラーになるので使わず、`graph TD` / `graph LR` / `flowchart` を使う
 - {{既存文書に Mermaid 図がある場合、そのスタイルと整合させる旨を明記}}

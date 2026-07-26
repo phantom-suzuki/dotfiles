@@ -69,7 +69,7 @@ dotfiles の変更後は chezmoi ソースディレクトリでコミット:
 ```bash
 chezmoi cd  # → ~/.local/share/chezmoi/
 git status                       # 意図しない変更が混ざっていないか確認する
-git add dot_config/ghostty/config  # 変更したパスだけを個別に stage する（git add -A は避ける）
+git add dot_config/ghostty/config.tmpl  # 変更したパスだけを個別に stage する（git add -A は避ける）
 git diff --cached                # stage 内容を確認してからコミットする
 git commit -m "feat: update ghostty appearance"
 git branch --show-current        # push 先が保護ブランチでないか確認する（git-safety.md 参照）

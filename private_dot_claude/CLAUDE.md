@@ -35,6 +35,8 @@
 
 対象外: scratchpad の一時ファイル / メモリファイル / コミットメッセージ / Issue・PR 本文（これらは easy-japanese 規律のみ適用）。
 
+**Mermaid 図を書くときは `~/.claude/docs/mermaid-conventions.md` を読む**（doc-polish の対象外でも適用する）。ダークモードで文字が埋もれないカラールールと、push 前の `mermaid.parse()` 構文検証の手順が正本。GitHub の CI も CodeRabbit も Mermaid 構文を検証しないため、この検証を飛ばすと構文エラーのまま公開される。
+
 ## Dotfiles — chezmoi 管理
 
 個人設定ファイル（Ghostty, Neovim, zsh, tmux, Claude Code 等）は **chezmoi** で管理されている。ソースは `~/.local/share/chezmoi/`（リポジトリ `github.com/phantom-suzuki/dotfiles`）。ターミナルは現在 **Ghostty**（`dot_config/ghostty/config.tmpl`）を使用。WezTerm 設定（`dot_config/wezterm/`）も旧環境用に管理下に残しているが、現行のターミナル依存作業は Ghostty を前提にする。

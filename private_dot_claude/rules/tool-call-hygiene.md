@@ -21,11 +21,13 @@ compaction 後は `hooks/postcompact-reinject.py` が同趣旨のガード（要
 
 Case B の比率はモデル・環境で変わる。連発したら思い込みで語らず、`tool-call-parse-recovery` スキルの診断スクリプトで Case A/B を実測してから対処する（Case B は config/セッション運用、Case A は下記）。
 
+**Case A はコンテキスト総量とは相関しない**（使用率が低くても発生する）。malformed を「コンテキストが膨らんだせい」と誤診して、不要な compact や新セッション退避に走らない。
+
 ## 必須ルール（Case A の予防）
 
 1. **日本語を Unicode エスケープしない**: ❌`"データ"` → ✅`"データ"`。常に直書き
 2. **構造化フィールドはオブジェクトを直接渡す（JSON-in-JSON 禁止）**: ❌`SendMessage({message: "{\"type\":...}"})` → ✅`SendMessage({message: {type: ...}})`
-3. **Bash の jq / クォートを単純に保つ**: 多段パイプ・入れ子クォートを 1 行に詰めない。長い HEREDOC を避け `-m` 複数回 or ファイル経由。**command 文字列に日本語を埋めない**（`gh` の本文は `-F` / `--body-file` でファイル経由）
+3. **Bash の jq / クォートを単純に保つ**: 多段パイプ・入れ子クォートを 1 行に詰めない。長い HEREDOC を避け `-m` 複数回 or ファイル経由。**command 文字列に日本語を埋めない**（`gh` の本文は `-F` / `--body-file` でファイル経由）。日本語が避けられないのは `gh issue create --title` 等の短い 1 行のみに留める
 4. **1 メッセージ 1 ツール・引数を素朴に**: 400 行級の Write を避けセクション単位の Edit を積む。malformed が出たら引数をさらに小さく割って retry
 5. **巨大レスポンスを連続させない**: snapshot 等は出力量を抑え、直後の tool call は特に素朴に。頻発したら小さな `Read` を 1 つ挟んで局所的不安定を解消してから本命へ
 
