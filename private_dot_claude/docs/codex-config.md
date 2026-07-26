@@ -139,7 +139,6 @@ sol 不可」は現在は誤り。過去に ChatGPT 認証で 400 になった `
 
 ## 関連
 
-- `~/.claude/skills/task-delegation/SKILL.md` — T2 Codex 委譲の判定（委譲パスの effort はここ経由）
-- `~/.claude/rules/task-delegation.md`
+- `~/.claude/skills/task-delegation/SKILL.md` — T2 Codex 委譲の判定（委譲パスの effort はここ経由）。委譲体系の正本
 - `~/.codex/AGENTS.md`（`dot_codex/AGENTS.md`）— Codex 側の委譲実行グローバル指針
 - `~/.codex/config.seed.toml` — ポータブル設定の seed
