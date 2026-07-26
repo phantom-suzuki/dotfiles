@@ -9,7 +9,7 @@ description: Markdown ドキュメントの日本語表現を研磨し、改善�
 Markdown ドキュメント（計画文書・ADR・ガイド等）の日本語表現を研磨し、改善を適用する。レビュー観点は 4 つ:
 
 1. **一般的でない表現**: 社内・業界で通じない独特な言い回し（例:「〜に接地する」「波状起票」「tail 収束」「並行充填」）
-2. **難しい言い回し**: 長文・主語省略・二重否定・動作名詞の連結（`~/.claude/rules/easy-japanese.md` の R1〜R8 が正本）
+2. **難しい言い回し**: 長文・主語省略・二重否定・動作名詞の連結（`~/.claude/rules/easy-japanese.md` の R1〜R9 が正本）
 3. **造語・略語・記号参照**: 独自略語の展開、ID・節番号参照への名称併記、独自グルーピング語の定義（下記「表記規律」が正本。初出に説明を添えるだけでは不十分）
 4. **図の不足**: 文章・表だけでは構造や時系列が掴みにくい節への Mermaid 図挿入（`~/.claude/rules/mermaid-conventions.md` が正本）
 
@@ -139,7 +139,7 @@ bash ~/.claude/skills/doc-polish/scripts/check-mermaid.sh <対象 md の絶対�
 
 ## 関連
 
-- `~/.claude/rules/easy-japanese.md` — 日本語規律の正本（R1〜R8）
+- `~/.claude/rules/easy-japanese.md` — 日本語規律の正本（R1〜R9）
 - `~/.claude/rules/mermaid-conventions.md` — Mermaid カラールール・検証レシピの正本
 - `~/.claude/skills/task-delegation/SKILL.md` — T1/T2/T3 委譲体系の正本
 - `~/.claude/skills/review-doc/` — 提案のみの軽量レビュー（棲み分け先）
