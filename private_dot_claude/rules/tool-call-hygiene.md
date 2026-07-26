@@ -1,87 +1,43 @@
 # Tool Call Hygiene Rules
 
-ツール呼び出しの引数生成で「malformed tool call / could not be parsed」を防ぐための規範。malformed はリポジトリ非依存の出力癖で起きるため、全プロジェクト共通ルールとして正本化する。
+**適用範囲**: すべての tool call（Bash / Edit / Write / SendMessage / MCP 等）の引数生成と、ツール結果の報告に常時適用する。parse 失敗の原因分類・診断・復旧の詳細は `tool-call-parse-recovery` スキルが正本。
 
-## スコープ — このルールは Case A 専用
+## 検証ゲート（ツール結果の捏造を防ぐ）
 
-「tool call could not be parsed」は**同じ文言の裏に 2 つの別原因**がある:
+ツール実行の丸ごと捏造・結果の思い込みは既知の失敗様式。完了報告の前に必ず:
 
-- **Case A（引数破損）**: モデルが tool_use を出すが JSON 引数が壊れている（深いエスケープ・`\uXXXX` 漢字 typo・JSON-in-JSON）。**クライアント側で観測・緩和でき、本ルールが対象**。
-- **Case B（tool_use 欠落）**: `stop_reason=tool_use` なのに tool_use ブロックが無く content が空 thinking のみ。**サーバー/ストリーミング側のバグ**。**引数の書き方では緩和不可**。この分類フレーム自体はモデルに依存しない（どのモデルでも起こりうる）。どのモデルでどれだけ出るかは環境で変わるので、下の実測記録を参照する。
+- **実在確認**: ファイル変更・コマンド実行を伴う作業は、完了報告の前に `git status` / 対象ファイルの Read 等で結果の実在を確認する。確認せずに「完了した」と報告しない
+- **不確実性の明示**: 実行結果・事実が不確実なら「未確認」と明示する。推測を実測のように書かない。コマンド実行結果・ファイル内容は記憶を信用せず、必要なら再実行・再読込で確認する
+- **根拠の引用**: 調査報告では、結論の根拠（ファイルパス・実行出力・URL）を添える
 
-### 過去の実測記録（モデル・時期を明記）
+compaction 後は `hooks/postcompact-reinject.py` が同趣旨のガード（要約の記憶を信用せず再実行・再読込で確認する）を再注入する。常時ガードと矛盾させない。
 
-Case B の比率は特定モデル・特定時期の実測であり、現行・将来のモデル一般への断定ではない。
+## parse 失敗（malformed）の 2 原因
 
-- **2026-05〜06、Opus 4.7 / 4.8 + extended thinking + 1M context の環境**: 失敗の **約 97% が Case B** だった。本ルール（引数衛生）を守っても Case B は減らず、「ルールを入れているのに発生する」の正体はこれだった。この構成では `tool-call-parse-recovery` スキルの config / セッション運用対処に進む。
-- **その他のモデル（例: Fable 5）**: 実測データが集まり次第、ここに「モデル名・時期・Case B 比率」を追記する（Opus の記録は消さず併記する）。
+「tool call could not be parsed」は同じ文言の裏に 2 つの別原因がある。取り違えると「対策を入れているのに直らない」が起きる。
 
-**モデルや環境が変わったら比率を思い込みで語らない**。まず `tool-call-parse-recovery` スキルの診断スクリプトを走らせ、モデル別に Case A / Case B 比率を実測してから対処を選ぶ。
+- **Case A（引数破損）**: tool_use は出るが JSON 引数が壊れている（深いエスケープ・`\uXXXX` 漢字 typo・JSON-in-JSON）。**下の必須ルールで緩和できる**
+- **Case B（tool_use 欠落）**: `stop_reason=tool_use` なのに tool_use ブロックが無い（空 thinking のみ）。**サーバー側バグで、引数の書き方では緩和不可**
 
-## 根本原因（Case A）
+Case B の比率はモデル・環境で変わる。連発したら思い込みで語らず、`tool-call-parse-recovery` スキルの診断スクリプトで Case A/B を実測してから対処する（Case B は config/セッション運用、Case A は下記）。
 
-Case A の malformed はモデル側のツール引数生成（JSON 組み立て）が確率的に失敗する出力癖であり、**コンテキスト総量とは相関しない**（使用率が低くても発生する）。発生確率を高める引き金は 2 系統:
+## 必須ルール（Case A の予防）
 
-1. **エスケープの深さ**: `"` を `\"` に、日本語を `\uXXXX` に…とモデルが手で組み立てるエスケープ層が深くなると、1 文字ずれただけでパース不能になる。
-2. **直前ターンの巨大テキスト**: 数百行のツールレスポンス（accessibility snapshot 等）を受けた直後は、引数生成が局所的に不安定になりやすい。これはコンテキスト総量の問題ではなく、直近ターンに巨大テキストが入ったことによる局所的な現象。（この引き金は Case B の誘発要因にもなる。）
+1. **日本語を Unicode エスケープしない**: ❌`"データ"` → ✅`"データ"`。常に直書き
+2. **構造化フィールドはオブジェクトを直接渡す（JSON-in-JSON 禁止）**: ❌`SendMessage({message: "{\"type\":...}"})` → ✅`SendMessage({message: {type: ...}})`
+3. **Bash の jq / クォートを単純に保つ**: 多段パイプ・入れ子クォートを 1 行に詰めない。長い HEREDOC を避け `-m` 複数回 or ファイル経由。**command 文字列に日本語を埋めない**（`gh` の本文は `-F` / `--body-file` でファイル経由）
+4. **1 メッセージ 1 ツール・引数を素朴に**: 400 行級の Write を避けセクション単位の Edit を積む。malformed が出たら引数をさらに小さく割って retry
+5. **巨大レスポンスを連続させない**: snapshot 等は出力量を抑え、直後の tool call は特に素朴に。頻発したら小さな `Read` を 1 つ挟んで局所的不安定を解消してから本命へ
 
-malformed はゼロにはできない。以下のルールは Case A の確率を下げる打ち手であり、出たら単純化して再送する（「失敗時のリカバリ」参照）。
+## codex を Bash のコマンド位置に書かない
 
-## 必須ルール
+Codex 委譲は `codex:rescue` 経由（対話は `/codex:rescue` スキル、委譲は `codex-rescue` サブエージェント）に統一する。フック `block-codex-direct.py` が deny するのは、**コマンド位置のトークンの basename が codex の実行**のみ（`codex exec` / `timeout 60 codex exec` / `FOO=1 codex` / `echo x && codex` / 絶対パス / `$(codex ...)` / バッククォート）。
 
-### 1. 日本語を Unicode エスケープしない
+フックはクォート・heredoc 本文・コメントを認識する（PR #75）ため、heredoc やクォート内に codex で始まる語・行があっても誤ブロックされない（Write ツールでファイル化して回避する必要はない）。
 
-- ❌ `"reason": "データ完了"`
-- ✅ `"reason": "データ完了"`
-
-`\uXXXX` 形式は漢字 typo の温床であり、JSON エスケープを破綻させる主因。**日本語は常に直書き**する。
-
-### 2. 構造化フィールドはオブジェクトを直接渡す（JSON-in-JSON 禁止）
-
-ツールの引数に構造化オブジェクトを受け付けるフィールドがある場合、JSON を文字列化して渡さない。オブジェクトをそのまま渡す。
-
-- ❌ `SendMessage({message: "{\"type\": \"shutdown_request\", \"reason\": \"...\"}"})`
-- ✅ `SendMessage({message: {type: "shutdown_request", reason: "保留のため終了"}})`
-
-文字列化した JSON（JSON-in-JSON）は、ネストしたエスケープ層が二重になり最も壊れやすい。特に `SendMessage` の `message`（shutdown_request / plan_approval_response 等）で頻発する。
-
-### 3. Bash の jq / クォートを単純に保つ
-
-- `gsub(...)`・入れ子クォート・パイプ多段を 1 行に詰め込まない
-- 複雑な整形は複数の短いコマンドに分割するか、Read 等の専用ツールに委ねる
-- 長い HEREDOC（特に commit メッセージ）を避け、`-m` を短く複数回 or ファイル経由にする
-- **`command` 文字列に日本語を埋め込まない**。`echo` の進捗・確認メッセージは英語/ASCII にし、`gh` の Issue 本文・コメント・PR 本文は `-F` / `--body-file` でファイル経由にする（コマンド文字列を日本語混じりの長文にしない）。日本語が避けられないのは `gh issue create --title` 等の短い 1 行のみに留める
-
-### 4. 1 メッセージ 1 ツール・引数を素朴に
-
-- 重い引数（巨大 Write、長文 AskUserQuestion 選択肢）を 1 呼び出しに詰めない
-- 400 行級の Write は避け、**セクション単位の小さな Edit を積み重ねる**
-- malformed が出たら、引数をさらに小さく割って retry する
-
-### 5. 巨大レスポンスを連続させない
-
-- `take_snapshot`（chrome-devtools / playwright）等、数百行を返すツールは `depth` 制限や `filename` 保存オプションで 1 回あたりの出力量を抑える
-- 同じ巨大スナップショットを毎ターン取り直さない。直前の取得結果が使えるなら再取得しない
-- 巨大レスポンスの直後の tool call は特に引数を素朴に保つ。malformed が頻発したら、テキストのみの応答や小さな読み取り（`Read` 等）を 1 つ挟んで局所的な不安定を解消してから本命の呼び出しに移る
-
-### 6. `codex` を Bash コマンド文字列に書かない
-
-`codex` / `codex exec` はもちろん、**`command -v codex` のような存在確認すら Bash で書くとフックにブロックされる**（Bash 直叩きはハングの原因になるため）。Codex への委譲は `codex:rescue` 経由（対話なら `/codex:rescue` スキル、サブタスク委譲なら `codex-rescue` サブエージェント）のみで行う。Codex の有無を確認したいだけでも Bash に `codex` の文字を含めないこと。
-
-**例外 — スキル同梱スクリプト経由の実行は許容**: レビュー系スキル（self-review / review-adr / review-doc / codex-imagegen）が同梱する `bash .../codex-review.sh` 等の呼び出しは、この規範の例外として許容する。フック（`block-codex-direct.py`）がブロックするのは、コマンド文字列を改行・パイプ等で分割した各セグメントのコマンド位置の basename が `codex` の場合であり、スクリプトファイルの呼び出しは検査対象外（タイムアウト等の安全策はスクリプト側が持つ）。ただしフックは**クォートや heredoc の中身も機械的に分割して検査する**ため、grep パターンや heredoc 本文であっても `codex` で始まるセグメントをコマンド文字列に含めるとブロックされる。プロンプト等の本文は Write ツールでファイル化して渡すこと。
-
-## 失敗時のリカバリ
-
-malformed が出たら、まず**原因が Case A か Case B かを切り分ける**（同じ引数で機械的に retry しない）:
-
-1. **Case A の疑い**（引数が深いエスケープ・JSON-in-JSON・複雑な jq 等）→ 上記 1〜4 のうち該当する書き方を**単純化して**から retry する。
-2. **Case B の疑い**（単純な引数でも発生、同一セッションで連発。既知の高リスク構成の例は Opus 4.7 / 4.8 + 1M + high effort）→ 引数を直しても無駄。**`tool-call-parse-recovery` スキル**に進み、診断スクリプトで A/B 比率を確認し、config/セッション運用（claude update / 新規セッション / `/effort medium` / `/bug`）で対処する。
-
-判断に迷ったら `~/.claude/skills/tool-call-parse-recovery/scripts/diagnose-parse-errors.sh --recent 10` を実行して定量判定する。
+**例外**: レビュー系スキル同梱の `bash .../codex-review.sh` 等スクリプト呼び出しは検査対象外（basename が codex でないため）。
 
 ## 関連
 
-- **`tool-call-parse-recovery` スキル** — 発生時・連発時の原因分類と復旧手順の正本（Case B 対処の本体）
-- `~/.claude/CLAUDE.md` の Communication Style（日本語の orthographic correctness）
-- 実プロジェクトでの malformed 多発フィードバックをもとに正本化した共通ルール
-- GitHub Issue #61133 / #62123（Case B = area:model のサーバー側バグ）
+- `~/.claude/skills/tool-call-parse-recovery/` — parse 失敗の原因分類・診断スクリプト・復旧手順の正本
+- GitHub Issue #61133 / #62123（Case B = サーバー側バグ）
