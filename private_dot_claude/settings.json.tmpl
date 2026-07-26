@@ -255,6 +255,13 @@
     }
   },
   "language": "japanese",
+  {{- /*
+    音声入力（/voice）。data.claude.voice でマシンごとに上書きできる。
+    mode は "hold"（押している間だけ録音・送信前に目視できる）か "tap"（タップで開始/停止・自動送信）。
+    重要: /voice コマンドはこの値を settings.json に直接書き込むため、コマンドで変えたら
+    chezmoi.toml の data.claude.voice も更新すること（更新しないと次の apply で巻き戻る）。
+  */}}
+  "voice": {{ dig "claude" "voice" (dict "enabled" true "mode" "hold" "autoSubmit" false) . | toJson }},
   "skipWorkflowUsageWarning": true,
   "teammateMode": "auto",
   "skipAutoPermissionPrompt": true,

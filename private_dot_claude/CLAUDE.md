@@ -71,9 +71,22 @@ chezmoi apply
 |-----------|--------|-----------------|
 | `~/.gitconfig` | `dot_gitconfig.tmpl` | `{{ .name }}`, `{{ .email }}` |
 | `~/.zshrc` | `dot_zshrc.tmpl` | なし（クリーンアップ済み、将来のマシン分岐用） |
-| `~/.claude/settings.json` | `private_dot_claude/settings.json.tmpl` | `data.claude.model`, `data.claude.effortLevel`, `data.claude.disable1m`, `data.claude.autoCompactWindow`, `data.claude.autoCompactPct`, `data.claude.mcpServers`, `data.claude.enabledPlugins` |
+| `~/.claude/settings.json` | `private_dot_claude/settings.json.tmpl` | `data.claude.model`, `data.claude.effortLevel`, `data.claude.disable1m`, `data.claude.autoCompactWindow`, `data.claude.autoCompactPct`, `data.claude.mcpServers`, `data.claude.enabledPlugins`, `data.claude.voice` |
 
 > **重要（`data.claude.mcpServers` / `enabledPlugins` の安全な運用）**: これらは `chezmoi.toml` の値をそのまま `settings.json` に出力する。①`mcpServers` の `command` / `args` / `env` に API キー・トークンを直書きしない（秘密は環境変数参照や外部 secret manager 経由にする）。②生成済みの `~/.claude/settings.json` を `chezmoi add` / `re-add` しない（秘密が混入した実ファイルをリポジトリに取り込まないため。tmpl 側だけを編集する）。③`enabledPlugins` は信頼済みの marketplace / plugin ID のみ指定する。
+
+<!-- -->
+
+> **重要（コマンドで変えた設定は巻き戻る）**: `/model` や `/voice` のようなスラッシュコマンドは、生成済みの `~/.claude/settings.json` を**直接書き換える**。一方 `settings.json` は tmpl から生成される管理対象なので、コマンドで設定を変えたまま放置すると**次の `chezmoi apply` でテンプレート既定値に巻き戻る**。コマンドで設定を変えたら、必ず `~/.config/chezmoi/chezmoi.toml` の `[data.claude]` も更新すること。対応表は次のとおり（`chezmoi.toml` 自体は chezmoi 管理外のマシン固有ファイルなので、マシンごとに設定する）。
+>
+> | コマンド | 更新する `chezmoi.toml` のキー |
+> |---|---|
+> | `/model` | `data.claude.model` |
+> | `/voice` | `data.claude.voice.mode` / `data.claude.voice.enabled` |
+>
+> なお `settings.json` がコマンドで書き換わっていると `chezmoi apply` は「chezmoi が書いた後に変更されている」と検出して確認を求める。**確認を求められたら、まず `chezmoi diff` で意図しない巻き戻りが含まれていないかを見る**。`--force` で押し切る前に必ず差分を読むこと。
+
+<!-- -->
 
 > **重要（tmpl の落とし穴）**: tmpl 管理ファイルは `chezmoi re-add` では更新されない（テンプレート構造を壊さないよう実ファイルの差分が取り込まれない）。tmpl の内容を変えるときは **ソースの `*.tmpl` を直接編集 → `chezmoi apply`** で反映すること。`settings.json` のように変数を含まない tmpl でも同様。
 
