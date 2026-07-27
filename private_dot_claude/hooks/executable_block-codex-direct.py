@@ -54,7 +54,7 @@ WRAPPERS = {
     "sudo", "xargs", "timeout", "setsid", "ionice", "doas",
 }
 
-ENV_ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+ENV_ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\+?=")
 DURATION = re.compile(r"^\d+[smhd]?$")
 REDIRECTION = re.compile(
     r"^(?:(?:\d+)?(?:<<<|<<-|<<|>>|<>|>\||>&|<&|>|<)|&>>?)(.*)$"

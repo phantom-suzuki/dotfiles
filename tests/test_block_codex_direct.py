@@ -26,6 +26,7 @@ CASES = [
     ("direct exec", "codex exec 'do the thing'", True),
     ("timeout wrapper", "timeout 60 codex exec", True),
     ("env prefix", "FOO=1 codex", True),
+    ("append env prefix", "FOO+=bar codex exec", True),
     ("env-only prefix", "CODEX_HOME=/x codex exec", True),
     ("chained after &&", "echo x && codex", True),
     ("chained after ;", "echo x; codex exec", True),
@@ -112,6 +113,7 @@ CASES = [
     ("arith eval with math", "((1 + 2))", False),
     # array assignment whose first element is the word codex does not run it
     ("array assignment codex elem", "arr=(codex bar)", False),
+    ("array append codex elem", "arr+=(codex)", False),
     ("numeric array assignment", "nums=(1 2 3)", False),
     # a here-string followed by a real heredoc still drops the real body
     ("herestring then real heredoc body", "cat <<<HS\ncat <<EOF\ncodex text\nEOF", False),
