@@ -14,12 +14,13 @@ This hook only blocks when a *command-position* token's basename is exactly
   - `bash .../codex-review.sh`   (a script file whose name merely contains codex)
 
 The segmentation is quote-, comment-, and heredoc-aware: backslash-newline line
-continuations are joined first, `#` comments are removed, here-document bodies
-are stripped, and the remainder is scanned character by character while tracking
-single/double quotes, `$((…))` arithmetic and `${…}` expansions. This avoids the
-false positives that a naive regex split produced (splitting inside quotes /
-heredoc bodies), while still catching command substitutions (`$(codex …)` /
-backticks) and obfuscated forms (`co"dex" exec`) as — or better than — before.
+continuations are removed while recognizing here-documents, `#` comments are
+removed, here-document bodies are stripped, and the remainder is scanned
+character by character while tracking single/double quotes, `$((…))` arithmetic
+and `${…}` expansions. This avoids the false positives that a naive regex split
+produced (splitting inside quotes / heredoc bodies), while still catching command
+substitutions (`$(codex …)` / backticks) and obfuscated forms (`co"dex" exec`) as
+— or better than — before.
 
 This is a convenience guard against the assistant accidentally hanging the Bash
 tool on a direct `codex` call, not an adversarial sandbox. It targets realistic
@@ -55,6 +56,9 @@ WRAPPERS = {
 
 ENV_ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 DURATION = re.compile(r"^\d+[smhd]?$")
+REDIRECTION = re.compile(
+    r"^(?:(?:\d+)?(?:<<<|<<-|<<|>>|<>|>\||>&|<&|>|<)|&>>?)(.*)$"
+)
 # A here-doc delimiter we are confident we parsed correctly and can drop the
 # body of silently. Real delimiters are plain words (EOF, END, MSG, PYEOF,
 # _EOF_, ...). A `<<` mis-read inside `$[ … ]` / an array subscript / an exotic
@@ -72,52 +76,52 @@ ANSI_C_ESCAPES = {
 }
 
 
-def join_continuations(cmd: str) -> str:
-    """Remove `\\`-newline line continuations, as bash does before tokenizing.
+def _consume_continued_line(lines, i, quote=None, respect_single_quotes=True):
+    """Return one logical line and the index of the next physical line.
 
-    Inside single quotes a backslash-newline is literal and kept; everywhere else
-    (unquoted or inside double quotes) it is removed, joining the two lines. This
-    must run first: `echo x | \\<nl>codex` and `cat <<EO\\<nl>F` both hinge on the
-    join to be recognized correctly.
+    Outside here-doc bodies, bash removes backslash-newline except inside single
+    quotes. In an unquoted here-doc body it removes backslash-newline regardless
+    of quote characters; a quoted here-doc body bypasses this helper entirely.
     """
     out = []
-    i, n = 0, len(cmd)
-    quote = None
+    n = len(lines)
     while i < n:
-        c = cmd[i]
-        if quote == "'":
-            out.append(c)
-            if c == "'":
-                quote = None
-            i += 1
-            continue
-        if c == "\\" and i + 1 < n and cmd[i + 1] == "\n":
-            i += 2  # line continuation removed
-            continue
-        if c == "\\" and i + 1 < n:
-            out.append(c)
-            out.append(cmd[i + 1])
-            i += 2
-            continue
-        if c == "'" and quote != '"':
-            quote = "'"
-            out.append(c)
-            i += 1
-            continue
-        if c == '"':
-            quote = None if quote == '"' else '"'
-            out.append(c)
-            i += 1
-            continue
-        out.append(c)
+        line = lines[i]
         i += 1
-    return "".join(out)
+        j = 0
+        continued = False
+        while j < len(line):
+            c = line[j]
+            if respect_single_quotes and quote == "'":
+                out.append(c)
+                if c == "'":
+                    quote = None
+                j += 1
+                continue
+            if c == "\\":
+                if j + 1 < len(line):
+                    out.append(c)
+                    out.append(line[j + 1])
+                    j += 2
+                    continue
+                if i < n:
+                    continued = True
+                    break
+            if respect_single_quotes and c == "'" and quote != '"':
+                quote = "'"
+            elif respect_single_quotes and c == '"':
+                quote = None if quote == '"' else '"'
+            out.append(c)
+            j += 1
+        if not continued:
+            break
+    return "".join(out), i
 
 
 def _read_heredoc_delim(line, j, out):
     """Read a here-doc delimiter word starting at `line[j]`, applying bash's
     quote removal. Appends the consumed source to `out` and returns
-    `(delimiter, next_index)`.
+    `(delimiter, next_index, quoted)`.
 
     bash removes quoting from the delimiter word, so `<<EOF`, `<<'EOF'`,
     `<<"EOF"`, `<<E"OF"`, `<<E\\OF`, `<<$'EOF'` and `<<$"EOF"` all terminate on
@@ -127,6 +131,7 @@ def _read_heredoc_delim(line, j, out):
     """
     n = len(line)
     dchars = []
+    quoted = False
     while j < n:
         ch = line[j]
         if ch == "$" and j + 1 < n and line[j + 1] == "(":
@@ -161,6 +166,7 @@ def _read_heredoc_delim(line, j, out):
             continue
         if ch == "$" and j + 1 < n and line[j + 1] == "'":
             # $'...' ANSI-C quoting: strip the $, expand escapes.
+            quoted = True
             out.append("$'")
             j += 2
             while j < n and line[j] != "'":
@@ -229,9 +235,11 @@ def _read_heredoc_delim(line, j, out):
                 out.append(line[j])
                 j += 1
         elif ch == "$" and j + 1 < n and line[j + 1] == '"':
+            quoted = True
             out.append("$")  # $"..." locale quoting: strip the $, read as "..."
             j += 1
         elif ch == "'":  # single quotes: everything literal
+            quoted = True
             out.append(ch)
             j += 1
             while j < n and line[j] != "'":
@@ -242,6 +250,7 @@ def _read_heredoc_delim(line, j, out):
                 out.append(line[j])
                 j += 1
         elif ch == '"':  # double quotes: \ escapes only " \ $ `
+            quoted = True
             out.append(ch)
             j += 1
             while j < n and line[j] != '"':
@@ -258,6 +267,7 @@ def _read_heredoc_delim(line, j, out):
                 out.append(line[j])
                 j += 1
         elif ch == "\\":  # unquoted backslash escapes the next char
+            quoted = True
             out.append(ch)
             if j + 1 < n:
                 dchars.append(line[j + 1])
@@ -271,7 +281,7 @@ def _read_heredoc_delim(line, j, out):
             dchars.append(ch)
             out.append(ch)
             j += 1
-    return "".join(dchars), j
+    return "".join(dchars), j, quoted
 
 
 def _scan_line(line, quote, arith, brace):
@@ -281,9 +291,10 @@ def _scan_line(line, quote, arith, brace):
     is the line with any trailing `#` comment removed and `delims` is the list of
     `(delimiter, dashed)` here-document operators that open on this line.
 
-    Each delim is `(delimiter, dashed, trusted)`; `trusted` is False when the
-    parsed delimiter does not look like a real one (see SIMPLE_DELIM), which
-    signals the caller to scan the body rather than drop it blindly.
+    Each delim is `(delimiter, dashed, trusted, quoted)`; `trusted` is False when
+    the parsed delimiter does not look like a real one (see SIMPLE_DELIM), which
+    signals the caller to scan the body rather than drop it blindly. `quoted`
+    controls whether backslash-newline is removed from the body.
 
     A `<<` counts as a here-document operator only when it is unquoted, is a run
     of exactly two `<` (not the here-string `<<<`), and is not inside `$(( … ))`
@@ -418,9 +429,11 @@ def _scan_line(line, quote, arith, brace):
             while j < n and line[j] in " \t":
                 out.append(line[j])
                 j += 1
-            delim, j = _read_heredoc_delim(line, j, out)
+            delim, j, quoted_delim = _read_heredoc_delim(line, j, out)
             if delim:
-                delims.append((delim, dashed, bool(SIMPLE_DELIM.match(delim))))
+                delims.append(
+                    (delim, dashed, bool(SIMPLE_DELIM.match(delim)), quoted_delim)
+                )
             i = j
             at_word_start = False
             continue
@@ -456,17 +469,22 @@ def preprocess(cmd: str):
     arith = 0
     brace = 0
     while i < n:
+        line, i = _consume_continued_line(lines, i, quote)
         stripped, delims, quote, arith, brace = _scan_line(
-            lines[i], quote, arith, brace
+            line, quote, arith, brace
         )
         out.append(stripped)
-        i += 1
-        for delim, dashed, trusted in delims:
+        for delim, dashed, trusted, quoted_delim in delims:
             body = []
             terminated = False
             while i < n:
-                bl = lines[i]
-                i += 1
+                if quoted_delim:
+                    bl = lines[i]
+                    i += 1
+                else:
+                    bl, i = _consume_continued_line(
+                        lines, i, respect_single_quotes=False
+                    )
                 candidate = bl.lstrip("\t") if dashed else bl
                 if candidate == delim:
                     terminated = True
@@ -503,6 +521,14 @@ def split_segments(cmd: str):
         if s:
             segments.append(s)
         buf.clear()
+
+    def is_escaped(pos):
+        backslashes = 0
+        pos -= 1
+        while pos >= 0 and cmd[pos] == "\\":
+            backslashes += 1
+            pos -= 1
+        return backslashes % 2 == 1
 
     i, n = 0, len(cmd)
     while i < n:
@@ -572,6 +598,26 @@ def split_segments(cmd: str):
             continue
 
         # Unquoted context (top is None or "$(").
+        if c == "&" and (
+            (i + 1 < n and cmd[i + 1] == ">")
+            or (
+                i > 0
+                and cmd[i - 1] in "<>"
+                and not is_escaped(i - 1)
+            )
+        ):
+            buf.append(c)  # `&>`, `&>>`, `>&`, `<&` redirection operator
+            i += 1
+            continue
+        if (
+            c == "|"
+            and i > 0
+            and cmd[i - 1] == ">"
+            and not is_escaped(i - 1)
+        ):
+            buf.append(c)  # `>|` noclobber redirection operator
+            i += 1
+            continue
         if c in ";|&\n":
             flush()
             i += 1
@@ -613,18 +659,28 @@ def _segment_invokes_codex(seg: str) -> bool:
     except ValueError:
         tokens = seg.split()
     i = 0
-    # Skip leading env-var assignments (FOO=bar codex ...).
-    while i < len(tokens) and ENV_ASSIGN.match(tokens[i]):
-        i += 1
-    # Skip wrapper commands and their flags / env / duration args.
-    while i < len(tokens) and tokens[i] in WRAPPERS:
-        i += 1
-        while i < len(tokens) and (
-            tokens[i].startswith("-")
-            or ENV_ASSIGN.match(tokens[i])
-            or DURATION.match(tokens[i])
-        ):
+    wrapper_args = False
+    # Shell redirections may appear among env assignments and wrapper arguments;
+    # bash removes all of them before deciding which word is the command name.
+    while i < len(tokens):
+        token = tokens[i]
+        if ENV_ASSIGN.match(token):
             i += 1
+            continue
+        redirection = REDIRECTION.match(token)
+        if redirection:
+            i += 1
+            if not redirection.group(1) and i < len(tokens):
+                i += 1
+            continue
+        if token in WRAPPERS:
+            i += 1
+            wrapper_args = True
+            continue
+        if wrapper_args and (token.startswith("-") or DURATION.match(token)):
+            i += 1
+            continue
+        break
     return i < len(tokens) and os.path.basename(tokens[i]) == "codex"
 
 
@@ -633,7 +689,6 @@ def invokes_codex(cmd: str) -> bool:
     # `co"dex" exec` or `co\d\ex exec` do not contain the literal substring yet
     # still run `codex` once the shell resolves quotes / escapes. Always run the
     # full quote-, comment-, and heredoc-aware analysis.
-    cmd = join_continuations(cmd)
     cmd, force_block = preprocess(cmd)
     if force_block:
         return True

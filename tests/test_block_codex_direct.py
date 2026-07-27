@@ -56,9 +56,32 @@ CASES = [
     ("line continuation before codex", "echo x | \\\ncodex exec", True),
     ("line continuation within word", "co\\\ndex exec", True),
     ("line continuation in heredoc delim", "cat <<EO\\\nF\nEOF\ncodex exec", True),
+    (
+        "quoted heredoc keeps continuation literal",
+        "cat <<'EOF' >/dev/null\nignored \\\nEOF\ncodex exec\nEOF",
+        True,
+    ),
     ("quoted env value then codex", 'FOO="a b" codex exec', True),
     ("env wrapper quoted value", "env FOO='a b' codex exec", True),
     ("command sub heredoc delim", "cat <<$(printf EOF)\n$(printf EOF)\ncodex exec\n$(printf EOF)", True),
+    # --- MUST BLOCK: leading-redirection regressions from CodeRabbit review ---
+    ("leading output redirection", ">/tmp/out codex exec", True),
+    ("leading fd redirection", "2>/tmp/err codex exec", True),
+    ("leading split redirection", "> /tmp/out codex exec", True),
+    ("env then redirection", "FOO=1 >/tmp/out codex exec", True),
+    ("wrapper then redirection", "timeout 60 2>/dev/null codex exec", True),
+    ("leading append redirection", ">>/tmp/out codex exec", True),
+    ("leading input redirection", "</tmp/in codex exec", True),
+    ("leading read-write redirection", "<>/tmp/io codex exec", True),
+    ("leading both-output redirection", "&>/tmp/out codex exec", True),
+    ("leading both-append redirection", "&>>/tmp/out codex exec", True),
+    ("leading noclobber redirection", ">|/tmp/out codex exec", True),
+    ("leading here-string redirection", "<<<input codex exec", True),
+    ("leading split heredoc redirection", "<< EOF codex exec\nbody\nEOF", True),
+    ("leading fd-dup output", "2>&1 codex exec", True),
+    ("leading fd-dup input", "0<&1 codex exec", True),
+    ("escaped output then background", "echo \\>&codex exec", True),
+    ("escaped output then pipe", "echo \\>|codex exec", True),
     # --- MUST BLOCK: bypass regressions found in team-lead's external review ---
     ("herestring not heredoc (EOF)", "cat <<<EOF\ncodex exec foo\nEOF", True),
     ("herestring not heredoc (word)", "cat <<<XYZ123\ncodex exec\nXYZ123", True),
@@ -106,6 +129,7 @@ CASES = [
     ("cd into codex dir", "cd codex-work && ls", False),
     ("variable expansion", "echo ${codex}", False),
     ("codex as filename arg", "cat codex.log", False),
+    ("codex as split redirect target", "> codex echo done", False),
     ("single-quoted substring", "echo 'run codex exec here'", False),
     (
         "heredoc body (unquoted delim)",
@@ -115,6 +139,11 @@ CASES = [
     (
         "heredoc body (quoted delim)",
         "cat <<'END'\ncodex exec ignored\nEND",
+        False,
+    ),
+    (
+        "unquoted heredoc joins continuation",
+        "cat <<EOF\nignored \\\nEOF\ncodex exec\nEOF",
         False,
     ),
     (
