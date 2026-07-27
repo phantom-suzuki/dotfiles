@@ -3,7 +3,7 @@
 .claude/skills/explain-discipline
 .claude/skills/explain-discipline/**
 
-# 2026-07-26: ルール層スリム化（PR #86）。docs/ へ移動、または git-conventions.md へ統合して
+# 2026-07-26: 常時読み込みのルール層を減らす作業（Issue #69 / PR #86）。docs/ へ移動、または git-conventions.md へ統合して
 # 不要になった rules。ここに書かないと実機の ~/.claude/rules/ に旧ファイルが残り、
 # 常時読み込みが減らないうえ docs/ 側と二重化する。
 .claude/rules/codex-config.md

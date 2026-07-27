@@ -21,7 +21,7 @@ Create a Pull Request with auto-detected base branch and generated description.
    - If there are unpushed commits, push them before creating the PR
 
 2. **Detect base branch**:
-   - Check branching strategy: `git branch -a | grep -E '(^|\s|/)develop$'`
+   - Check branching strategy: `git for-each-ref --format='%(refname)' refs/heads/develop 'refs/remotes/*/develop' | grep -q .`
    - **GitFlow**:
      | Current Branch | Base Branch |
      |----------------|-------------|

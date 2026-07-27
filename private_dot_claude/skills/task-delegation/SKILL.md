@@ -7,7 +7,7 @@ description: 実装タスク受領時に、役割ベース（T1 司令塔 / T2 �
 
 実装タスクを受領したとき、Tier 判定を強制実行し、委譲先を決定する。司令塔（セッションのメインモデル）のセッション温存とレートリミット対策のため、コード関連作業はデフォルトで実行役へ委譲する。判定をスキップして Edit/Write/Bash 等を呼ぶのは禁止。
 
-このスキルが委譲体系の**正本**である。`~/.claude/CLAUDE.md` の Task Delegation 節がこのスキルへのポインタとして常時注入される（旧 `~/.claude/rules/task-delegation.md` は dotfiles #69 で削除済み。改訂ログは本スキル末尾に移設）。
+このスキルが委譲体系の**正本**である。`~/.claude/CLAUDE.md` の Task Delegation 節がこのスキルへのポインタとして常時注入される（旧 `~/.claude/rules/task-delegation.md` は、常時読み込みのルール層を減らす作業（dotfiles Issue #69 / PR #86）でソースから削除した。改訂ログは本スキル末尾に移設）。
 
 ## 前提: 環境によって委譲体系の実体が変わる（最重要）
 
@@ -239,10 +239,10 @@ git diff <base>..HEAD --name-only | grep -E '\.terraform/|terraform-provider-|\.
 
 ## 改訂ログ
 
-旧 `~/.claude/rules/task-delegation.md`（ポインタのみの rule）は dotfiles #69 でルール層スリム化のため削除し、改訂ログを本スキルへ移設した。
+旧 `~/.claude/rules/task-delegation.md`（ポインタのみの rule）は、常時読み込みのルール層を減らす作業（dotfiles Issue #69 / PR #86）でソースから削除し、改訂ログを本スキルへ移設した。各マシンに残る実ファイルは別枠で、`.chezmoiremove` に載せてあるので次回の `chezmoi apply` で消える。
 
 - v1（初版）: 10 行未満ルール / レビュー対応は司令塔直接が暗黙
 - v2（2026-04-28）: 10 行ルール撤廃、レビュー対応・ADR/コメント等のドキュメント文章化も T2 対象、スキル化
 - v3（2026-05-14）: Codex 呼び出しを Bash 直叩きから OpenAI 公式 Codex Plugin (`/codex:rescue`) 経由に移行。stdin 待ちハング・引数渡し不安定を解消
 - v4（2026-07-06）: 委譲マトリクスを役割ベース（T1 司令塔 / T2 外部 CLI 委譲 = Codex / T3 実行サブエージェント）に一般化。司令塔のモデルは可変（セッションのメインモデル）とし、Codex 未導入環境では T2 を skip し T3 へフォールバックする分岐を明記。正本をスキルへ統合（Issue #24）
-- v5（dotfiles #69）: 常時注入ルール層のスリム化に伴い、ポインタ rule を削除し改訂ログを本スキルへ集約
+- v5（dotfiles Issue #69 / PR #86）: 常時読み込みのルール層を減らすため、ポインタ rule をソースから削除し改訂ログを本スキルへ集約

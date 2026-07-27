@@ -6,7 +6,7 @@
 
 ## ブランチ戦略
 
-- **戦略判定**: `develop` ブランチが有れば **GitFlow**、無ければ **GitHub Flow**（`git branch -a | grep -E '(^|/)develop$'`）
+- **戦略判定**: `develop` ブランチが有れば **GitFlow**、無ければ **GitHub Flow**（`git for-each-ref --format='%(refname)' refs/heads/develop 'refs/remotes/*/develop' | grep -q .`）。`git branch -a` を grep する方式は使わない。行頭の空白や worktree の `+` に左右されるうえ、`feature/develop` のような枝を GitFlow と誤判定する
 - **GitFlow**: `feature/*`（base=develop, merge=develop）/ `release/*`（base=develop, merge=main+develop）/ `hotfix/*`（base=main, merge=main+develop）
 - **GitHub Flow**: `feature/*`・`hotfix/*`（base=main, merge=main via PR）
 - **命名**: 小文字ハイフン区切り。簡潔かつ内容が分かる名前にし、**Issue があれば**番号を含める。例: `feature/123-add-user-auth`
