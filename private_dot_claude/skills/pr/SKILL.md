@@ -23,6 +23,7 @@ Create a Pull Request with auto-detected base branch and generated description.
 2. **Detect base branch**:
    - Check branching strategy: `git for-each-ref --format='%(refname)' refs/heads/develop 'refs/remotes/*/develop' | grep -q .`
    - **GitFlow**:
+
      | Current Branch | PR base (merge target) |
      |----------------|------------------------|
      | feature/* | develop |
