@@ -59,6 +59,7 @@ bash ~/.claude/skills/coderabbit-review-trigger/scripts/trigger-and-watch.sh <PR
 | `POSTED` | walkthrough / actionable comments 等の結果が投稿された | 指摘を確認。承認が要れば `coderabbit-approve` へ |
 | `REVIEWING` | レビュー実行中の応答を確認 | 少し置いて `--no-trigger` で再確認 |
 | `RATE_LIMITED` | 制限中。実レビューは未実施 | `RETRY_AFTER` の目安まで待って再トリガー（Step 2） |
+| `RATE_LIMIT_EXPIRED` | 制限通知は残っているが、解除目安を過ぎている | 再トリガーしてよい（Step 2） |
 | `OTHER` | CodeRabbit 応答はあるが分類外 | 本文を目視確認 |
 | `NO_RESPONSE` | 監視窓内に新規応答なし | `--poll`/`--max` を増やすか、後刻 `--no-trigger` で確認 |
 | `ERROR` | 引数、GitHub API、またはコマンドのエラー | エラーメッセージを確認してから再実行 |
@@ -72,6 +73,8 @@ bash ~/.claude/skills/coderabbit-review-trigger/scripts/trigger-and-watch.sh <PR
 bash .../trigger-and-watch.sh <PR> --no-trigger        # 現状だけ確認
 bash .../trigger-and-watch.sh <PR> --mode full         # 再トリガー + 監視
 ```
+
+`--no-trigger` が `RATE_LIMIT_EXPIRED` を返した場合は、解除目安を過ぎている。再トリガーしてよい。
 
 待機を自動化するなら、解除目安まで空けて再実行する形をバックグラウンドに置く（`run_in_background` で「解除時刻付近に起動 → `--no-trigger` で確認 → 未完なら再トリガー」）。数十分規模の待機を前面で回さない。
 
@@ -89,7 +92,9 @@ bash .../trigger-and-watch.sh <PR> --no-trigger
 - ポーリング中の取得失敗は、連続 3 回まで再試行する。3 回連続で失敗した場合は `ERROR` で終了する。
 - 最新の CodeRabbit コメントは全ページを `--slurp` で束ね、コメント ID でソートして取る。**この gh では `--slurp` と `--jq` は併用できない**ため、`--slurp` の出力をパイプで jq に渡す。
 - コメント本文には制御文字が混じることがある。生テキストを別 jq に食わせると `U+0000-001F` で parse error になるため、`jq -c` で valid JSON 化してから `.body` を再取得する。
-- baseline には、トリガー前の最新 CodeRabbit コメント ID を使う。baseline より大きい ID の応答だけを「今回の応答」とみなす。
+- baseline には、トリガー前の最新 CodeRabbit コメント ID を使う。baseline より大きい ID の応答だけを「今回の応答」とみなす。baseline はトリガーする経路でのみ取得する（`--no-trigger` では使わないため）。
+- 解除目安の表記は 2 通りある。`Your next included review will be available in 44 minutes.` と、`**Next review available in:** **59 minutes**` のように Markdown の強調が間に挟まる形である。どちらも拾えるよう、`available in` と数字の間に記号と空白を許容する正規表現を使う。
+- `--no-trigger` では、制限通知の投稿時刻と解除目安から**解除済みかどうか**を判定する。解除目安を過ぎていれば `RATE_LIMIT_EXPIRED` を返す。解除目安が本文に無い場合や時刻の変換に失敗した場合は、安全側に倒して `RATE_LIMITED` のままにする。
 
 ## アンチパターン
 

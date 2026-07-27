@@ -22,6 +22,8 @@
 #   STATE=POSTED        レビュー結果（walkthrough / actionable comments 等）が投稿された
 #   STATE=REVIEWING     レビュー実行中の応答を確認
 #   STATE=RATE_LIMITED  制限中。RETRY_AFTER 行に解除目安
+#   STATE=RATE_LIMIT_EXPIRED
+#                       制限通知は残っているが解除目安を超過。再トリガー可能
 #   STATE=OTHER         CodeRabbit 応答はあるが分類外（本文を確認）
 #   STATE=NO_RESPONSE   監視窓内に新規応答なし（未起動 or 遅延）
 #   STATE=ERROR         引数、GitHub API、またはコマンドのエラー
@@ -93,6 +95,12 @@ CR="${CODERABBIT_BOT:-coderabbitai[bot]}"
 API="repos/$REPO/issues/$PR/comments"
 MAX_FETCH_FAILURES=3
 
+# 解除目安を拾う正規表現。CodeRabbit の表記は 2 通りあり、両方に対応する。
+#   1) "Your next included review will be available in 44 minutes."
+#   2) "**Next review available in:** **59 minutes**"（Markdown の強調が間に挟まる）
+# そのため "available in" と数字の間に、記号と空白を数文字まで許容する。
+ETA_RE='available in[^0-9]{0,12}[0-9]+ *\**(minutes?|hours?)'
+
 # 全ページを 1 配列に束ねて最新の CodeRabbit コメントを取る。
 # 注意: この gh では --slurp と --jq は併用不可。--slurp の出力をパイプで jq に渡す。
 # jq -c で valid JSON を返すので、呼び出し側で .body を再パースしても制御文字で壊れない
@@ -103,17 +111,17 @@ fetch_latest() {
       '(add // []) | map(select(.user.login==$bot)) | sort_by(.id) | last // empty'
 }
 
-# baseline: トリガー前の最新 CodeRabbit コメント ID。
-# これより大きい ID の応答を「トリガー後の応答」とみなす。
-baseline_json=$(fetch_latest) || die "failed to fetch the baseline CodeRabbit comment"
-if [ -z "$baseline_json" ]; then
-  baseline=0
-else
-  baseline=$(printf '%s' "$baseline_json" | jq -r '.id') \
-    || die "failed to parse the baseline CodeRabbit comment"
-fi
-
 if [ "$DO_TRIGGER" -eq 1 ]; then
+  # baseline: トリガー前の最新 CodeRabbit コメント ID。
+  # これより大きい ID の応答を「トリガー後の応答」とみなす。
+  baseline_json=$(fetch_latest) || die "failed to fetch the baseline CodeRabbit comment"
+  if [ -z "$baseline_json" ]; then
+    baseline=0
+  else
+    baseline=$(printf '%s' "$baseline_json" | jq -r '.id') \
+      || die "failed to parse the baseline CodeRabbit comment"
+  fi
+
   case "$MODE" in
     full) CMD="@coderabbitai full review";;
     incremental|inc) CMD="@coderabbitai review";;
@@ -126,7 +134,7 @@ fi
 
 classify() {
   local body="$1"
-  if printf '%s' "$body" | grep -qiE 'rate limit|Review limit reached|available in [0-9]+ (minute|hour)'; then
+  if printf '%s' "$body" | grep -qiE "rate limit|Review limit reached|$ETA_RE"; then
     echo "RATE_LIMITED"
   elif printf '%s' "$body" | grep -qiE 'Actionable comments posted|Walkthrough|Full review finished|summarize by coderabbit'; then
     echo "POSTED"
@@ -140,7 +148,7 @@ classify() {
 report_rate_limit() {
   local body="$1"
   local phrase num unit mins eta
-  phrase=$(printf '%s' "$body" | grep -oiE 'available in [0-9]+ (minutes?|hours?)' | head -1 || true)
+  phrase=$(printf '%s' "$body" | grep -oiE "$ETA_RE" | head -1 || true)
   echo "RATE_LIMIT_DETAIL: ${phrase:-（解除時刻の明記なし。本文を確認）}"
   num=$(printf '%s' "$phrase" | grep -oE '[0-9]+' | head -1 || true)
   unit=$(printf '%s' "$phrase" | grep -oiE 'minute|hour' | head -1 || true)
@@ -150,6 +158,31 @@ report_rate_limit() {
   eta=$(date -u -v+"${mins}"M +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
         || date -u -d "+${mins} minutes" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "?")
   echo "RETRY_AFTER: 約 ${mins} 分後（目安 ${eta}）。解除前に再トリガーしても実レビューは実行されないため、解除まで待つこと。"
+}
+
+rate_limit_has_expired() {
+  local body="$1"
+  local created_at="$2"
+  local phrase num unit mins created_epoch available_epoch now_epoch available_at
+  phrase=$(printf '%s' "$body" | grep -oiE "$ETA_RE" | head -1 || true)
+  num=$(printf '%s' "$phrase" | grep -oE '[0-9]+' | head -1 || true)
+  unit=$(printf '%s' "$phrase" | grep -oiE 'minute|hour' | head -1 || true)
+  [ -n "$num" ] || return 1
+  case "$unit" in hour*) mins=$((num*60));; *) mins=$num;; esac
+
+  # BSD date(macOS) → GNU date の順で投稿時刻を epoch 秒へ変換する（best-effort）。
+  created_epoch=$(date -j -u -f '%Y-%m-%dT%H:%M:%SZ' "$created_at" +%s 2>/dev/null \
+    || date -u -d "$created_at" +%s 2>/dev/null) || return 1
+  available_epoch=$((created_epoch + mins*60))
+  now_epoch=$(date -u +%s 2>/dev/null) || return 1
+  [ "$now_epoch" -ge "$available_epoch" ] || return 1
+
+  # BSD date(macOS) → GNU date の順で解除目安を UTC の ISO 8601 に戻す。
+  available_at=$(date -u -r "$available_epoch" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+    || date -u -d "@$available_epoch" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+    || echo "?")
+  echo "RATE_LIMIT_EXPIRED_DETAIL: posted_at=$created_at estimated_available_at=$available_at"
+  return 0
 }
 
 # --no-trigger: baseline 比較や poll をせず、現在の最新コメントをそのまま分類して即返す
@@ -167,6 +200,9 @@ if [ "$DO_TRIGGER" -eq 0 ]; then
     || die "failed to parse the latest CodeRabbit comment body"
   state=$(classify "$body")
   echo "OBSERVED: at=$t (--no-trigger 現状確認)"
+  if [ "$state" = "RATE_LIMITED" ] && rate_limit_has_expired "$body" "$t"; then
+    state="RATE_LIMIT_EXPIRED"
+  fi
   [ "$state" = "RATE_LIMITED" ] && report_rate_limit "$body"
   echo "--- CodeRabbit 応答（先頭 15 行） ---"
   printf '%s\n' "$body" | head -15
