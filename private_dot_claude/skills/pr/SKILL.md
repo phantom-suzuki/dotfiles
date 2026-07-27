@@ -23,11 +23,15 @@ Create a Pull Request with auto-detected base branch and generated description.
 2. **Detect base branch**:
    - Check branching strategy: `git for-each-ref --format='%(refname)' refs/heads/develop 'refs/remotes/*/develop' | grep -q .`
    - **GitFlow**:
-     | Current Branch | Base Branch |
-     |----------------|-------------|
+     | Current Branch | PR base (merge target) |
+     |----------------|------------------------|
      | feature/* | develop |
      | hotfix/* | main |
      | release/* | main |
+
+     `release/*` is cut from `develop` but merges into `main`, so its PR base is
+     `main` — do not confuse this column with the branch-off point used by the
+     `branch` skill.
    - **GitHub Flow**: Always use `main` (or `master` if main doesn't exist)
 
 3. **Gather commit information**:

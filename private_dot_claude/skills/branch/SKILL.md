@@ -25,14 +25,14 @@ Create a branch following the project's branching strategy.
 3. **Determine base branch**:
 
    **GitFlow:**
-   | Type | Base Branch |
+   | Type | Branch-off point |
    |---------|-------------|
    | feature | develop |
    | release | develop |
    | hotfix | main |
 
    **GitHub Flow:**
-   | Type | Base Branch |
+   | Type | Branch-off point |
    |---------|-------------|
    | feature | main |
    | hotfix | main |
