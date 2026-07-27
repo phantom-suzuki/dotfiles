@@ -419,6 +419,6 @@ After processing all threads, display a summary table:
 
 - `~/.claude/rules/tool-call-hygiene.md` — コマンド引数の衛生（日本語の直書き禁止・巨大レスポンス回避）
 - `~/.claude/rules/git-safety.md` — 保護ブランチ・force push・PR マージの制約
-- `~/.claude/rules/commit-conventions.md` — Conventional Commits と `Co-Authored-By`
+- `~/.claude/rules/git-conventions.md` — Conventional Commits と `Co-Authored-By`、ブランチ運用、Issue / PR 規約
 - `~/.claude/skills/review-dispatch/SKILL.md` — どのレビュースキルを使うかの分岐
 - `~/.claude/skills/pr-reviewer/SKILL.md` — 他者の PR をレビューする側のフロー

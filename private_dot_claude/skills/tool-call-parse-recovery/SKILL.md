@@ -101,6 +101,5 @@ f=$(ls "$HOME/.claude/projects"/*/"$CLAUDE_CODE_SESSION_ID".jsonl 2>/dev/null | 
 
 ## 関連
 
-- `~/.claude/rules/tool-call-hygiene.md` — Case A（引数破損）の予防ルール正本
-- `~/.claude/rules/tool-call-hygiene.md` の「失敗時のリカバリ」節から本スキルへ誘導
+- `~/.claude/rules/tool-call-hygiene.md` — Case A（引数破損）の予防ルール正本。同ファイルの「parse 失敗（malformed）の 2 原因」節から本スキルへ誘導している
 - GitHub Issue [#61133](https://github.com/anthropics/claude-code/issues/61133) / [#62123](https://github.com/anthropics/claude-code/issues/62123)（area:model, bug）

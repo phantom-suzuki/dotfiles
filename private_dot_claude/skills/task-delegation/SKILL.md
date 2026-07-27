@@ -7,7 +7,7 @@ description: 実装タスク受領時に、役割ベース（T1 司令塔 / T2 �
 
 実装タスクを受領したとき、Tier 判定を強制実行し、委譲先を決定する。司令塔（セッションのメインモデル）のセッション温存とレートリミット対策のため、コード関連作業はデフォルトで実行役へ委譲する。判定をスキップして Edit/Write/Bash 等を呼ぶのは禁止。
 
-このスキルが委譲体系の**正本**である。`~/.claude/CLAUDE.md` の Task Delegation 節と `~/.claude/rules/task-delegation.md` はこのスキルへのポインタに縮約されている。
+このスキルが委譲体系の**正本**である。`~/.claude/CLAUDE.md` の Task Delegation 節がこのスキルへのポインタとして常時注入される（旧 `~/.claude/rules/task-delegation.md` は、常時読み込みのルール層を減らす作業（dotfiles Issue #69 / PR #86）でソースから削除した。改訂ログは本スキル末尾に移設）。
 
 ## 前提: 環境によって委譲体系の実体が変わる（最重要）
 
@@ -106,7 +106,7 @@ Tier 判定（誰が担うか）とは別の軸として、タスクの**領域*
 > 2026-07 再検証（Issue #14）: 向きはおおむね維持だが、比較の主語は「Fable 5 ⇔ GPT-5.6」に
 > 更新。自律ターミナル実行・Web リサーチの Codex 優位は**差が縮小**して拮抗に近づいた可能性、
 > ブラウザエージェントの Claude 優位は評価手法の変化で**判定困難**、音声の Fable 5 native 主張は
-> **一次情報未確認**。詳細は `~/.claude/rules/codex-config.md` の「2026-07 再検証メモ」を参照。
+> **一次情報未確認**。詳細は `~/.claude/docs/codex-config.md` の「2026-07 再検証メモ」を参照。
 
 | 領域 | 優位 | 回し方 |
 |------|------|--------|
@@ -233,6 +233,16 @@ git diff <base>..HEAD --name-only | grep -E '\.terraform/|terraform-provider-|\.
 
 ## 関連
 
-- `~/.claude/rules/task-delegation.md`（本スキルへのポインタ + 改訂ログ）
-- `~/.claude/CLAUDE.md` の Task Delegation セクション（概要ポインタ）
+- `~/.claude/CLAUDE.md` の Task Delegation セクション（概要ポインタ。常時注入されるのはこの 1 節のみ）
+- `~/.claude/docs/codex-config.md` — Codex の設定管理と reasoning effort 制御マップの正本。どの呼び出し経路が `config.toml` を尊重するかを載せている。レート消費を調べるときはここから入る
 - `~/.claude/rules/git-safety.md`（コミット判断の制約）
+
+## 改訂ログ
+
+旧 `~/.claude/rules/task-delegation.md`（ポインタのみの rule）は、常時読み込みのルール層を減らす作業（dotfiles Issue #69 / PR #86）でソースから削除し、改訂ログを本スキルへ移設した。各マシンに残る実ファイルは別枠で、`.chezmoiremove` に載せてあるので次回の `chezmoi apply` で消える。
+
+- v1（初版）: 10 行未満ルール / レビュー対応は司令塔直接が暗黙
+- v2（2026-04-28）: 10 行ルール撤廃、レビュー対応・ADR/コメント等のドキュメント文章化も T2 対象、スキル化
+- v3（2026-05-14）: Codex 呼び出しを Bash 直叩きから OpenAI 公式 Codex Plugin (`/codex:rescue`) 経由に移行。stdin 待ちハング・引数渡し不安定を解消
+- v4（2026-07-06）: 委譲マトリクスを役割ベース（T1 司令塔 / T2 外部 CLI 委譲 = Codex / T3 実行サブエージェント）に一般化。司令塔のモデルは可変（セッションのメインモデル）とし、Codex 未導入環境では T2 を skip し T3 へフォールバックする分岐を明記。正本をスキルへ統合（Issue #24）
+- v5（dotfiles Issue #69 / PR #86）: 常時読み込みのルール層を減らすため、ポインタ rule をソースから削除し改訂ログを本スキルへ集約

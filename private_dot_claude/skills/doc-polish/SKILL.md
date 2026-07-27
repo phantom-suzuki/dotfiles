@@ -11,7 +11,7 @@ Markdown ドキュメント（計画文書・ADR・ガイド等）の日本語�
 1. **一般的でない表現**: 社内・業界で通じない独特な言い回し（例:「〜に接地する」「波状起票」「tail 収束」「並行充填」）
 2. **難しい言い回し・名称の解決強要**: 長文・主語省略・二重否定・動作名詞の連結に加え、project 固有名詞への役割併記（R8）と総称語（leaf / caller / node 等）の具体化（R9）。`~/.claude/rules/easy-japanese.md` の R1〜R9 が正本
 3. **造語・略語・記号参照**: 独自略語の展開、ID・節番号参照への名称併記、独自グルーピング語の定義（下記「表記規律」が正本。初出に説明を添えるだけでは不十分）
-4. **図の不足**: 文章・表だけでは構造や時系列が掴みにくい節への Mermaid 図挿入（`~/.claude/rules/mermaid-conventions.md` が正本）
+4. **図の不足**: 文章・表だけでは構造や時系列が掴みにくい節への Mermaid 図挿入（`~/.claude/docs/mermaid-conventions.md` が正本）
 
 役割分担: **編集の実行は Codex（T2）へ委譲**し、**司令塔（T1）は diff 検証・事実照合・構文検証・コミット判断**を担う（`task-delegation` スキルの体系に従う）。ただし日本語の表現レベルの修正は司令塔が直接 Edit してよい（feedback メモリ「日本語の表現修正は Sonnet に委譲しない」）。
 
@@ -134,12 +134,12 @@ bash ~/.claude/skills/doc-polish/scripts/check-mermaid.sh <対象 md の絶対�
 |---|---|---|
 | checkout が untracked と衝突 | main に旧 tracked ファイルの残骸 | worktree に展開する（Step 1）。untracked を消さない |
 | Codex が制約を破った（見出し・数値変更） | プロンプトの制約が曖昧 | 該当箇所を司令塔が Edit で戻すか、制約を具体化して再委譲 |
-| Mermaid parse FAIL | 日本語ノード ID・構文誤り | `mermaid-conventions.md` の落とし穴節を参照して修正 |
+| Mermaid parse FAIL | 日本語ノード ID・構文誤り | `~/.claude/docs/mermaid-conventions.md` の落とし穴節を参照して修正 |
 | Codex 未導入 | プラグインなし | T3 実行サブエージェント（重い実行役）へフォールバック |
 
 ## 関連
 
 - `~/.claude/rules/easy-japanese.md` — 日本語規律の正本（R1〜R9）
-- `~/.claude/rules/mermaid-conventions.md` — Mermaid カラールール・検証レシピの正本
+- `~/.claude/docs/mermaid-conventions.md` — Mermaid カラールール・検証レシピの正本
 - `~/.claude/skills/task-delegation/SKILL.md` — T1/T2/T3 委譲体系の正本
 - `~/.claude/skills/review-doc/` — 提案のみの軽量レビュー（棲み分け先）
