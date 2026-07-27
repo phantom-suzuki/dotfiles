@@ -104,19 +104,22 @@ function mdv() {
 # e.g. typing `./README.md` or `README.md` runs mdv on it
 alias -s md=mdv
 
-# Opus 4.8 用の品質プロファイル起動（1M 無効 + auto-compact を約 130k で早期発火）
+# Opus 用の品質プロファイル起動（1M 無効 + auto-compact を約 130k で早期発火）
 # 背景: dotfiles Issue #66（Opus の捏造・parse error は長 context + extended thinking で悪化する）
+# 使い分け: 既定は settings.json 側の設定に従う（このマシンは 1M 有効・compact 30%）。
+#           長い context で品質が落ちたときに、この関数で 200k 運用へ切り替える。
 # 注意: env はプロセス起動時にのみ読まれ、セッション中の /model 切り替えでは compact 窓の
 #       指定は適用されない（auto-compact 閾値自体は現在モデルの窓に自動追従する。v2.1.215 実装確認）。
-#       - セッション中に Opus へ切り替えるときは必ず「Opus 4.8」（1M なし）を選ぶこと。
-#         「Opus 4.8 (1M context)」は [1m] 明示が env より優先されるため危険（1M + 遅い compact）。
+#       - セッション中に Opus へ切り替えるときは必ず 1M なしの「Opus 5」を選ぶこと。
+#         「Opus 5 (1M context)」は [1m] 明示が env より優先されるため危険（1M + 遅い compact）。
 #       - フルプロファイル（1M 無効 + 約 130k で compact 発火）に切り替えたいときは、いったん
 #         閉じて claude-opus --resume（または claude-opus -c）で会話を引き継いで開き直す（実測確認済み）。
+#       - モデル世代が上がったら CLAUDE_OPUS_MODEL の既定値を更新する。
 claude-opus() {
   CLAUDE_CODE_DISABLE_1M_CONTEXT=1 \
   CLAUDE_CODE_AUTO_COMPACT_WINDOW=200000 \
   CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=65 \
-  command claude --model claude-opus-4-8 "$@"
+  command claude --model "${CLAUDE_OPUS_MODEL:-claude-opus-5}" "$@"
 }
 
 # ─── Codex CLI: マルチアカウント切替 ───────────────────────────────
