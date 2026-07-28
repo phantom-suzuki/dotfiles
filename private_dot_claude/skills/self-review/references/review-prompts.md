@@ -200,12 +200,28 @@ echo "$PROMPT_BODY" > "$PROMPT_FILE"
 echo "$DIFF" | bash "${CLAUDE_SKILL_DIR}/scripts/codex-review.sh" "$SCHEMA" "$PROMPT_FILE"
 ```
 
-`scripts/codex-review.sh` の内部で `-c model_reasoning_effort=high` / `--output-schema` /
+`scripts/codex-review.sh` の内部で `-c model_reasoning_effort` / `--output-schema` /
 `--output-last-message`（一時ファイルは `mktemp` で衝突回避、CWE-377/379 対策）/ `--sandbox read-only` /
 `--ignore-user-config --ignore-rules`（`codex >= 0.122` のみ、旧 `$CODEX_REPRO_FLAGS` の判定ロジック）を
 組み立てて `codex exec` を実行する。フラグの詳細はスクリプト本体のコメントを参照。
 
-`-c model_reasoning_effort=high` は外部レビューの effort を high に固定する。`--ignore-user-config` で `~/.codex/config.toml` を無視するため、effort を狙った値にするには `-c` 明示指定が必須。委譲パスのグローバル default は medium に下げてレートを節約しつつ、低頻度なセカンドオピニオンだけ high を選ぶメリハリ運用（委譲パスは config.toml を尊重するが、レビュー系は `--ignore-user-config` で読まない）。
+`-c model_reasoning_effort` は外部レビューの effort を指定する。`--ignore-user-config` で `~/.codex/config.toml` を無視するため、effort を狙った値にするには `-c` 明示指定が必須。委譲パスのグローバル default は medium に下げてレートを節約しつつ、低頻度なセカンドオピニオンだけ high を選ぶメリハリ運用（委譲パスは config.toml を尊重するが、レビュー系は `--ignore-user-config` で読まない）。
+
+#### effort の自動判定（レート予算ガード）
+
+既定は high だが、**diff が大きいときはスクリプトが自動で medium へ落とす**。Codex の週間上限は
+Codex Cloud の PR レビューとローカル委譲が同じ枠を食い合うため、1 回で数百万トークンを使う
+巨大レビューを抑える必要がある（実測: 2026-07-27 にレビュー系 5 回で 1,400 万トークン、
+1 回平均 280 万・最大 722 万）。
+
+| 環境変数 | 既定値 | 役割 |
+|---|---|---|
+| `SELF_REVIEW_DIFF_LIMIT` | 2000 | この行数を超えたら effort を medium へ落とす |
+| `CODEX_REVIEW_EFFORT` | （未設定） | effort を明示指定し、自動判定を無効化する |
+
+精度が要る大きな変更をレビューしたいときは、対象ファイルを絞って呼び直すか、
+`CODEX_REVIEW_EFFORT=high` を明示する。peer-review 側も同じ仕組みを持つ
+（閾値は `PEER_REVIEW_DIFF_LIMIT`、行数は `gh pr view` の additions + deletions で測る）。
 
 ### 呼び出し例（design 観点を Claude-p に投げる、`--with-design` 時のデフォルト）
 

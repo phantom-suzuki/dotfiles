@@ -35,6 +35,22 @@ Codex CLI を複数アカウント（主 = `~/.codex` / もう一方 = `~/.codex
 
 ユーザーの意図に応じて、以下のいずれかを実施する。
 
+### 0. セットアップスクリプト（推奨。手順 A・B をまとめて実行する）
+
+前提チェックから設定の共有までを 1 本のスクリプトで行える。ログインだけは代行しないので、
+未ログインならログイン用の 1 行を表示して終了する。
+
+```bash
+bash ~/.claude/skills/codex-account/scripts/setup-work-account.sh --check   # 状態を見るだけ
+bash ~/.claude/skills/codex-account/scripts/setup-work-account.sh           # セットアップを実行
+bash ~/.claude/skills/codex-account/scripts/setup-work-account.sh --pin     # カレントリポを固定
+```
+
+スクリプトが表示するログイン用の 1 行を、ユーザーに `!` プレフィックスで実行してもらう。
+その後スクリプトを再実行すると、`config.toml` のコピーと `AGENTS.md` のシンボリックリンクまで済む。
+
+以下の A・B は、スクリプトが内部で行っている処理の内訳である。手作業で追う場合に参照する。
+
 ### A. 初回セットアップ（もう一方のアカウントを追加する）
 
 1. **前提チェック**（Bash 可）:
@@ -107,7 +123,8 @@ codex-work
 
 運用方針（メリハリ）:
 - **委譲（大量・定型）= `config.toml` で `medium`** に下げてレート節約。レートが急増したら**まずここの `xhigh` を疑う**
-- **レビュー系（少量・質重視）= `-c model_reasoning_effort=high` で固定**。実装は `peer-review/scripts/codex-review.sh` と `self-review/references/review-prompts.md` のインラインコメント参照
+- **レビュー系（少量・質重視）= `-c model_reasoning_effort=high` が既定**。ただし diff が 2,000 行を超えると各スクリプトが自動で `medium` へ落とす（環境変数 `SELF_REVIEW_DIFF_LIMIT` / `PEER_REVIEW_DIFF_LIMIT` で閾値を変更、`CODEX_REVIEW_EFFORT` で固定）。実装は `peer-review/scripts/codex-review.sh` と `self-review/references/review-prompts.md` のインラインコメント参照
+- **委譲の回数とサイズにも上限がある**（1 委譲 5 ファイル / 500 行、同一タスクへの再委譲は 3 回まで）。詳細は `task-delegation` スキルの「レート予算の規律」節
 - `~/.codex/config.toml` は chezmoi **管理外**（直接編集が永続。dotfiles リポジトリには含まれない）
 
 ## アンチパターン
@@ -120,8 +137,24 @@ codex-work
 | 自動レートリミット failover ラッパーを作る | 手動で `codex-work` 起動し直す |
 | セッション中に cd で切替わると期待 | 別アカウントなら claude を起動し直す |
 
+## 認証が切れているときの見分け方
+
+Codex CLI の認証は `~/.codex/auth.json`（または `$CODEX_HOME/auth.json`）に置かれる。
+**このファイルが無ければ CLI は未認証**で、委譲もレビュー系スクリプトも
+`401 Unauthorized: Missing bearer or basic authentication in header` で失敗する。
+
+見分けるときの注意点を 2 つあげる。
+
+- **Codex デスクトップアプリや Web の ChatGPT にログインしていても、CLI の認証とは別物**である。
+  アプリ側でアカウントを切り替えても `auth.json` は作られない
+- 週間上限に達したときのエラーは 401 ではなく利用制限のメッセージになる。
+  401 が出たら上限ではなく**ログイン切れ**を疑う
+
+復旧はログインし直すだけ。ユーザーに `! codex login`（2 つ目なら `! CODEX_HOME=$HOME/.codex-work codex login`）を依頼する。
+
 ## 関連
 
+- `~/.claude/skills/codex-account/scripts/setup-work-account.sh` — セットアップ・状態確認・リポジトリ固定を行うスクリプト
 - `~/.config`（dotfiles）の `docs/account-switching.md` — 再現手順の正本
 - `~/.zshrc` の `codex-work` エイリアス / `codex-use-work` 関数 / direnv hook
 - `~/.claude/hooks/block-codex-direct.py` — codex 直叩きブロック hook

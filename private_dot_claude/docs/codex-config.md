@@ -129,13 +129,26 @@ sol 不可」は現在は誤り。過去に ChatGPT 認証で 400 になった `
 
 ### config.toml を無視するパス
 
-- **review 系スキル**（peer-review の `codex-review.sh`、self-review の `codex exec`）: `--ignore-user-config` を付けるため config.toml を **無視する**。effort を狙った値にするには `-c model_reasoning_effort=<x>` の **明示指定が必須**（`-c` は CLI 明示なので `--ignore-user-config` があっても効く）。低頻度なので質優先で `high` 固定にしてある。
+- **review 系スキル**（peer-review の `codex-review.sh`、self-review の `codex exec`）: `--ignore-user-config` を付けるため config.toml を **無視する**。effort を狙った値にするには `-c model_reasoning_effort=<x>` の **明示指定が必須**（`-c` は CLI 明示なので `--ignore-user-config` があっても効く）。既定は質優先で `high`。ただし **diff が大きいときはスクリプトが自動で `medium` へ落とす**（下記のレート予算ガード）。
+
+### レート予算ガード（review 系、2026-07-28 導入）
+
+大きな diff を `high` で流すと、1 回で数百万トークンを消費する。これを避けるため、両スクリプトが変更行数を見て effort を切り替える。
+
+| スキル | 行数の測り方 | 閾値の環境変数 | 既定 |
+|---|---|---|---|
+| self-review | stdin の diff を `wc -l` | `SELF_REVIEW_DIFF_LIMIT` | 2000 行 |
+| peer-review | `gh pr view` の additions + deletions | `PEER_REVIEW_DIFF_LIMIT` | 2000 行 |
+
+`CODEX_REVIEW_EFFORT` を設定すると自動判定を止めて値を固定できる（両スキル共通）。
 
 ## 実務上の含意
 
 - Codex のレートが急増したら、まず `config.toml` の `model_reasoning_effort`（`xhigh` だと最重）を疑う。委譲パスの大量実行に効く。seed の値も合わせて更新する。
-- review 系の effort を変えたいときに config.toml をいじっても効かない。該当スクリプトの `-c model_reasoning_effort=` を直接編集する。
-- 運用方針は「普段は medium で節約、レビュー系だけ high 固定」のメリハリ（2026-06-04 導入、dotfiles PR #7）。実装は `~/.claude/skills/peer-review/scripts/codex-review.sh` と `~/.claude/skills/self-review/references/review-prompts.md` のインラインコメント参照。
+- review 系の effort を変えたいときに config.toml をいじっても効かない。該当スクリプトの `-c model_reasoning_effort=` を直接編集するか、`CODEX_REVIEW_EFFORT` を設定する。
+- 運用方針は「普段は medium で節約、レビュー系は既定 high・巨大 diff だけ medium へ自動降格」のメリハリ（2026-06-04 導入 = dotfiles PR #7、2026-07-28 にレート予算ガードを追加）。実装は `~/.claude/skills/peer-review/scripts/codex-review.sh` と `~/.claude/skills/self-review/references/review-prompts.md` のインラインコメント参照。
+- **週間上限は Codex Cloud の PR レビューとローカル委譲が同じ枠を共有する**。消費の実測手順は `~/.claude/skills/task-delegation/SKILL.md` の「レート予算の規律」節を参照。
+- `401 Unauthorized: Missing bearer or basic authentication in header` は上限ではなく**ログイン切れ**である。`~/.codex/auth.json` の有無で切り分ける（詳細は `codex-account` スキルの「認証が切れているときの見分け方」節）。
 
 ## 関連
 

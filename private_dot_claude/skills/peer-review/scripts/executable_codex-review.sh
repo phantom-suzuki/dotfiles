@@ -66,15 +66,45 @@ JSONL_FILE=$(mktemp /tmp/peer-review-codex-XXXXXX.jsonl)
 LAST_FILE=$(mktemp /tmp/peer-review-codex-last-XXXXXX.txt)
 trap 'rm -f "$JSONL_FILE" "$LAST_FILE"' EXIT
 
->&2 echo "[peer-review] Codex review 実行中 (base=$BASE_BRANCH)..."
+# --- レート予算ガード ---------------------------------------------------------
+# Codex の週間上限は Codex Cloud の PR レビューとローカル委譲が同じ枠を食い合う。
+# 巨大 PR を effort=high でレビューすると 1 回で数百万トークンを消費するため、
+# 変更行数（additions + deletions）で effort を落とす。
+# 実測（2026-07-27）: レビュー系 5 回で 1,400 万トークン、1 回平均 280 万・最大 722 万。
+#
+# 環境変数:
+#   PEER_REVIEW_DIFF_LIMIT - この行数を超えたら effort を下げる（default: 2000）
+#   CODEX_REVIEW_EFFORT    - effort を明示指定して自動判定を無効化する（high / medium / low）
+DIFF_LIMIT="${PEER_REVIEW_DIFF_LIMIT:-2000}"
+
+CHANGED_LINES=$(gh pr view "$PR_NUMBER" --json additions,deletions \
+  --jq '.additions + .deletions' 2>/dev/null || echo "")
+
+if [[ -n "${CODEX_REVIEW_EFFORT:-}" ]]; then
+  EFFORT="$CODEX_REVIEW_EFFORT"
+  >&2 echo "[peer-review] effort=$EFFORT (CODEX_REVIEW_EFFORT で明示指定)"
+elif [[ -z "$CHANGED_LINES" ]]; then
+  EFFORT="high"
+  >&2 echo "[peer-review] 変更行数を取得できませんでした。effort=high で続行します"
+elif [[ "$CHANGED_LINES" -gt "$DIFF_LIMIT" ]]; then
+  EFFORT="medium"
+  >&2 echo "[peer-review] 変更 ${CHANGED_LINES} 行が上限 ${DIFF_LIMIT} 行を超えたため effort を high から medium へ下げます"
+  >&2 echo "[peer-review] 精度が要るなら PR を分割するか CODEX_REVIEW_EFFORT=high を指定してください"
+else
+  EFFORT="high"
+fi
+# -----------------------------------------------------------------------------
+
+>&2 echo "[peer-review] Codex review 実行中 (base=$BASE_BRANCH / 変更 ${CHANGED_LINES:-?} 行 / effort=${EFFORT})..."
 
 # Codex を非対話で実行。PROMPT は渡さない（--base と排他のため）
-# -c model_reasoning_effort=high: L2 セカンドオピニオンは質が命なので effort を high に固定する。
+# -c model_reasoning_effort: L2 セカンドオピニオンは質が命なので既定は high。
+#   ただし巨大 PR ではレート枠を守るため上のガードが medium へ落とす。
 #   --ignore-user-config で config.toml を無視するため、-c 明示指定で effort を上書きする
 #   （委譲パスのグローバル default は medium に下げてレートを節約しているが、低頻度な
 #    レビューだけは high を選ぶメリハリ運用）
 codex exec review \
-  -c model_reasoning_effort=high \
+  -c model_reasoning_effort="$EFFORT" \
   --base "$BASE_BRANCH" \
   --json \
   --ignore-user-config \
