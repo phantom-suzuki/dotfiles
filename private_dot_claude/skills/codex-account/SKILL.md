@@ -123,7 +123,7 @@ codex-work
 
 運用方針（メリハリ）:
 - **委譲（大量・定型）= `config.toml` で `medium`** に下げてレート節約。レートが急増したら**まずここの `xhigh` を疑う**
-- **レビュー系（少量・質重視）= `-c model_reasoning_effort=high` が既定**。ただし diff が 2,000 行を超えると各スクリプトが自動で `medium` へ落とす（環境変数 `SELF_REVIEW_DIFF_LIMIT` / `PEER_REVIEW_DIFF_LIMIT` で閾値を変更、`CODEX_REVIEW_EFFORT` で固定）。実装は `peer-review/scripts/codex-review.sh` と `self-review/references/review-prompts.md` のインラインコメント参照
+- **レビュー系（少量・質重視）= `-c model_reasoning_effort=high` が既定**。ただし diff が 2,000 行を超えると各スクリプトが自動で `medium` へ落とす（環境変数 `SELF_REVIEW_DIFF_LIMIT` / `PEER_REVIEW_DIFF_LIMIT` で閾値を変更、`CODEX_REVIEW_EFFORT` で固定）。実装は `peer-review/scripts/codex-review.sh` と `self-review/scripts/codex-review.sh` のインラインコメント参照
 - **委譲の回数とサイズにも上限がある**（1 委譲 5 ファイル / 500 行、同一タスクへの再委譲は 3 回まで）。詳細は `task-delegation` スキルの「レート予算の規律」節
 - `~/.codex/config.toml` は chezmoi **管理外**（直接編集が永続。dotfiles リポジトリには含まれない）
 

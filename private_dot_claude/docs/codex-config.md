@@ -146,7 +146,7 @@ sol 不可」は現在は誤り。過去に ChatGPT 認証で 400 になった `
 
 - Codex のレートが急増したら、まず `config.toml` の `model_reasoning_effort`（`xhigh` だと最重）を疑う。委譲パスの大量実行に効く。seed の値も合わせて更新する。
 - review 系の effort を変えたいときに config.toml をいじっても効かない。該当スクリプトの `-c model_reasoning_effort=` を直接編集するか、`CODEX_REVIEW_EFFORT` を設定する。
-- 運用方針は「普段は medium で節約、レビュー系は既定 high・巨大 diff だけ medium へ自動降格」のメリハリ（2026-06-04 導入 = dotfiles PR #7、2026-07-28 にレート予算ガードを追加）。実装は `~/.claude/skills/peer-review/scripts/codex-review.sh` と `~/.claude/skills/self-review/references/review-prompts.md` のインラインコメント参照。
+- 運用方針は「普段は medium で節約、レビュー系は既定 high・巨大 diff だけ medium へ自動降格」のメリハリ（2026-06-04 導入 = dotfiles PR #7、2026-07-28 にレート予算ガードを追加）。実装は `~/.claude/skills/peer-review/scripts/codex-review.sh` と `~/.claude/skills/self-review/scripts/codex-review.sh` のインラインコメント参照。
 - **週間上限は Codex Cloud の PR レビューとローカル委譲が同じ枠を共有する**。消費の実測手順は `~/.claude/skills/task-delegation/SKILL.md` の「レート予算の規律」節を参照。
 - `401 Unauthorized: Missing bearer or basic authentication in header` は上限ではなく**ログイン切れ**である。`~/.codex/auth.json` の有無で切り分ける（詳細は `codex-account` スキルの「認証が切れているときの見分け方」節）。
 
