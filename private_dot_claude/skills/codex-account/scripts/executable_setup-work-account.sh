@@ -3,7 +3,7 @@
 #
 # 何をするか:
 #   1. 前提（direnv / 主アカウントのログイン / 2 つ目のログイン）を確認する
-#   2. 主アカウントの config.toml をコピーし、AGENTS.md をシンボリックリンクで共有する
+#   2. 主アカウントの config.toml を初回だけコピーし、AGENTS.md をシンボリックリンクで共有する
 #   3. 使い方を表示する
 #
 # 何をしないか:
@@ -16,7 +16,7 @@
 # Usage:
 #   bash setup-work-account.sh              # セットアップを実行する
 #   bash setup-work-account.sh --check      # 状態を確認するだけ（変更しない）
-#   bash setup-work-account.sh --pin        # カレント git リポを 2 つ目のアカウントに固定する
+#   bash setup-work-account.sh --pin        # カレント git リポを 2 つ目のアカウントに固定する（direnv が必要）
 #
 # Exit codes:
 #   0 - 完了（--check は状態表示のみで 0）
@@ -62,11 +62,28 @@ if [[ "$MODE" == "--pin" ]]; then
     echo "エラー: git リポジトリの中で実行してください" >&2
     exit 1
   }
-  echo "export CODEX_HOME=\$HOME/.codex-work" > "$root/.envrc"
+  # .envrc は direnv 専用のファイルで、direnv が無いと読まれない。未導入のまま書いても
+  # 固定は効かないので、先に失敗させる。
+  if ! command -v direnv >/dev/null 2>&1; then
+    echo "エラー: --pin には direnv が必要です。brew install direnv で導入してください" >&2
+    exit 1
+  fi
+  # $HOME はここでは展開しない。.envrc の中に文字列のまま置き、direnv の読み込み時に展開させる。
+  # shellcheck disable=SC2016
+  pin_line='export CODEX_HOME=$HOME/.codex-work'
+  if [[ ! -e "$root/.envrc" ]]; then
+    printf '%s\n' "$pin_line" > "$root/.envrc"
+  elif ! grep -qxF "$pin_line" "$root/.envrc"; then
+    # 既存の .envrc には他の設定が入っている可能性がある。上書きせず手動追記に委ねる。
+    echo "エラー: 既存の $root/.envrc を上書きしません。次の 1 行を手動で追記してください" >&2
+    echo "" >&2
+    echo "  $pin_line" >&2
+    exit 1
+  fi
   if ! grep -qxF '.envrc' "$root/.git/info/exclude" 2>/dev/null; then
     echo '.envrc' >> "$root/.git/info/exclude"
   fi
-  command -v direnv >/dev/null 2>&1 && direnv allow "$root"
+  direnv allow "$root"
   echo "固定しました: $(basename "$root") → $WORK_HOME"
   echo ""
   echo "このリポジトリでは 'cd $root && claude' と中から起動してください。"
@@ -101,7 +118,13 @@ fi
 
 # config.toml はコピーする。codex が書き込むとき atomic write でシンボリックリンクを
 # 置き換えてしまうため、リンクでは共有できない。
-if [[ -f "$MAIN_HOME/config.toml" ]]; then
+# コピーは初回だけにする。再実行で上書きすると、work 側で codex が書いた設定
+# （config.toml は chezmoi 管理外なので直接編集が正）が確認なしに消えるため。
+if [[ -e "$WORK_HOME/config.toml" ]]; then
+  echo "保持しました: 既存の work 側 config.toml（主アカウントの内容で上書きしません）"
+  echo "  主アカウントの設定へ揃え直すなら、次を手動で実行します。" >&2
+  echo "    cp $MAIN_HOME/config.toml $WORK_HOME/config.toml" >&2
+elif [[ -f "$MAIN_HOME/config.toml" ]]; then
   cp "$MAIN_HOME/config.toml" "$WORK_HOME/config.toml"
   echo "コピーしました: config.toml"
 else
