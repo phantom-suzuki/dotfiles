@@ -69,10 +69,10 @@ bash ~/.claude/skills/codex-account/scripts/setup-work-account.sh --pin     # �
 
 3. **ログイン確認後、設定を共有**（Bash 可）:
    ```bash
-   cp ~/.codex/config.toml ~/.codex-work/config.toml
+   [[ -e ~/.codex-work/config.toml ]] || cp ~/.codex/config.toml ~/.codex-work/config.toml
    ln -sf ~/.codex/AGENTS.md ~/.codex-work/AGENTS.md
    ```
-   > config.toml はコピー（codex の atomic write で symlink が壊れるため）。AGENTS.md は codex が書き換えないので symlink で共有。
+   > config.toml はコピー（codex の atomic write で symlink が壊れるため）。**work 側に既に有れば上書きしない。** config.toml は chezmoi の管理外で直接編集するファイルなので、上書きすると手で入れた設定が確認なしに消える。揃え直したいときだけ `cp` を明示的に実行する。AGENTS.md は codex が書き換えないので symlink で共有。
 
 ### B. リポジトリを work アカウントに pin する
 
@@ -80,11 +80,21 @@ bash ~/.claude/skills/codex-account/scripts/setup-work-account.sh --pin     # �
 
 ```bash
 root=$(git rev-parse --show-toplevel) || { echo "git リポ外"; exit 1; }
-echo 'export CODEX_HOME=$HOME/.codex-work' > "$root/.envrc"
+# .envrc は direnv 専用のファイルで、direnv が無いと読まれない。先に落とす。
+command -v direnv >/dev/null || { echo "direnv が必要（brew install direnv）"; exit 1; }
+pin_line='export CODEX_HOME=$HOME/.codex-work'
+if [[ ! -e "$root/.envrc" ]]; then
+  printf '%s\n' "$pin_line" > "$root/.envrc"
+elif ! grep -qxF "$pin_line" "$root/.envrc"; then
+  # 既存の .envrc には他の設定が入っている可能性がある。上書きせず手動追記に委ねる。
+  echo "既存の $root/.envrc は上書きしない。次の 1 行を手で追記する: $pin_line"; exit 1
+fi
 grep -qxF '.envrc' "$root/.git/info/exclude" 2>/dev/null || echo '.envrc' >> "$root/.git/info/exclude"
-command -v direnv >/dev/null && direnv allow "$root"
-echo "pinned $(basename "$root") -> ~/.codex-work (.envrc は git-excluded)"
+direnv allow "$root"
+echo "固定しました: $(basename "$root") → ~/.codex-work（.envrc は git-excluded）"
 ```
+
+> 既存の `.envrc` を上書きしない点と、direnv を先に必須にする点は、上のセットアップスクリプトの `--pin` と同じ動きである。手で実行する場合も揃える。
 
 pin 後は、そのリポで **`cd <repo> && claude`** と中から起動するようユーザーに伝える
 （claude 起動時に `CODEX_HOME` が確定するため）。
