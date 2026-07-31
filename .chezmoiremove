@@ -12,3 +12,7 @@
 .claude/rules/git-branching.md
 .claude/rules/github-conventions.md
 .claude/rules/task-delegation.md
+
+# 2026-07-28: 旧 session-handoff（同日中に session-handover へ改名）
+.claude/skills/session-handoff
+.claude/skills/session-handoff/**
