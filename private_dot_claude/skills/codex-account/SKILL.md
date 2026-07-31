@@ -35,6 +35,22 @@ Codex CLI を複数アカウント（主 = `~/.codex` / もう一方 = `~/.codex
 
 ユーザーの意図に応じて、以下のいずれかを実施する。
 
+### 0. セットアップスクリプト（推奨。手順 A・B をまとめて実行する）
+
+前提チェックから設定の共有までを 1 本のスクリプトで行える。ログインだけは代行しないので、
+未ログインならログイン用の 1 行を表示して終了する。
+
+```bash
+bash ~/.claude/skills/codex-account/scripts/setup-work-account.sh --check   # 状態を見るだけ
+bash ~/.claude/skills/codex-account/scripts/setup-work-account.sh           # セットアップを実行
+bash ~/.claude/skills/codex-account/scripts/setup-work-account.sh --pin     # カレントリポを固定
+```
+
+スクリプトが表示するログイン用の 1 行を、ユーザーに `!` プレフィックスで実行してもらう。
+その後スクリプトを再実行すると、`config.toml` のコピーと `AGENTS.md` のシンボリックリンクまで済む。
+
+以下の A・B は、スクリプトが内部で行っている処理の内訳である。手作業で追う場合に参照する。
+
 ### A. 初回セットアップ（もう一方のアカウントを追加する）
 
 1. **前提チェック**（Bash 可）:
@@ -53,10 +69,10 @@ Codex CLI を複数アカウント（主 = `~/.codex` / もう一方 = `~/.codex
 
 3. **ログイン確認後、設定を共有**（Bash 可）:
    ```bash
-   cp ~/.codex/config.toml ~/.codex-work/config.toml
+   [[ -e ~/.codex-work/config.toml ]] || cp ~/.codex/config.toml ~/.codex-work/config.toml
    ln -sf ~/.codex/AGENTS.md ~/.codex-work/AGENTS.md
    ```
-   > config.toml はコピー（codex の atomic write で symlink が壊れるため）。AGENTS.md は codex が書き換えないので symlink で共有。
+   > config.toml はコピー（codex の atomic write で symlink が壊れるため）。**work 側に既に有れば上書きしない。** config.toml は chezmoi の管理外で直接編集するファイルなので、上書きすると手で入れた設定が確認なしに消える。揃え直したいときだけ `cp` を明示的に実行する。AGENTS.md は codex が書き換えないので symlink で共有。
 
 ### B. リポジトリを work アカウントに pin する
 
@@ -64,11 +80,28 @@ Codex CLI を複数アカウント（主 = `~/.codex` / もう一方 = `~/.codex
 
 ```bash
 root=$(git rev-parse --show-toplevel) || { echo "git リポ外"; exit 1; }
-echo 'export CODEX_HOME=$HOME/.codex-work' > "$root/.envrc"
-grep -qxF '.envrc' "$root/.git/info/exclude" 2>/dev/null || echo '.envrc' >> "$root/.git/info/exclude"
-command -v direnv >/dev/null && direnv allow "$root"
-echo "pinned $(basename "$root") -> ~/.codex-work (.envrc は git-excluded)"
+# .envrc は direnv 専用のファイルで、direnv が無いと読まれない。先に落とす。
+command -v direnv >/dev/null || { echo "direnv が必要（brew install direnv）"; exit 1; }
+pin_line='export CODEX_HOME=$HOME/.codex-work'
+if [[ ! -e "$root/.envrc" ]]; then
+  printf '%s\n' "$pin_line" > "$root/.envrc"
+elif ! grep -qxF "$pin_line" "$root/.envrc"; then
+  # 既存の .envrc には他の設定が入っている可能性がある。上書きせず手動追記に委ねる。
+  echo "既存の $root/.envrc は上書きしない。次の 1 行を手で追記する: $pin_line"; exit 1
+fi
+# 除外ファイルの場所は git に解決させる（worktree では .git がファイルなので固定パスは失敗する）。
+exclude_file=$(git rev-parse --git-path info/exclude) || exit 1
+grep -qxF '.envrc' "$exclude_file" 2>/dev/null || echo '.envrc' >> "$exclude_file"
+direnv allow "$root" || { echo "direnv allow に失敗。固定は効いていない"; exit 1; }
+echo "固定しました: $(basename "$root") → ~/.codex-work（.envrc は git-excluded）"
 ```
+
+> 次の 4 点は、上のセットアップスクリプトの `--pin` と同じ動きである。手で実行する場合も揃える。
+>
+> - 既存の `.envrc` を上書きしない
+> - direnv を先に必須にする
+> - 除外ファイルの場所を `git rev-parse --git-path` で解決する
+> - `direnv allow` が失敗したら成功として案内しない
 
 pin 後は、そのリポで **`cd <repo> && claude`** と中から起動するようユーザーに伝える
 （claude 起動時に `CODEX_HOME` が確定するため）。
@@ -107,7 +140,8 @@ codex-work
 
 運用方針（メリハリ）:
 - **委譲（大量・定型）= `config.toml` で `medium`** に下げてレート節約。レートが急増したら**まずここの `xhigh` を疑う**
-- **レビュー系（少量・質重視）= `-c model_reasoning_effort=high` で固定**。実装は `peer-review/scripts/codex-review.sh` と `self-review/references/review-prompts.md` のインラインコメント参照
+- **レビュー系（少量・質重視）= `-c model_reasoning_effort=high` が既定**。ただし diff が 2,000 行を超えると各スクリプトが自動で `medium` へ落とす（環境変数 `SELF_REVIEW_DIFF_LIMIT` / `PEER_REVIEW_DIFF_LIMIT` で閾値を変更、`CODEX_REVIEW_EFFORT` で固定）。実装は `peer-review/scripts/codex-review.sh` と `self-review/scripts/codex-review.sh` のインラインコメント参照
+- **委譲の回数とサイズにも上限がある**（1 委譲 5 ファイル / 500 行、同一タスクへの再委譲は 3 回まで）。詳細は `task-delegation` スキルの「レート予算の規律」節
 - `~/.codex/config.toml` は chezmoi **管理外**（直接編集が永続。dotfiles リポジトリには含まれない）
 
 ## アンチパターン
@@ -120,8 +154,24 @@ codex-work
 | 自動レートリミット failover ラッパーを作る | 手動で `codex-work` 起動し直す |
 | セッション中に cd で切替わると期待 | 別アカウントなら claude を起動し直す |
 
+## 認証が切れているときの見分け方
+
+Codex CLI の認証は `~/.codex/auth.json`（または `$CODEX_HOME/auth.json`）に置かれる。
+**このファイルが無ければ CLI は未認証**で、委譲もレビュー系スクリプトも
+`401 Unauthorized: Missing bearer or basic authentication in header` で失敗する。
+
+見分けるときの注意点を 2 つあげる。
+
+- **Codex デスクトップアプリや Web の ChatGPT にログインしていても、CLI の認証とは別物**である。
+  アプリ側でアカウントを切り替えても `auth.json` は作られない
+- 週間上限に達したときのエラーは 401 ではなく利用制限のメッセージになる。
+  401 が出たら上限ではなく**ログイン切れ**を疑う
+
+復旧はログインし直すだけ。ユーザーに `! codex login`（2 つ目なら `! CODEX_HOME=$HOME/.codex-work codex login`）を依頼する。
+
 ## 関連
 
+- `~/.claude/skills/codex-account/scripts/setup-work-account.sh` — セットアップ・状態確認・リポジトリ固定を行うスクリプト
 - `~/.config`（dotfiles）の `docs/account-switching.md` — 再現手順の正本
 - `~/.zshrc` の `codex-work` エイリアス / `codex-use-work` 関数 / direnv hook
 - `~/.claude/hooks/block-codex-direct.py` — codex 直叩きブロック hook

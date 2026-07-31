@@ -82,9 +82,42 @@ umask 077
 TMP=$(mktemp "${TMPDIR:-/tmp}/self-review-codex.XXXXXX")
 mv "$TMP" "${TMP}.json"
 TMP="${TMP}.json"
-trap 'rm -f "$TMP"' EXIT
+DIFF_FILE=$(mktemp "${TMPDIR:-/tmp}/self-review-diff.XXXXXX")
+trap 'rm -f "$TMP" "$DIFF_FILE"' EXIT
 
->&2 echo "[self-review] Codex レビュー実行中..."
+# --- レート予算ガード ---------------------------------------------------------
+# Codex の週間上限は Codex Cloud の PR レビューとローカル委譲が同じ枠を食い合う。
+# 巨大 diff を effort=high で流すと 1 回で数百万トークンを消費するため、行数で effort を落とす。
+# 実測（2026-07-27）: レビュー系 5 回で 1,400 万トークン、1 回平均 280 万・最大 722 万。
+#
+# 環境変数:
+#   SELF_REVIEW_DIFF_LIMIT - この行数を超えたら effort を下げる（default: 2000）
+#   CODEX_REVIEW_EFFORT    - effort を明示指定して自動判定を無効化する（high / medium / low）
+DIFF_LIMIT="${SELF_REVIEW_DIFF_LIMIT:-2000}"
+# 数値以外を渡されたら止める。[[ -gt ]] は非数値を 0 と見なして黙って比較を通すため、
+# 打ち間違いに気づかないまま effort が常に medium へ落ちる。
+if [[ ! "$DIFF_LIMIT" =~ ^[0-9]+$ ]]; then
+  >&2 echo "[self-review] エラー: SELF_REVIEW_DIFF_LIMIT は 0 以上の整数で指定してください（現在: ${DIFF_LIMIT}）"
+  exit 1
+fi
+
+# stdin の diff を一旦ファイルへ落として行数を数える（パイプは 1 度しか読めないため）
+cat - > "$DIFF_FILE"
+DIFF_LINES=$(wc -l < "$DIFF_FILE" | tr -d ' ')
+
+if [[ -n "${CODEX_REVIEW_EFFORT:-}" ]]; then
+  EFFORT="$CODEX_REVIEW_EFFORT"
+  >&2 echo "[self-review] effort=$EFFORT (CODEX_REVIEW_EFFORT で明示指定)"
+elif [[ "$DIFF_LINES" -gt "$DIFF_LIMIT" ]]; then
+  EFFORT="medium"
+  >&2 echo "[self-review] diff ${DIFF_LINES} 行が上限 ${DIFF_LIMIT} 行を超えたため effort を high から medium へ下げます"
+  >&2 echo "[self-review] 精度が要るなら、対象ファイルを絞って呼び直すか CODEX_REVIEW_EFFORT=high を指定してください"
+else
+  EFFORT="high"
+fi
+# -----------------------------------------------------------------------------
+
+>&2 echo "[self-review] Codex レビュー実行中 (diff ${DIFF_LINES} 行 / effort=${EFFORT})..."
 
 {
   echo "## 以下の diff をレビューしてください。"
@@ -94,11 +127,11 @@ trap 'rm -f "$TMP"' EXIT
   echo ""
   echo "## DIFF"
   echo '```diff'
-  cat -
+  cat "$DIFF_FILE"
   echo '```'
 } | codex exec \
   -c model="$CODEX_MODEL" \
-  -c model_reasoning_effort=high \
+  -c model_reasoning_effort="$EFFORT" \
   --output-schema "$SCHEMA" \
   --output-last-message "$TMP" \
   --sandbox read-only \
