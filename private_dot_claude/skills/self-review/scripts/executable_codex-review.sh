@@ -94,6 +94,12 @@ trap 'rm -f "$TMP" "$DIFF_FILE"' EXIT
 #   SELF_REVIEW_DIFF_LIMIT - この行数を超えたら effort を下げる（default: 2000）
 #   CODEX_REVIEW_EFFORT    - effort を明示指定して自動判定を無効化する（high / medium / low）
 DIFF_LIMIT="${SELF_REVIEW_DIFF_LIMIT:-2000}"
+# 数値以外を渡されたら止める。[[ -gt ]] は非数値を 0 と見なして黙って比較を通すため、
+# 打ち間違いに気づかないまま effort が常に medium へ落ちる。
+if [[ ! "$DIFF_LIMIT" =~ ^[0-9]+$ ]]; then
+  >&2 echo "[self-review] エラー: SELF_REVIEW_DIFF_LIMIT は 0 以上の整数で指定してください（現在: ${DIFF_LIMIT}）"
+  exit 1
+fi
 
 # stdin の diff を一旦ファイルへ落として行数を数える（パイプは 1 度しか読めないため）
 cat - > "$DIFF_FILE"

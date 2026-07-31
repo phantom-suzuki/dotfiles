@@ -29,6 +29,17 @@ MAIN_HOME="$HOME/.codex"
 WORK_HOME="$HOME/.codex-work"
 MODE="${1:-setup}"
 
+# 知らない引数をセットアップとして扱わない。--help や打ち間違いで config.toml の
+# コピーと AGENTS.md のリンク作成が走ると、意図しない変更に気づきにくい。
+case "$MODE" in
+  setup|--check|--pin) ;;
+  *)
+    echo "エラー: 知らない引数です: $MODE" >&2
+    echo "Usage: bash setup-work-account.sh [--check|--pin]" >&2
+    exit 1
+    ;;
+esac
+
 # 認証済みかどうかを判定する。codex は auth.json に認証情報を書く。
 is_logged_in() {
   [[ -f "$1/auth.json" ]]
@@ -80,10 +91,24 @@ if [[ "$MODE" == "--pin" ]]; then
     echo "  $pin_line" >&2
     exit 1
   fi
-  if ! grep -qxF '.envrc' "$root/.git/info/exclude" 2>/dev/null; then
-    echo '.envrc' >> "$root/.git/info/exclude"
+  # 除外ファイルの場所は git に解決させる。worktree では $root/.git がディレクトリ
+  # ではなくファイルなので、$root/.git/info/exclude は「Not a directory」で失敗する。
+  exclude_file=$(git rev-parse --git-path info/exclude 2>/dev/null) || {
+    echo "エラー: 除外ファイルの場所を解決できませんでした" >&2
+    exit 1
+  }
+  if ! grep -qxF '.envrc' "$exclude_file" 2>/dev/null; then
+    mkdir -p "$(dirname "$exclude_file")" || exit 1
+    if ! echo '.envrc' >> "$exclude_file"; then
+      echo "エラー: $exclude_file に .envrc を追記できませんでした" >&2
+      exit 1
+    fi
   fi
-  direnv allow "$root"
+  # direnv allow が失敗すると .envrc は読み込まれない。成功として案内しない。
+  if ! direnv allow "$root"; then
+    echo "エラー: direnv allow に失敗しました。固定は有効になっていません" >&2
+    exit 1
+  fi
   echo "固定しました: $(basename "$root") → $WORK_HOME"
   echo ""
   echo "このリポジトリでは 'cd $root && claude' と中から起動してください。"

@@ -89,12 +89,19 @@ elif ! grep -qxF "$pin_line" "$root/.envrc"; then
   # 既存の .envrc には他の設定が入っている可能性がある。上書きせず手動追記に委ねる。
   echo "既存の $root/.envrc は上書きしない。次の 1 行を手で追記する: $pin_line"; exit 1
 fi
-grep -qxF '.envrc' "$root/.git/info/exclude" 2>/dev/null || echo '.envrc' >> "$root/.git/info/exclude"
-direnv allow "$root"
+# 除外ファイルの場所は git に解決させる（worktree では .git がファイルなので固定パスは失敗する）。
+exclude_file=$(git rev-parse --git-path info/exclude) || exit 1
+grep -qxF '.envrc' "$exclude_file" 2>/dev/null || echo '.envrc' >> "$exclude_file"
+direnv allow "$root" || { echo "direnv allow に失敗。固定は効いていない"; exit 1; }
 echo "固定しました: $(basename "$root") → ~/.codex-work（.envrc は git-excluded）"
 ```
 
-> 既存の `.envrc` を上書きしない点と、direnv を先に必須にする点は、上のセットアップスクリプトの `--pin` と同じ動きである。手で実行する場合も揃える。
+> 次の 4 点は、上のセットアップスクリプトの `--pin` と同じ動きである。手で実行する場合も揃える。
+>
+> - 既存の `.envrc` を上書きしない
+> - direnv を先に必須にする
+> - 除外ファイルの場所を `git rev-parse --git-path` で解決する
+> - `direnv allow` が失敗したら成功として案内しない
 
 pin 後は、そのリポで **`cd <repo> && claude`** と中から起動するようユーザーに伝える
 （claude 起動時に `CODEX_HOME` が確定するため）。

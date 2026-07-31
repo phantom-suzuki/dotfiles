@@ -76,6 +76,12 @@ trap 'rm -f "$JSONL_FILE" "$LAST_FILE"' EXIT
 #   PEER_REVIEW_DIFF_LIMIT - この行数を超えたら effort を下げる（default: 2000）
 #   CODEX_REVIEW_EFFORT    - effort を明示指定して自動判定を無効化する（high / medium / low）
 DIFF_LIMIT="${PEER_REVIEW_DIFF_LIMIT:-2000}"
+# 数値以外を渡されたら止める。[[ -gt ]] は非数値を 0 と見なして黙って比較を通すため、
+# 打ち間違いに気づかないまま effort が常に medium へ落ちる。
+if [[ ! "$DIFF_LIMIT" =~ ^[0-9]+$ ]]; then
+  >&2 echo "[peer-review] エラー: PEER_REVIEW_DIFF_LIMIT は 0 以上の整数で指定してください（現在: ${DIFF_LIMIT}）"
+  exit 1
+fi
 
 CHANGED_LINES=$(gh pr view "$PR_NUMBER" --json additions,deletions \
   --jq '.additions + .deletions' 2>/dev/null || echo "")
