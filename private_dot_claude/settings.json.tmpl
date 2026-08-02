@@ -266,5 +266,11 @@
   "teammateMode": "auto",
   "skipAutoPermissionPrompt": true,
   "mcpServers": {{ dig "claude" "mcpServers" (dict "playwright" (dict "command" "npx" "args" (list "@playwright/mcp@latest"))) . | toJson }},
+  {{- /*
+    サブエージェント完了時のプッシュ通知。UI からの切り替えが settings.json に直接
+    書き込まれるため、tmpl に持たないと apply のたびに設定が消える。
+    data.claude.agentPushNotif で false に上書きできる。
+  */}}
+  "agentPushNotifEnabled": {{ dig "claude" "agentPushNotif" true . | toJson }},
   "tui": "fullscreen"
 }
