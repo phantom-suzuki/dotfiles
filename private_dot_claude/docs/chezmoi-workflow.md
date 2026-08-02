@@ -2,7 +2,7 @@
 
 CLAUDE.md の「Dotfiles — chezmoi 管理」節のコア規範に対する詳細リファレンス。ワークフロー例・テンプレート一覧・落とし穴の解説を置く。常時注入はされないので、dotfiles を編集するときに読む。
 
-- **ソースディレクトリ**: `~/.local/share/chezmoi/`
+- **ソースディレクトリ**: `chezmoi source-path` で確認する（`chezmoi.toml` の `sourceDir` でマシンごとに変わる。現在の環境は `~/work/phantom-suzuki/dotfiles`）
 - **リポジトリ**: `github.com/phantom-suzuki/dotfiles`
 - **設定**: `~/.config/chezmoi/chezmoi.toml`
 
@@ -67,7 +67,7 @@ chezmoi apply
 dotfiles の変更後は chezmoi ソースディレクトリでコミット:
 
 ```bash
-chezmoi cd  # → ~/.local/share/chezmoi/
+chezmoi cd  # → ソースディレクトリへ移動する（パスは chezmoi source-path で確認できる）
 git status                       # 意図しない変更が混ざっていないか確認する
 git add dot_config/ghostty/config.tmpl  # 変更したパスだけを個別に stage する（git add -A は避ける）
 git diff --cached                # stage 内容を確認してからコミットする

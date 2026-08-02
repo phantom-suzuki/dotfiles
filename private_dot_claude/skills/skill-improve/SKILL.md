@@ -14,7 +14,7 @@ argument-hint: "[session-id | latest]"
 ## 安全原則（必守）
 
 - **スキル/ルールを自動で書き換えない**。改善案は必ず提示し、ユーザーが accept した項目のみ反映する。
-- **編集は chezmoi ソース側**（`~/.local/share/chezmoi/private_dot_claude/skills/` または `.../rules/`）に対して行う。ターゲット（`~/.claude/...`）を直接編集しない。反映は `chezmoi apply`、commit/push はユーザー判断（`git-safety.md`）。
+- **編集は chezmoi ソース側**（`$(chezmoi source-path)/private_dot_claude/skills/` または `.../rules/`）に対して行う。ターゲット（`~/.claude/...`）を直接編集しない。反映は `chezmoi apply`、commit/push はユーザー判断（`git-safety.md`）。
 - **jsonl は読み取りのみ**。巨大なので jq で必要フィールドだけ抽出し、全文をダンプしない（`tool-call-hygiene` 準拠）。
 - **改善ログに生の会話を貼らない**。`improvement-log.md` は chezmoi ソース配下 = public リポジトリ（`github.com/phantom-suzuki/dotfiles`）へ push されうる。signal は抽象化した要約のみ記録し、ユーザー発言の生断片・パス・トークン・個人情報など機微なものを含めない。判断に迷う内容は記録せず提示に留める。
 - scrum イベントの自発提案はしない（[[feedback-no-scrum-event-suggestion]]）。
@@ -91,7 +91,7 @@ chezmoi apply   # ユーザー確認後
 ### Step 7: 改善ログの蓄積
 
 反映した改善（と reject した提案＋理由）を `docs/improvement-log.md` に追記して蓄積する。蓄積先はソース側:
-`~/.local/share/chezmoi/private_dot_claude/skills/skill-improve/docs/improvement-log.md`
+`$(chezmoi source-path)/private_dot_claude/skills/skill-improve/docs/improvement-log.md`
 
 1 エントリの形式（日付は会話の currentDate を使う。`date` コマンドの結果に依存しない）:
 
