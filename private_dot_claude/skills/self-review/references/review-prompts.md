@@ -144,18 +144,42 @@ SCHEMA="${CLAUDE_SKILL_DIR}/references/schemas/finding-schema.json"
 ATTACHED=$(...上記の対象ファイル添付ブロックを生成...)
 PROMPT=$(build_prompt "$ASPECT" "$ATTACHED")  # 「観点別プロンプトの組み立て」節参照
 
-echo "$DIFF" | claude -p \
+# claude -p の --json-schema は $schema キー付きスキーマを拒否する
+# （エラー: no schema with key or ref "https://json-schema.org/draft/2020-12/schema"）。
+# finding-schema.json 自体は変更せず、claude -p に渡す直前だけ jq で $schema を取り除く。
+CLAUDE_SCHEMA=$(mktemp "${TMPDIR:-/tmp}/self-review-schema.XXXXXX")
+jq 'del(."$schema")' "$SCHEMA" > "$CLAUDE_SCHEMA"
+trap 'rm -f "$CLAUDE_SCHEMA"' EXIT
+
+# クロスプラットフォーム timeout ラッパー（macOS に timeout コマンドは無いため必須）
+source "${CLAUDE_SKILL_DIR}/scripts/lib-timeout.sh"
+
+OUT=$(mktemp "${TMPDIR:-/tmp}/self-review-bug.XXXXXX.json")
+echo "$DIFF" | _timeout 120 claude -p \
   $BARE_CLAUDE \
   --model sonnet \
   --output-format json \
-  --json-schema "$(cat "$SCHEMA")" \
+  --json-schema "$(cat "$CLAUDE_SCHEMA")" \
   --permission-mode dontAsk \
   --allowedTools "Read" \
-  --append-system-prompt "あなたは ${ASPECT} 観点に特化したコードレビュアーです。$PROMPT"
+  --append-system-prompt "あなたは ${ASPECT} 観点に特化したコードレビュアーです。$PROMPT" \
+  > "$OUT"
+
+# 出力の検証・正規化（「共通: レビュアー出力の検証」節参照）。
+# 通過していない出力を「指摘 0 件」と解釈してはならない。失敗したら fallback へ。
+if NORMALIZED=$(bash "${CLAUDE_SKILL_DIR}/scripts/validate-findings.sh" "$OUT"); then
+  : # $NORMALIZED を採用
+else
+  : # 検証失敗。fallback（Codex → Gemini）へ
+fi
 ```
 
 `$BARE_CLAUDE` は Step 0 で `ANTHROPIC_API_KEY` が設定済みのとき `--bare`、未設定なら空文字に設定される。
-`--json-schema` は **schema ファイルの中身（JSON 文字列）** を渡すフラグであり、ファイルパスではない点に注意（`$(cat "$SCHEMA")` で展開する）。
+`--json-schema` は **schema ファイルの中身（JSON 文字列）** を渡すフラグであり、ファイルパスではない点に注意（`$(cat "$CLAUDE_SCHEMA")` で展開する）。
+
+**他の `claude -p` 呼び出し例（design / macro goal-achievement 等）も同じ 3 点（$schema 除去 /
+`_timeout` ラップ / `validate-findings.sh` 検証）を適用すること**。以降の呼び出し例では重複を避けて
+`--json-schema "$(cat "$SCHEMA")"` の簡略表記のままにしているが、実行時は上のブロックと同じ手順を踏む。
 
 ### 呼び出し例（bug 観点を ultrareview に投げる、`--ultrareview` 時）
 
@@ -197,7 +221,15 @@ PROMPT_FILE=$(mktemp "${TMPDIR:-/tmp}/self-review-prompt.XXXXXX.md")
 trap 'rm -f "$PROMPT_FILE"' EXIT
 echo "$PROMPT_BODY" > "$PROMPT_FILE"
 
-echo "$DIFF" | bash "${CLAUDE_SKILL_DIR}/scripts/codex-review.sh" "$SCHEMA" "$PROMPT_FILE"
+OUT=$(mktemp "${TMPDIR:-/tmp}/self-review-security.XXXXXX.json")
+echo "$DIFF" | bash "${CLAUDE_SKILL_DIR}/scripts/codex-review.sh" "$SCHEMA" "$PROMPT_FILE" > "$OUT"
+
+# 出力の検証・正規化（「共通: レビュアー出力の検証」節参照）。
+if NORMALIZED=$(bash "${CLAUDE_SKILL_DIR}/scripts/validate-findings.sh" "$OUT"); then
+  : # $NORMALIZED を採用
+else
+  : # 検証失敗。fallback（Claude-p → Gemini）へ
+fi
 ```
 
 `scripts/codex-review.sh` の内部で `-c model_reasoning_effort=high` / `--output-schema` /
@@ -206,6 +238,30 @@ echo "$DIFF" | bash "${CLAUDE_SKILL_DIR}/scripts/codex-review.sh" "$SCHEMA" "$PR
 組み立てて `codex exec` を実行する。フラグの詳細はスクリプト本体のコメントを参照。
 
 `-c model_reasoning_effort=high` は外部レビューの effort を high に固定する。`--ignore-user-config` で `~/.codex/config.toml` を無視するため、effort を狙った値にするには `-c` 明示指定が必須。委譲パスのグローバル default は medium に下げてレートを節約しつつ、低頻度なセカンドオピニオンだけ high を選ぶメリハリ運用（委譲パスは config.toml を尊重するが、レビュー系は `--ignore-user-config` で読まない）。
+
+### 共通: レビュアー出力の検証（[scripts/validate-findings.sh](../scripts/validate-findings.sh)）
+
+シェルの終了コードが 0 でも、出力が空・壊れた JSON・スキーマ違反であることがある
+（primary レビュアーが起動直後にエラーで落ちても全体の終了コードは 0 のまま、というケースが実際に発生した）。
+**すべてのレビュアー呼び出しの直後**にこのスクリプトを通し、検証・正規化する。
+
+```
+Usage: validate-findings.sh <出力ファイルのパス>
+```
+
+- 標準出力: 検証を通過した場合、正規化した単一 JSON オブジェクト（`findings` 配列 + `summary`）
+- 標準エラー: 失敗理由（`[self-review] ` 接頭辞）
+- 終了コード: 0 = 通過 / 1 = 検証失敗
+
+検証を通過していない出力は**「指摘 0 件」と解釈してはならない**。失敗したレビュアーは「失敗」として扱い、
+fallback 順に次のレビュアーを試す。Step 8 の最終サマリには各観点が検証を通過したかどうかを含める。
+
+`claude -p` と `scripts/codex-review.sh` は出力の形が異なるため、`validate-findings.sh` が正規化する:
+
+| レビュアー | 出力構造 |
+|-----------|---------|
+| `claude -p --output-format json` | ラッパー形式。`.is_error`（失敗判定）/ `.subtype`（成功時 `"success"`）/ `.structured_output`（本体、findings + summary を持つ）/ `.result`（人間向けテキスト） |
+| `scripts/codex-review.sh` | `{"findings":[...],"summary":"..."}` を裸で返す（ラッパー無し） |
 
 ### 呼び出し例（design 観点を Claude-p に投げる、`--with-design` 時のデフォルト）
 
