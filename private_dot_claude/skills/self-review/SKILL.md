@@ -229,7 +229,7 @@ Step 1 で変更があった場合、**stash や中間コミットを作らず�
 |-----|----------|
 | `claude -p` | `--output-format json --json-schema "$(cat "$CLAUDE_SCHEMA")"`（フラグ引数は **JSON 文字列**、ファイルパスではない）、`--permission-mode dontAsk`、`--allowedTools "Read"`。`ANTHROPIC_API_KEY` 設定時のみ追加で `--bare`（OAuth ログイン環境では `--bare` を付けると認証エラー `Not logged in` になるため Step 0 で自動判定）。**`$CLAUDE_SCHEMA` は `finding-schema.json` から `jq 'del(."$schema")'` で `$schema` キーを除去した一時ファイル**（`--json-schema` は `$schema` キー付きスキーマを `no schema with key or ref "..."` エラーで拒否するため。`finding-schema.json` 自体は変更しない）。呼び出しは `scripts/lib-timeout.sh` の `_timeout` でラップする（macOS に `timeout` コマンドは無い） |
 | `scripts/codex-review.sh`（内部で `codex exec` を実行） | **Bash から `codex exec` を直接叩かない**（PreToolUse フック `block-codex-direct.py` にブロックされる）。呼び出しはスキル同梱の [scripts/codex-review.sh](scripts/codex-review.sh) を経由する（スクリプトファイルの呼び出しは同フックの検査対象外）。スクリプト内部でサブコマンド **`exec`**（`exec review` は `--output-schema` 非対応のため使わない）、`--output-schema`、`--output-last-message <tmpfile>`、`--sandbox read-only` を組み立て、`_timeout`（既定 300 秒、`CODEX_REVIEW_TIMEOUT` で上書き可）でラップする。`codex >= 0.122` の環境では `--ignore-user-config` / `--ignore-rules` も付与（古いバージョンでは省略） |
-| `claude ultrareview` | `--json`（exit code 0=完了/1=失敗/130=Ctrl-C を尊重）。Pro/Max は無料枠 3 回、以降は課金 |
+| `claude ultrareview` | `--json`（exit code 0=完了/1=失敗/130=Ctrl-C を尊重）。Pro/Max は無料枠 3 回、以降は課金。**呼び出しは `scripts/lib-timeout.sh` の `_timeout` でラップする**（他の 2 つと同じ。包まないと、CLI が応答しなくなったときにレビュー全体が止まり、fallback にも進めない）。タイムアウトしたら bug 観点の fallback（`claude -p`）へ進む |
 
 呼び出し例とプロンプト詳細は [references/review-prompts.md](references/review-prompts.md) を参照。
 
@@ -242,6 +242,10 @@ Step 1 で変更があった場合、**stash や中間コミットを作らず�
 
 - 検証に失敗したレビュアーは「失敗」として扱い、fallback 順に次を試す
 - **検証を通過していない出力を「指摘 0 件」と解釈してはならない**
+- **`claude ultrareview` の出力も例外にしない。** ultrareview は `finding-schema.json` と
+  完全には一致しない形を返しうるため、まず `aspect` / `category` / `severity` を補う正規化を
+  かけ、**その結果を `validate-findings.sh` へ通す**。ここで失敗したら、ほかのレビュアーと
+  同じく bug 観点の fallback（`claude -p`）へ進む
 - Step 8 の最終サマリに、各観点が検証を通過したかどうかを含める
 
 #### strategy: standard（デフォルト・bug + security の 2 並列）
@@ -389,7 +393,7 @@ git commit -m "refactor: self-review (simplify + review fixes)"
 以下の条件に 1 つでも該当したら、以降のステップをスキップして Step 8 へ直行する:
 
 - **`simple` strategy**（diff ≤ 30 行 かつ ファイル ≤ 3、`--force-external` なし）→ Step 3 を全スキップし、Simplify 結果のみで Step 6 → Step 8 へ
-- **`docs-only` strategy**（変更ファイルがすべて非コード）→ Step 1（Simplify）と Step 3（外部レビュー）を両方スキップし、司令塔の事実照合結果のみで Step 8 へ
+- **`docs-only` strategy**（変更ファイルがすべて非コード、`--force-external` なし）→ Step 1（Simplify）と Step 3（外部レビュー）を両方スキップし、司令塔の事実照合結果のみで Step 8 へ。**`--force-external` を指定したときは Step 3 を実行する**（Step 0 の戦略判定・Step 3 と同じ優先順位にそろえる。`--force-external` は「自動スキップを無視して外部レビューを回す」ための指定なので、docs-only でも同じ意味になる）。なお Simplify は `--force-external` の有無に関わらずスキップする（Markdown には作用対象が無いため）
 - 外部レビュー結果の findings が 0 件 かつ Simplify でも変更なし → 何もコミットせず終了
 - critical が 0 件 かつ judgment が 0 件 → judgment フェーズをスキップ（auto-fix のみ適用して Step 6 へ）
 

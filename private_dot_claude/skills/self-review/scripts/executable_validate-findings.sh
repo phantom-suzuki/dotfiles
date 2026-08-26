@@ -94,10 +94,56 @@ else
   exit 1
 fi
 
-# 6. 採用したオブジェクトの .findings が配列であることを確認する
-FINDINGS_IS_ARRAY=$(echo "$NORMALIZED" | jq -c '(.findings? | type) == "array"' 2>/dev/null)
-if [[ "$FINDINGS_IS_ARRAY" != "true" ]]; then
-  >&2 echo "[self-review] findings が配列ではありません: $FILE"
+# 6. 採用したオブジェクトを finding-schema.json の必須構造と突き合わせる
+#
+# 以前は「.findings が配列か」だけを見ていた。それだと {"findings":[{}]} や、summary の
+# 無い {"findings":[]} が検証を通り抜けてしまう。severity / category / aspect は呼び出し元が
+# そのまま信頼して分類に使うため（finding-schema.json の説明を参照）、enum から外れた値を
+# 通すと、後段の集計や auto-fix の判定が静かに壊れる。ここで弾いて fallback へ回す。
+#
+# jq でスキーマ全体を厳密に検証するのは大掛かりになるため、finding-schema.json の
+# required と enum だけを写して確認する。スキーマを変えたときは、ここも合わせて直す。
+if ! SCHEMA_ERRORS=$(echo "$NORMALIZED" | jq -r '
+  def required_keys: ["severity","category","aspect","file","line","title","description","suggestion"];
+  [
+    (if (.findings | type) != "array" then "findings が配列ではありません" else empty end),
+    (if (.summary | type) != "string" then "summary が文字列ではありません" else empty end)
+  ]
+  + (
+    if (.findings | type) == "array" then
+      [ .findings
+        | to_entries[]
+        | ("findings[" + (.key | tostring) + "]") as $at
+        | .value as $f
+        | if ($f | type) != "object" then
+            $at + " がオブジェクトではありません"
+          elif ((required_keys - ($f | keys)) | length) > 0 then
+            $at + " に必須フィールドがありません: " + ((required_keys - ($f | keys)) | join(", "))
+          elif (["critical","warning","info"] | index($f.severity)) == null then
+            $at + ".severity が enum 外です"
+          elif (["auto-fix","judgment","info"] | index($f.category)) == null then
+            $at + ".category が enum 外です"
+          elif (["bug","security","design","goal-achievement","spec-consistency","all"] | index($f.aspect)) == null then
+            $at + ".aspect が enum 外です"
+          elif ($f.line | type) != "number" then
+            $at + ".line が数値ではありません"
+          elif ([$f.file, $f.title, $f.description] | any(.[]; type != "string")) then
+            $at + " の file / title / description に文字列でない値があります"
+          else empty
+          end
+      ]
+    else [] end
+  )
+  | join(" / ")
+' 2>/dev/null); then
+  >&2 echo "[self-review] findings の検証中に jq がエラーを返しました: $FILE"
+  exit 1
+fi
+
+if [[ -n "$SCHEMA_ERRORS" ]]; then
+  # ${FILE} を波括弧で囲むのは、直後の全角括弧を bash が変数名の一部として読んでしまい
+  # "FILE）: unbound variable" で落ちるため（この修正の動作確認で実際に踏んだ）。
+  >&2 echo "[self-review] findings がスキーマに合致しません（${FILE}）: $SCHEMA_ERRORS"
   exit 1
 fi
 

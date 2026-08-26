@@ -134,7 +134,7 @@ Gemini は `--with-gemini` 指定時のみ経路に入る。
   - `codex >= 0.122` 環境では `--ignore-user-config --ignore-rules` もスクリプト内部の判定で追加する（旧 `$CODEX_REPRO_FLAGS`、判定ロジックは Step 0 からスクリプトへ移設済み）
   - モデルはスクリプトが `-c model=`（default: `gpt-5.6-terra`、環境変数 `CODEX_REVIEW_MODEL` で上書き可）で明示する。terra は `--output-schema` 順守を確認済み（2026-07-14）。`--model gpt-5` と旧既定 `gpt-5.3-codex` は ChatGPT アカウント認証だと 400 で拒否されるため使わない（2026-07 実測。5.6 系は影響なし）
   - レビュー指示は `--output-schema` 用プロンプト本文に「以下の diff をレビューせよ」と明示して埋め込む
-- **`claude ultrareview`**: `--json` を必須化。exit code 0=完了 / 1=失敗 / 130=Ctrl-C を尊重し、stdout のみパース対象とする
+- **`claude ultrareview`**: `--json` を必須化。exit code 0=完了 / 1=失敗 / 130=Ctrl-C を尊重し、stdout のみパース対象とする。**呼び出しは `scripts/lib-timeout.sh` の `_timeout` でラップする**（`claude -p` / `codex-review.sh` と同じ）。タイムアウトしたら bug 観点の fallback へ進む。正規化した出力は `validate-findings.sh` へ通す
 
 ### 呼び出し例（bug 観点を Claude-p に投げる、デフォルト）
 
@@ -188,19 +188,39 @@ fi
 # 一時ファイルは mktemp で衝突回避（CWE-377/379 対策）
 umask 077
 TMP=$(mktemp "${TMPDIR:-/tmp}/ultrareview.XXXXXX.json")
-trap 'rm -f "$TMP"' EXIT
+NORMALIZED_FILE=$(mktemp "${TMPDIR:-/tmp}/ultrareview-normalized.XXXXXX.json")
+trap 'rm -f "$TMP" "$NORMALIZED_FILE"' EXIT
 
-claude ultrareview --json > "$TMP"
+# 他のレビュアーと同じく _timeout でラップする。包まないと、CLI が応答しなくなったときに
+# レビュー全体がそこで止まり、fallback にも進めない。
+source "${CLAUDE_SKILL_DIR}/scripts/lib-timeout.sh"
+_timeout 600 claude ultrareview --json > "$TMP"
 RC=$?
 case $RC in
-  0) jq '.' "$TMP" ;;        # 成功: findings を整形
-  1) echo "ultrareview 失敗、claude -p にフォールバック" >&2 ;;
-  130) echo "Ctrl-C 中断" >&2 ;;
+  0) : ;;                    # 成功: 下の正規化と検証へ進む
+  1) echo "ultrareview 失敗、claude -p にフォールバック" >&2; exit 1 ;;
+  130) echo "Ctrl-C 中断" >&2; exit 130 ;;
+  *) echo "ultrareview がタイムアウト（または想定外の終了 $RC）、claude -p にフォールバック" >&2; exit 1 ;;
 esac
+
+# ultrareview の出力は finding-schema.json と完全には一致しないことがあるため、
+# aspect: bug / category / severity を補完する正規化をかける（下の注記を参照）。
+normalize_ultrareview "$TMP" > "$NORMALIZED_FILE"
+
+# 正規化した結果も、ほかのレビュアーと同じ検証ゲートを通す。
+if VALIDATED=$(bash "${CLAUDE_SKILL_DIR}/scripts/validate-findings.sh" "$NORMALIZED_FILE"); then
+  echo "$VALIDATED"
+else
+  echo "ultrareview の出力が検証を通らず、claude -p にフォールバック" >&2
+  exit 1
+fi
 ```
 
 ultrareview の出力は `finding-schema.json` と完全には一致しない可能性があるため、
-パース後に `aspect: bug` / `category` / `severity` を補完する正規化レイヤを通す。
+パース後に `aspect: bug` / `category` / `severity` を補完する正規化レイヤ
+（上の `normalize_ultrareview`）を通す。**正規化しただけで採用してはならない。**
+正規化した結果を `validate-findings.sh` へ通し、失敗したら fallback へ進む
+（ほかのレビュアーとまったく同じ扱いにする）。
 
 ### 呼び出し例（security 観点を Codex に投げる）
 
@@ -402,10 +422,15 @@ if [ -n "$ANTHROPIC_API_KEY" ]; then export BARE_CLAUDE="--bare"; else export BA
 umask 077
 TMP=$(mktemp "${TMPDIR:-/tmp}/ultrareview.XXXXXX.json")
 trap 'rm -f "$TMP"' EXIT
-claude ultrareview --json > "$TMP"
+source "${CLAUDE_SKILL_DIR}/scripts/lib-timeout.sh"
+_timeout 600 claude ultrareview --json > "$TMP"
 ```
 
 PR 番号や base branch も指定可（詳細は `claude ultrareview --help`）。
+
+`_timeout` で包むのは、CLI が応答しなくなったときにレビュー全体を止めないためである
+（`claude -p` / `codex-review.sh` と同じ扱い）。取得したあとの正規化と検証は
+「呼び出し例（bug 観点を ultrareview に投げる）」を参照する。
 
 ### 課金
 
