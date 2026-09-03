@@ -29,6 +29,12 @@
 
 委譲マトリクスの実体（司令塔のモデル、実行役が Codex か実行サブエージェントか）は環境によって変わる。着手前必須チェック・役割ベースの Tier 定義・Codex 未導入時のフォールバック分岐・Codex 呼び出しテンプレート・アンチパターンはすべて `~/.claude/skills/task-delegation/SKILL.md`（委譲体系の正本）を参照。
 
+Codex（T2）へ委譲するときは、依頼内容に応じて**モデルと reasoning effort を毎回明示指定する**。指定を省くと `~/.codex/config.toml` の既定値に落ちる。既定値は依頼内容を見ない固定値なので、重い依頼には足りず、軽い依頼には過剰になる。選び方の正本は `~/.claude/skills/task-delegation/references/codex-routing.md`（モデルと effort のルーティング表）。
+
+## UI 変更 PR — ui-visual-check 必須
+
+CSS・テンプレート・レンダラ・画面コンポーネントなど見た目に影響する変更を PR にするときは、PR 作成前に **`ui-visual-check` スキル**で base / head を同条件で撮影し、Before/After 比較を PR コメントに添付する（2026-08-20 ユーザー指示）。テストとコードレビューが通っていても省略しない。見た目の不具合はスクリーンショットでしか見つからない（artifact-gate PR #15 で 2 件発見の実績）。
+
 ## Markdown ドキュメント作成 — doc-polish 必須
 
 リポジトリに残す Markdown ドキュメント（docs/ 配下・README・ADR・計画文書・ガイド等）を新規作成、または大幅に改稿したら、完成報告の前に必ず **`doc-polish` スキル**を通して表現を研磨する（観点: 一般的でない表現 / 難しい言い回し / 造語・略語 / 図の不足）。スキップして完成報告するのはアンチパターン。
@@ -39,7 +45,7 @@
 
 ## Dotfiles — chezmoi 管理
 
-個人設定ファイル（Ghostty, Neovim, zsh, tmux, Claude Code 等）は **chezmoi** で管理されている。ソースは `~/.local/share/chezmoi/`（リポジトリ `github.com/phantom-suzuki/dotfiles`）。ターミナルは現在 **Ghostty**（`dot_config/ghostty/config.tmpl`）を使用。WezTerm 設定（`dot_config/wezterm/`）も旧環境用に管理下に残しているが、現行のターミナル依存作業は Ghostty を前提にする。
+個人設定ファイル（Ghostty, Neovim, zsh, tmux, Claude Code 等）は **chezmoi** で管理されている。ソースディレクトリのパスは `chezmoi source-path` で確認する（マシンごとに変わる。現在の環境は `~/work/phantom-suzuki/dotfiles`、リポジトリは `github.com/phantom-suzuki/dotfiles`）。ターミナルは現在 **Ghostty**（`dot_config/ghostty/config.tmpl`）を使用。WezTerm 設定（`dot_config/wezterm/`）も旧環境用に管理下に残しているが、現行のターミナル依存作業は Ghostty を前提にする。
 
 **コア規範（必ず守る）**:
 
