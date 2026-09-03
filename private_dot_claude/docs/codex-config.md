@@ -92,15 +92,28 @@ Codex は Claude Code の拡張機構に 1:1 対応する仕組みを公式に�
 **ChatGPT サブスク認証（`auth_mode = chatgpt`）でも 3 モデルすべて使える**ことを 2026-07-14 に
 実挙動で確認した（Codex CLI v0.144.4・Codex.app build 26.707.72221）。
 
-- **既定は `gpt-5.6-terra`**（バランス型・消費は sol の 1/2）。委譲パスの常用モデル。
-- **`gpt-5.6-sol`**（最上位・消費は terra の 2 倍）は既定にせず、重い調査・実装・レビューだけ
-  都度 `--model gpt-5.6-sol` で指定する。
-- **`gpt-5.6-luna`**（最軽量・消費は sol の 1/5）は軽い機械的作業向け。
-- モデル ID は **フル ID で指定する**。5.6 系にエイリアスは無い（プラグインのエイリアスは
-  `spark`→`gpt-5.3-codex-spark` の 1 つだけ）。
-- Codex プラグイン（`/codex:rescue` / `codex-rescue`）経由の effort は
-  `none/minimal/low/medium/high/xhigh` の 6 段のみ。対話 UI の **`max` / `ultra` はプラグイン
-  経由では使えない**。
+- **既定は `gpt-5.6-terra`**（バランス型）。委譲パスの常用モデル。
+- **`gpt-5.6-sol`**（旗艦）は既定にしない。やり直しが高くつく作業だけ、都度 `--model gpt-5.6-sol` で指定する（判定基準の定義は `codex-routing.md`）。
+- **`gpt-5.6-luna`**（高速・安価）は軽い機械的作業向け。
+- 消費の目安は「`gpt-5.6-sol` は `gpt-5.6-terra` の約 2 倍、`gpt-5.6-luna` は約 10 分の 1」。固定比率は置かない（入力と出力で比が変わるため）。単価の実数と基準日は `codex-routing.md` の「消費の目安」を参照。
+- モデル ID は **フル ID で指定する**。Codex プラグインのエイリアスは `spark` → `gpt-5.3-codex-spark` の 1 つだけ。
+- OpenAI API では `gpt-5.6` が `gpt-5.6-sol` を指すエイリアスとして存在する。Codex プラグインは 5.6 系のエイリアスを解釈しないため、混同しない。
+- 依頼内容ごとのモデルと effort の選び方は `~/.claude/skills/task-delegation/references/codex-routing.md`（ルーティング表）が正本。
+
+### effort の対応範囲
+
+モデル自身が対応する effort と、Codex プラグイン経由で指定できる effort は一致しない。プラグイン経由で使えるのは `none` / `minimal` / `low` / `medium` / `high` / `xhigh` の 6 段で、対話 UI の `max` / `ultra` は指定できない。
+
+| モデル | モデル自身の対応範囲 | 実際に指定できる範囲 |
+|---|---|---|
+| `gpt-5.6-sol` | `low`〜`ultra` | `low`〜`xhigh` |
+| `gpt-5.6-terra` | `low`〜`ultra` | `low`〜`xhigh` |
+| `gpt-5.6-luna` | `low`〜`max` | `low`〜`xhigh` |
+| `gpt-5.3-codex-spark` | `low`〜`xhigh` | `low`〜`xhigh` |
+
+右の列は、モデルとプラグインの両方が受け付ける範囲である。`none` と `minimal` はプラグインの検証を通るが、モデル一覧に記載が無いため範囲から外してある。
+
+出典は実機の `~/.codex/models_cache.json`（利用可能モデルの一覧。Codex CLI 0.150.0・2026-09-03 取得）と、Codex プラグインの `scripts/codex-companion.mjs` 内の `VALID_REASONING_EFFORTS`。
 
 ### 履歴の訂正（重要）
 
@@ -110,14 +123,17 @@ Codex は Claude Code の拡張機構に 1:1 対応する仕組みを公式に�
 sol 不可」は現在は誤り。過去に ChatGPT 認証で 400 になった `gpt-5` / `gpt-5.3-codex` の記録は、
 あくまでそれらのモデル固有の話であり、5.6 系には当てはまらない。
 
-### モデル固定箇所の一覧（2026-07-14 時点）
+### モデル固定箇所の一覧（2026-09-04 時点）
 
 | 場所 | 現在の pin | 追従方針 |
 |---|---|---|
-| `config.toml` / `config.seed.toml` の `model` | `gpt-5.6-terra`（更新済み） | 委譲パスの既定。ここで消費を調整 |
+| `config.toml` / `config.seed.toml` の `model` / `model_reasoning_effort` | `gpt-5.6-terra` / `medium` | 指定漏れ時の保険 |
 | self-review `scripts/codex-review.sh` | `-c model=`（default `gpt-5.6-terra`、`CODEX_REVIEW_MODEL` で上書き可） | `--output-schema` 順守を実挙動で確認済み（2026-07-14）。terra を既定として使用 |
 | peer-review `scripts/codex-review.sh` | model 未指定 + `--ignore-user-config` | codex 組み込み既定に追従（＝バージョンで漂う）。決定論が要るなら `-c model=gpt-5.6-sol` を検討 |
 | codex-imagegen | `gpt-image-2`（画像モデル） | テキストモデルとは別領域。対象外 |
+
+- 実機の `~/.codex/config.toml` は `gpt-5.6-sol` / `high` へずれていた。2026-09-04 に seed の値（`gpt-5.6-terra` / `medium`）へ戻した。
+- Claude Code は委譲時にモデルと effort を毎回明示する。よって `config.toml` の値は指定漏れ時の保険と位置づける。
 
 ## reasoning effort 制御マップ
 
@@ -133,12 +149,14 @@ sol 不可」は現在は誤り。過去に ChatGPT 認証で 400 になった `
 
 ## 実務上の含意
 
-- Codex のレートが急増したら、まず `config.toml` の `model_reasoning_effort`（`xhigh` だと最重）を疑う。委譲パスの大量実行に効く。seed の値も合わせて更新する。
+- Codex のレートが急増したら、まず **委譲時に `gpt-5.6-sol` や `high` 以上を選んだ回数**を疑う。Claude Code はモデルと effort を毎回明示するため、消費を決めるのはルーティング表（`codex-routing.md`）の判定であって config.toml ではない。
+- 次に `config.toml` の値を確認する。ここが効くのは、明示指定を忘れた呼び出しだけである。seed の値も合わせて更新する。
 - review 系の effort を変えたいときに config.toml をいじっても効かない。該当スクリプトの `-c model_reasoning_effort=` を直接編集する。
-- 運用方針は「普段は medium で節約、レビュー系だけ high 固定」のメリハリ（2026-06-04 導入、dotfiles PR #7）。実装は `~/.claude/skills/peer-review/scripts/codex-review.sh` と `~/.claude/skills/self-review/references/review-prompts.md` のインラインコメント参照。
+- 運用方針は「委譲はルーティング表に従う、レビュー系だけ high 固定」のメリハリ（2026-06-04 導入、dotfiles PR #7。2026-09-04 に委譲側をルーティング表基準へ変更）。実装は `~/.claude/skills/peer-review/scripts/codex-review.sh` と `~/.claude/skills/self-review/references/review-prompts.md` のインラインコメント参照。
 
 ## 関連
 
 - `~/.claude/skills/task-delegation/SKILL.md` — T2 Codex 委譲の判定（委譲パスの effort はここ経由）。委譲体系の正本
+- `~/.claude/skills/task-delegation/references/codex-routing.md` — Claude Code から Codex へ委譲するときのモデルと effort のルーティング表
 - `~/.codex/AGENTS.md`（`dot_codex/AGENTS.md`）— Codex 側の委譲実行グローバル指針
 - `~/.codex/config.seed.toml` — ポータブル設定の seed

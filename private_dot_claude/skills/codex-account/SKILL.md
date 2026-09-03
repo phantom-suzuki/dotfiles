@@ -100,13 +100,15 @@ codex-work
 
 `model_reasoning_effort`（reasoning effort）は **呼び出しパスによって `~/.codex/config.toml` を尊重するか無視するかが分かれる**。「effort を変えたのに効かない」「想定外にレートが減る」の原因切り分け表。
 
-| パス | config.toml を尊重? | effort の変え方 | レート消費 |
-|---|---|---|---|
-| 委譲（task-delegation T2 default / `/codex:rescue`） | ✅ する（`codex app-server` を `--ignore-user-config` なしで起動） | `~/.codex/config.toml` の `model_reasoning_effort` | **大（本丸）** |
-| peer-review L2 / self-review（`codex exec --ignore-user-config`） | ❌ 無視 | スクリプトに `-c model_reasoning_effort=<x>` を明示指定（`-c` は `--ignore-user-config` があっても効く） | 小（低頻度） |
+effort の決まり方は「呼び出し時のフラグ → 未指定なら `~/.codex/config.toml` → それも無ければ Codex の既定」の順である。
+
+| パス | effort の決まり方 | レート消費 |
+|---|---|---|
+| 委譲（task-delegation T2 / `/codex:rescue`） | `--effort` を毎回明示する（**ここが本丸**）。未指定のときだけ `~/.codex/config.toml` に落ちる（`codex app-server` を `--ignore-user-config` なしで起動するため） | **大** |
+| peer-review L2 / self-review（`codex exec --ignore-user-config`） | スクリプトの `-c model_reasoning_effort=<x>` で決まる。config.toml は無視される（`-c` は `--ignore-user-config` があっても効く） | 小（低頻度） |
 
 運用方針（メリハリ）:
-- **委譲（大量・定型）= `config.toml` で `medium`** に下げてレート節約。レートが急増したら**まずここの `xhigh` を疑う**
+- **委譲 = ルーティング表（`task-delegation/references/codex-routing.md`）に従ってモデルと effort を毎回明示する**。レートが急増したら**まず `gpt-5.6-sol` や `high` 以上を選んだ回数を疑う**。config.toml の値が効くのは明示指定を忘れた呼び出しだけ
 - **レビュー系（少量・質重視）= `-c model_reasoning_effort=high` で固定**。実装は `peer-review/scripts/codex-review.sh` と `self-review/references/review-prompts.md` のインラインコメント参照
 - `~/.codex/config.toml` は chezmoi **管理外**（直接編集が永続。dotfiles リポジトリには含まれない）
 

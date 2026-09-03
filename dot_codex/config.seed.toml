@@ -12,10 +12,12 @@
 #
 # Effort 運用方針の正本は ~/.claude/docs/codex-config.md を参照。
 
-# 既定モデルと reasoning effort。委譲パス（task-delegation T2 / /codex:rescue）はこの
-# default を尊重するため、Codex のレート消費はまずこの値で調整する（普段は medium で節約）。
-# 既定は GPT-5.6 系のバランス型 terra（サブスク認証で動作確認済み・消費は sol の半分）。
-# 重い調査・実装だけ都度 --model gpt-5.6-sol に切り替える運用（正本は codex-config.md）。
+# 既定モデルと reasoning effort。Claude Code からの委譲では毎回 --model / --effort を明示するため、
+# ここの値が効くのは明示指定を忘れた呼び出しだけ（指定漏れ時の保険）。
+# 既定は GPT-5.6 系のバランス型 terra（サブスク認証で動作確認済み）。
+# 消費の目安は「sol は terra の約 2 倍、luna は約 10 分の 1」。
+# 依頼内容ごとのモデルと effort の選び方は、Claude Code 側のルーティング表
+# （~/.claude/skills/task-delegation/references/codex-routing.md）が正本。
 model = "gpt-5.6-terra"
 model_reasoning_effort = "medium"
 

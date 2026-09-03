@@ -46,10 +46,11 @@ description: 実装タスク受領時に、役割ベース（T1 司令塔 / T2 �
 - コンテキスト限定的: Yes / No（対象ファイル: ...）
 - 種別: メカニカル実装 / レビュー対応 / ドキュメント文章化 / 検索・要約 / 設計判断
 - 委譲先: T1 司令塔 / T2 外部 CLI（Codex）/ T3 実行サブエージェント（軽い実行役 / 重い実行役）
+- モデル / effort: <モデル ID> × <effort>（T2 を選んだ場合のみ。根拠: codex-routing.md の該当行）
 - 理由: ...
 ```
 
-Codex 未導入環境では「委譲先: T2」を選ばない。T2 相当のタスクは T3 実行サブエージェントへ回す。このチェックを省略するのはアンチパターン。
+Codex 未導入環境では「委譲先: T2」を選ばない。T2 相当のタスクは T3 実行サブエージェントへ回す。T2 を選んだら、モデルと effort も同時に決める。決め方の正本は `references/codex-routing.md` である。このチェックを省略するのはアンチパターン。
 
 ## Tier 定義（役割ベース）
 
@@ -162,9 +163,12 @@ git commit や git push は実行しないこと。
 | `--wait` | 強制フォアグラウンド |
 | `--resume` | 直前の rescue スレッドを継続（追加指示・深掘り時） |
 | `--fresh` | 既存スレッド破棄して新規開始 |
-| `--model <name>` | モデル指定（例: `gpt-5.3-codex-spark`）。通常は未指定 |
+| `--model <name>` | モデルを毎回明示指定する（例: `gpt-5.3-codex-spark`）。既定に落とすと、依頼内容を見ない固定値で走る |
+| `--effort <level>` | reasoning effort を毎回明示指定する（例: `medium`） |
 
 バックグラウンド実行時は `/codex:status`（進捗）、`/codex:result`（結果取得）、`/codex:cancel`（中断）で管理する。
+
+Codex プラグインは、モデルと effort を未指定のときに `~/.codex/config.toml` の値に落とす。毎回の決め方は `references/codex-routing.md` を参照する。
 
 ### プロンプト構成のコツ
 
@@ -216,11 +220,13 @@ git diff <base>..HEAD --name-only | grep -E '\.terraform/|terraform-provider-|\.
 
 ## 失敗時のフォールバック
 
-委譲先（Codex / 実行サブエージェント）が期待通りの結果を返さない場合:
+実行サブエージェント（T3）が期待通りの結果を返さない場合:
 
 1. プロンプトに不足情報を追加して再試行
-2. それでも改善しない場合、より強い実行役へリルート（例: 軽い実行役 → 重い実行役、Codex → 司令塔 T1）
+2. それでも改善しない場合、より強い実行役へリルート（軽い実行役 → 重い実行役 → 司令塔 T1）
 3. 規模が大きい場合はタスク分割
+
+**Codex（T2）の場合は `references/codex-routing.md` の「失敗したときの昇格」に従う**（effort を 1 段上げる → モデルを 1 つ上げる → 司令塔 T1 へ戻す）。ここに手順を二重に書かない。
 
 ## アンチパターン
 
@@ -234,6 +240,7 @@ git diff <base>..HEAD --name-only | grep -E '\.terraform/|terraform-provider-|\.
 ## 関連
 
 - `~/.claude/CLAUDE.md` の Task Delegation セクション（概要ポインタ。常時注入されるのはこの 1 節のみ）
+- `references/codex-routing.md` — Claude Code から Codex へ委譲するときのモデルと effort のルーティング表
 - `~/.claude/docs/codex-config.md` — Codex の設定管理と reasoning effort 制御マップの正本。どの呼び出し経路が `config.toml` を尊重するかを載せている。レート消費を調べるときはここから入る
 - `~/.claude/rules/git-safety.md`（コミット判断の制約）
 
@@ -246,3 +253,4 @@ git diff <base>..HEAD --name-only | grep -E '\.terraform/|terraform-provider-|\.
 - v3（2026-05-14）: Codex 呼び出しを Bash 直叩きから OpenAI 公式 Codex Plugin (`/codex:rescue`) 経由に移行。stdin 待ちハング・引数渡し不安定を解消
 - v4（2026-07-06）: 委譲マトリクスを役割ベース（T1 司令塔 / T2 外部 CLI 委譲 = Codex / T3 実行サブエージェント）に一般化。司令塔のモデルは可変（セッションのメインモデル）とし、Codex 未導入環境では T2 を skip し T3 へフォールバックする分岐を明記。正本をスキルへ統合（Issue #24）
 - v5（dotfiles Issue #69 / PR #86）: 常時読み込みのルール層を減らすため、ポインタ rule をソースから削除し改訂ログを本スキルへ集約
+- v6（2026-09-04）: T2 の委譲時にモデルと effort を毎回明示するルールと、選び方の正本 `references/codex-routing.md` を追加

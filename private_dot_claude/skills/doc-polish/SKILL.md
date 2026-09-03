@@ -56,7 +56,7 @@ Markdown ドキュメント（計画文書・ADR・ガイド等）の日本語�
 | パラメータ | 必須 | デフォルト | 説明 |
 |---|:--:|---|---|
 | 対象 | Yes | — | PR 番号（例: `PR #1297`）またはファイルパス |
-| モデル | No | `gpt-5.6-terra` | 機械的置換のみなら `luna`、大規模・高難度なら `sol` |
+| モデル / effort | No | `gpt-5.6-terra` × `medium` | 依頼の性質に応じて選ぶ。判定条件の正本は `task-delegation/references/codex-routing.md`（ルーティング表）。ここに条件を再掲しない |
 
 ## 実行手順
 
@@ -82,10 +82,10 @@ Markdown ドキュメント（計画文書・ADR・ガイド等）の日本語�
 `codex:rescue` 経由で委譲する（Bash 直叩き禁止）:
 
 ```text
-/codex:rescue --model gpt-5.6-terra <対象の 1 行サマリ>。詳細指示は <プロンプトファイルの絶対パス> を読むこと。作業ディレクトリは <worktree の絶対パス>
+/codex:rescue --model gpt-5.6-terra --effort medium <対象の 1 行サマリ>。詳細指示は <プロンプトファイルの絶対パス> を読むこと。作業ディレクトリは <worktree の絶対パス>
 ```
 
-800 行超・複数文書で難度が高い場合は `--model gpt-5.6-sol` に切り替える。Codex 未導入環境では T3 実行サブエージェント（重い実行役）へフォールバックする。
+モデルと effort は毎回明示する（省くと `~/.codex/config.toml` の既定値に落ちる）。どの組み合わせを選ぶかは `task-delegation/references/codex-routing.md`（ルーティング表）で判定する。Codex 未導入環境では T3 実行サブエージェント（重い実行役）へフォールバックする。
 
 ### Step 4: 司令塔の diff 検証（必須）
 
