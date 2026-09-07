@@ -251,8 +251,11 @@ cost_fmt=$(printf '$%.2f' "$cost")
 # --- Rate limit segment (Claude.ai Pro/Max only; appears after 1st API response) ---
 # Nudges an account switch as you approach the usage cap before a rate-limit stop.
 # Thresholds overridable via env. All reads are guarded for absence (set -euo pipefail safe).
-RL_WARN=${CLAUDE_RL_WARN:-80}   # yellow gauge
-RL_CRIT=${CLAUDE_RL_CRIT:-90}   # red + macOS notification ("switch account")
+RL_WARN=${CLAUDE_RL_WARN:-70}   # yellow + macOS notification (prepare)
+RL_CRIT=${CLAUDE_RL_CRIT:-80}   # red + macOS notification (switch recommended)
+AUTO_ROTATION_FLAG=/Users/h-suzuki/work/claude-code-account-manager/state/auto-event-enabled
+auto_rotation=false
+[[ -f "$AUTO_ROTATION_FLAG" ]] && auto_rotation=true
 rl_short=""; rl_wide=""
 rl_max=0; rl_label=""; rl_reset=""
 if [[ -n "$five_h" ]]; then
@@ -290,21 +293,75 @@ fi
 if [[ -n "$rl_label" ]]; then
   if (( rl_max >= RL_CRIT )); then
     rl_short="\033[31;1m⚠${rl_max}%\033[0m"
-    # Desktop notification — macOS only, debounced once per reset window, backgrounded
-    if [[ "$(uname)" == "Darwin" && -n "$rl_reset" ]]; then
-      flag="$cache_dir/rl-notified-${rl_reset%%.*}"
-      if [[ ! -f "$flag" ]]; then
-        hm=$(reset_hm "$rl_reset"); hm=${hm:-?}
-        ( osascript -e "display notification \"${rl_label} 使用率 ${rl_max}%。${hm} にリセット。別アカウントへの切替を検討してください\" with title \"Claude Code rate limit\" sound name \"Sosumi\"" >/dev/null 2>&1 & )
-        : > "$flag"
-      fi
+    notice_level="switch"
+    notice_title="Claude Code: 切替推奨"
+    if [[ "$auto_rotation" == true ]]; then
+      notice_body="${rl_label} 使用率 ${rl_max}%。自動確認を開始します。対象アカウントと全枠は操作前に画面で照合します"
+    else
+      notice_body="${rl_label} 使用率 ${rl_max}%。自動切替は受入待ちです。Codexで「Claude切替して」と依頼してください"
     fi
   elif (( rl_max >= RL_WARN )); then
     rl_short="\033[33m${rl_max}%\033[0m"
+    notice_level="prepare"
+    notice_title="Claude Code: 切替準備"
+    if [[ "$auto_rotation" == true ]]; then
+      notice_body="${rl_label} 使用率 ${rl_max}%。自動確認を開始します。対象アカウントと全枠は操作前に画面で照合します"
+    else
+      notice_body="${rl_label} 使用率 ${rl_max}%。自動切替は受入待ちです。Codexで「Claude切替して」と依頼してください"
+    fi
   else
     # Normal: wide shows detailed limits; narrow stays uncluttered.
     rl_short=""
+    notice_level=""
   fi
+
+  # macOS only; one notice per severity and reset window. The statusline value
+  # has no account identity, so the notification never names an account.
+  if [[ -n "$notice_level" && "$(uname)" == "Darwin" && -n "$rl_reset" ]]; then
+    flag="$cache_dir/rl-notified-v2-${notice_level}-${rl_reset%%.*}"
+    notify_lock="$cache_dir/rl-notify-v2-${notice_level}-${rl_reset%%.*}.lock"
+    notify_result="$cache_dir/rl-notify-v2-${notice_level}-${rl_reset%%.*}.result"
+    if [[ ! -f "$flag" ]] && mkdir "$notify_lock" 2>/dev/null; then
+      hm=$(reset_hm "$rl_reset"); hm=${hm:-?}
+      notice_body+="。${hm} にリセット"
+      (
+        exit_code=0
+        osascript -e "display notification \"${notice_body}\" with title \"${notice_title}\" sound name \"Sosumi\"" >/dev/null 2>&1 || exit_code=$?
+        printf '%s severity=%s exitcode=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$notice_level" "$exit_code" > "$notify_result"
+        (( exit_code == 0 )) && : > "$flag"
+        rmdir "$notify_lock" 2>/dev/null || true
+      ) &
+    fi
+
+  fi
+fi
+
+# Statusline cannot initialize Codex IAB/CUA. Notification severity is not a
+# trigger condition: submit each official window to the in-app cron. The
+# helper retains one pending window; a competing window is rejected without a
+# success marker and will be retried by a later statusline invocation.
+record_pending_trigger() {
+  local trigger_window=$1 trigger_used=$2 trigger_reset=$3 auto_flag auto_lock auto_result
+  [[ "$auto_rotation" == true && "$trigger_reset" =~ ^[0-9]+$ ]] || return
+  auto_flag="$cache_dir/rl-auto-v1-${trigger_window}-${trigger_reset}"
+  auto_lock="$auto_flag.lock"
+  auto_result="$auto_flag.result"
+  [[ ! -f "$auto_flag" ]] && mkdir "$auto_lock" 2>/dev/null || return
+  (
+    local auto_exit=0
+    python3 -B /Users/h-suzuki/work/claude-code-account-manager/skills/claude-account-rotation/scripts/pending_trigger.py --state-dir /Users/h-suzuki/work/claude-code-account-manager/state record \
+      --window "$trigger_window" --used "$trigger_used" --reset "$trigger_reset" >/dev/null 2>&1 || auto_exit=$?
+    printf '%s exitcode=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$auto_exit" > "$auto_result"
+    (( auto_exit == 0 )) && : > "$auto_flag"
+    rmdir "$auto_lock" 2>/dev/null || true
+  ) </dev/null &
+}
+
+if [[ -n "$five_h" && "${five_h%%.*}" =~ ^[0-9]+$ ]] && (( ${five_h%%.*} >= 40 )); then
+  record_pending_trigger 5h "${five_h%%.*}" "${rl5_reset%%.*}"
+fi
+if [[ -n "$seven_d" && "${seven_d%%.*}" =~ ^[0-9]+$ ]] && (( ${seven_d%%.*} >= 70 )); then
+  record_pending_trigger 7d "${seven_d%%.*}" "${rl7_reset%%.*}"
 fi
 
 token_window_seg=""
