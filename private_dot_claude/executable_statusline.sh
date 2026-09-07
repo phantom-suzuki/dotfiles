@@ -248,6 +248,18 @@ fi
 # --- Cost formatting ---
 cost_fmt=$(printf '$%.2f' "$cost")
 
+# --- Last-resort row (safety net) ---
+# Everything past this point is side-effect work (rate-limit notices, the
+# account-rotation handoff) that must never be able to blank the bar. Under
+# `set -e` any non-zero status down there aborts the script before the compose
+# step runs, and Claude Code then draws an empty statusline. So arm an EXIT
+# trap now: if the normal rows were never printed, emit this plain fallback and
+# report success. Subshells reset trap dispositions, so command substitutions
+# and the backgrounded helpers below cannot fire this by accident.
+rendered=0
+fallback_row="${project} ${model} ${used}% ${cost_fmt}"
+trap 'if (( ! rendered )); then printf "%s\n" "$fallback_row"; fi; exit 0' EXIT
+
 # --- Rate limit segment (Claude.ai Pro/Max only; appears after 1st API response) ---
 # Nudges an account switch as you approach the usage cap before a rate-limit stop.
 # Thresholds overridable via env. All reads are guarded for absence (set -euo pipefail safe).
@@ -326,11 +338,15 @@ if [[ -n "$rl_label" ]]; then
       notice_body+="。${hm} にリセット"
       (
         exit_code=0
+        # Cleanup via EXIT trap, so an early exit inside this subshell cannot
+        # leak the lock directory and suppress every later notification.
+        trap 'rmdir "${notify_lock:-}" 2>/dev/null || true' EXIT
         osascript -e "display notification \"${notice_body}\" with title \"${notice_title}\" sound name \"Sosumi\"" >/dev/null 2>&1 || exit_code=$?
         printf '%s severity=%s exitcode=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$notice_level" "$exit_code" > "$notify_result"
-        (( exit_code == 0 )) && : > "$flag"
-        rmdir "$notify_lock" 2>/dev/null || true
-      ) &
+        if (( exit_code == 0 )); then
+          : > "$flag"
+        fi
+      ) </dev/null >/dev/null 2>&1 &
     fi
 
   fi
@@ -340,28 +356,52 @@ fi
 # trigger condition: submit each official window to the in-app cron. The
 # helper retains one pending window; a competing window is rejected without a
 # success marker and will be retried by a later statusline invocation.
+# Every `return` below is an explicit `return 0`, and both call sites append
+# `|| true`. A bare `return` (or an unguarded non-zero status) yields the exit
+# status of the preceding test, and under `set -e` that aborts the whole script
+# before a single row is printed — the statusline then renders as a blank bar.
+# The two skip paths are hit constantly in normal operation: once a window has
+# been recorded its success marker exists, and a leaked lock directory lingers
+# until its window rolls over, so a bare `return` blanks the bar for hours.
 record_pending_trigger() {
   local trigger_window=$1 trigger_used=$2 trigger_reset=$3 auto_flag auto_lock auto_result
-  [[ "$auto_rotation" == true && "$trigger_reset" =~ ^[0-9]+$ ]] || return
+  [[ "$auto_rotation" == true && "$trigger_reset" =~ ^[0-9]+$ ]] || return 0
   auto_flag="$cache_dir/rl-auto-v1-${trigger_window}-${trigger_reset}"
   auto_lock="$auto_flag.lock"
   auto_result="$auto_flag.result"
-  [[ ! -f "$auto_flag" ]] && mkdir "$auto_lock" 2>/dev/null || return
+  # Already recorded for this window: nothing to do.
+  [[ -f "$auto_flag" ]] && return 0
+  # Reap a lock left behind by a killed helper (the statusline process group is
+  # torn down on every render, so a slow helper can die before its cleanup).
+  if [[ -d "$auto_lock" ]]; then
+    local lock_age lock_mtime
+    lock_mtime=$(stat -f %m "$auto_lock" 2>/dev/null || stat -c %Y "$auto_lock" 2>/dev/null || echo 0)
+    lock_age=$(( $(date +%s) - ${lock_mtime:-0} ))
+    if (( lock_age > 120 )); then
+      rmdir "$auto_lock" 2>/dev/null || true
+    fi
+  fi
+  mkdir "$auto_lock" 2>/dev/null || return 0
   (
-    local auto_exit=0
+    auto_exit=0
+    # The cleanup runs from an EXIT trap so it cannot be skipped by an early
+    # exit inside this subshell, which is what leaks the lock directory.
+    trap 'rmdir "${auto_lock:-}" 2>/dev/null || true' EXIT
     python3 -B /Users/h-suzuki/work/claude-code-account-manager/skills/claude-account-rotation/scripts/pending_trigger.py --state-dir /Users/h-suzuki/work/claude-code-account-manager/state record \
       --window "$trigger_window" --used "$trigger_used" --reset "$trigger_reset" >/dev/null 2>&1 || auto_exit=$?
     printf '%s exitcode=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$auto_exit" > "$auto_result"
-    (( auto_exit == 0 )) && : > "$auto_flag"
-    rmdir "$auto_lock" 2>/dev/null || true
-  ) </dev/null &
+    if (( auto_exit == 0 )); then
+      : > "$auto_flag"
+    fi
+  ) </dev/null >/dev/null 2>&1 &
+  return 0
 }
 
 if [[ -n "$five_h" && "${five_h%%.*}" =~ ^[0-9]+$ ]] && (( ${five_h%%.*} >= 40 )); then
-  record_pending_trigger 5h "${five_h%%.*}" "${rl5_reset%%.*}"
+  record_pending_trigger 5h "${five_h%%.*}" "${rl5_reset%%.*}" || true
 fi
 if [[ -n "$seven_d" && "${seven_d%%.*}" =~ ^[0-9]+$ ]] && (( ${seven_d%%.*} >= 70 )); then
-  record_pending_trigger 7d "${seven_d%%.*}" "${rl7_reset%%.*}"
+  record_pending_trigger 7d "${seven_d%%.*}" "${rl7_reset%%.*}" || true
 fi
 
 token_window_seg=""
@@ -428,6 +468,8 @@ else
   (( rl_max >= RL_CRIT )) && [[ -n "$rl_short" ]] && line1+=" ${rl_short}"
 fi
 
+# shellcheck disable=SC2034  # read by the EXIT trap armed near cost_fmt
+rendered=1
 printf '%b\n' "$line1"
 [[ -n "$line2" ]] && printf '%b\n' "$line2"
 exit 0
