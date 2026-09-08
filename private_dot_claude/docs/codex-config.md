@@ -142,6 +142,14 @@ sol 不可」は現在は誤り。過去に ChatGPT 認証で 400 になった `
 - Codex CLI 0.150.0 から、`[projects]` で信頼していないディレクトリでは、そのリポジトリの `AGENTS.md` を読まない。新しいリポジトリへ委譲する前に、`config.toml` の `[projects]` に登録されているかを確認する。
 - Codex プラグインは Claude Code セッションごとに `codex app-server` を常駐させる。CLI を更新しても、更新前に起動したセッションは古いバイナリを使い続けるため、更新後は Claude Code セッションを立ち上げ直す。
 
+### GPT-6 Astra 向けの整理（2026-09-08）
+
+- Astra を明示して使うときは、`~/.codex/config.toml` の `[profiles.astra]`（model = `gpt-6-astra`、effort = `medium`）を選び、対話 CLI では `codex --profile astra` で起動する。Claude Code の Codex プラグインはプロファイルを使わないため、`--model gpt-6-astra --effort medium` を渡す。
+- `[features]` の `context_management = { experimental_mode = true }` を、対話セッションの試行として有効にした。この設定は Astra 以外のモデルには効かない。
+- スキル一覧（skills catalog）を 109 件から 63 件に減らした。config.toml で `enabled = false` にしたプラグインは次の 2 群。重複: mationinc 側の scrum-penguin / tameny-base、claude-plugins-official の skill-creator。アプリ系: documents / pdf / spreadsheets / presentations / template-creator / sites / visualize。Google Drive 連携プラグインは `[plugins]` の無効化が効かなかったため、`[[skills.config]]` で 5 スキルを個別に無効化した。この結果、一覧内の各スキル説明は 72 文字で切り詰められなくなり、最長 180 文字まで全文が載る。
+- メモリ機能（`[memories] use_memories`）の効果を、同じプロンプト・同じ作業ディレクトリで計測した。初回入力は有効時 27,748 トークン、無効時 24,459 トークン。差は 3,289 トークン（約 12%）で、メモリの指示文は 13,697 文字。対話セッションでの利点を優先し、メモリ機能は有効のままにする。
+- Astra は完了条件が無いと途中で止まる、または必要以上に続ける。委譲プロンプトの「完了条件」は必須とする（task-delegation スキルの v7）。
+
 ## reasoning effort 制御マップ
 
 `model_reasoning_effort` は **呼び出しパスによって config.toml を尊重するか無視するかが分かれる**。effort を変えても効かない／意図せず重い、という混乱を避けるための制御マップ。
