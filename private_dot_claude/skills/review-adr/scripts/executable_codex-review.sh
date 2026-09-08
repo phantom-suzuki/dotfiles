@@ -45,7 +45,6 @@ fi
 >&2 echo "[review-adr] Codex レビュー実行中..."
 
 codex exec \
-  --full-auto \
   --sandbox read-only \
   --ignore-user-config \
   --ignore-rules \

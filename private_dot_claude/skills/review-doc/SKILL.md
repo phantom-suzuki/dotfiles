@@ -133,7 +133,7 @@ PR 専用（`codex exec review --base <branch>`）のため流用せず、review
 bash "${CLAUDE_SKILL_DIR}/scripts/codex-review.sh" <プロンプトファイルのパス> /tmp/review-doc-codex.txt
 ```
 
-`scripts/codex-review.sh` の内部で `--full-auto` / `--sandbox read-only` / `--ignore-user-config` /
+`scripts/codex-review.sh` の内部で `--sandbox read-only` / `--ignore-user-config` /
 `--ignore-rules` / `--output-last-message` を組み立てて `codex exec` を実行する。
 
 `--with-gemini` 指定時のみ、Gemini を追加で実行する（opt-in）。Gemini が失敗しても Codex/L1 の経路で続行する。

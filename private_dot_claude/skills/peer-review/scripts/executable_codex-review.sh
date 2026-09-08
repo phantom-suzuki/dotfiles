@@ -22,11 +22,14 @@
 #   - `--base` と PROMPT は併用不可（codex CLI の引数排他）。よって PROMPT は渡さず、
 #     codex review の標準観点に任せる。プロジェクト固有のコンテキストは L1 Claude 側で扱う
 #   - `--ignore-user-config --ignore-rules` でユーザー設定の差異を排除
+#   - `CODEX_REVIEW_MODEL` でレビューに使うモデルを変更可能（default: gpt-5.6-terra）
 #   - `--json` で JSONL 出力。最終 `agent_message` を jq で抽出
 #   - `-o <file>` の `output-last-message` は agent_message が空の場合も発生するため、
 #     JSONL 側の抽出を primary、`-o` ファイルを fallback とする
 
 set -uo pipefail
+
+CODEX_MODEL="${CODEX_REVIEW_MODEL:-gpt-5.6-terra}"
 
 # 依存確認
 if ! command -v jq >/dev/null 2>&1; then
@@ -69,11 +72,15 @@ trap 'rm -f "$JSONL_FILE" "$LAST_FILE"' EXIT
 >&2 echo "[peer-review] Codex review 実行中 (base=$BASE_BRANCH)..."
 
 # Codex を非対話で実行。PROMPT は渡さない（--base と排他のため）
+# -c model= はレビュー用モデルを明示する。--ignore-user-config で config.toml を無視するため、
+#   モデル未指定だと Codex CLI の組み込み既定に落ちる。0.153.4 では既定が gpt-6-astra
+#   （高額モデル）になったため、明示指定が必要になる。
 # -c model_reasoning_effort=high: L2 セカンドオピニオンは質が命なので effort を high に固定する。
 #   --ignore-user-config で config.toml を無視するため、-c 明示指定で effort を上書きする
 #   （委譲パスのグローバル default は medium に下げてレートを節約しているが、低頻度な
 #    レビューだけは high を選ぶメリハリ運用）
 codex exec review \
+  -c model="$CODEX_MODEL" \
   -c model_reasoning_effort=high \
   --base "$BASE_BRANCH" \
   --json \
