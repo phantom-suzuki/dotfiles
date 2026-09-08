@@ -26,6 +26,8 @@ model_reasoning_effort = "medium"
 js_repl = false
 # GPT-6 Astra の文脈ノート（実験機能）。Astra 以外のモデルには効かない
 # context_management = { experimental_mode = true }
+# 2026-09-09 サブエージェント（spawn_agent 等）を無効化。セッション消費を抑えるため
+multi_agent = false
 
 # --- 拡張機構（skills / hooks / MCP）の dotfiles 化方針 ---
 #
@@ -73,3 +75,7 @@ js_repl = false
 [profiles.astra]
 model = "gpt-6-astra"
 model_reasoning_effort = "medium"
+
+# 2026-09-09 サブエージェントを無効化（features.multi_agent と併用）
+[agents]
+enabled = false

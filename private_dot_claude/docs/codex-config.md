@@ -149,6 +149,7 @@ sol 不可」は現在は誤り。過去に ChatGPT 認証で 400 になった `
 - スキル一覧（skills catalog）を 109 件から 63 件に減らした。config.toml で `enabled = false` にしたプラグインは次の 2 群。重複: mationinc 側の scrum-penguin / tameny-base、claude-plugins-official の skill-creator。アプリ系: documents / pdf / spreadsheets / presentations / template-creator / sites / visualize。Google Drive 連携プラグインは `[plugins]` の無効化が効かなかったため、`[[skills.config]]` で 5 スキルを個別に無効化した。この結果、一覧内の各スキル説明は 72 文字で切り詰められなくなり、最長 180 文字まで全文が載る。
 - メモリ機能（`[memories] use_memories`）の効果を、同じプロンプト・同じ作業ディレクトリで計測した。初回入力は有効時 27,748 トークン、無効時 24,459 トークン。差は 3,289 トークン（約 12%）で、メモリの指示文は 13,697 文字。対話セッションでの利点を優先し、メモリ機能は有効のままにする。
 - Astra は完了条件が無いと途中で止まる、または必要以上に続ける。委譲プロンプトの「完了条件」は必須とする（task-delegation スキルの v7）。
+- 2026-09-09 にサブエージェント（spawn_agent / send_message / wait_agent 等）を無効化した。設定は `[features] multi_agent = false` と `[agents] enabled = false` の 2 つである。公式の設定リファレンスに載っている 2 キーを使い、`multi_agent_v2 = false` は v2 固定モデルで無視されるため使わない。無効化後のスレッドではサブエージェント用ツールの説明が消え、初回入力は 27,757 トークンから 24,908 トークンに減った。サブエージェントが要る作業は、Claude Code 側の Agent で並列化する。
 
 ## reasoning effort 制御マップ
 
