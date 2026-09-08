@@ -15,6 +15,7 @@
 # 既定モデルと reasoning effort。Claude Code からの委譲では毎回 --model / --effort を明示するため、
 # ここの値が効くのは明示指定を忘れた呼び出しだけ（指定漏れ時の保険）。
 # 既定は GPT-5.6 系のバランス型 terra（サブスク認証で動作確認済み）。
+# GPT-6 Astra（gpt-6-astra）は既定にしない。明示指定でのみ使う。
 # 消費の目安は「sol は terra の約 2 倍、luna は約 10 分の 1」。
 # 依頼内容ごとのモデルと effort の選び方は、Claude Code 側のルーティング表
 # （~/.claude/skills/task-delegation/references/codex-routing.md）が正本。

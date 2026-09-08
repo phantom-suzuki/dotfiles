@@ -90,7 +90,7 @@ Codex は Claude Code の拡張機構に 1:1 対応する仕組みを公式に�
 
 2026-07-09 に GPT-5.6 が登場し、Codex で `sol` / `terra` / `luna` の 3 モデルが使える。
 **ChatGPT サブスク認証（`auth_mode = chatgpt`）でも 3 モデルすべて使える**ことを 2026-07-14 に
-実挙動で確認した（Codex CLI v0.144.4・Codex.app build 26.707.72221）。
+実挙動で確認し、2026-09-08 に Codex CLI 0.153.4 で再確認した。
 
 - **既定は `gpt-5.6-terra`**（バランス型）。委譲パスの常用モデル。
 - **`gpt-5.6-sol`**（旗艦）は既定にしない。やり直しが高くつく作業だけ、都度 `--model gpt-5.6-sol` で指定する（判定基準の定義は `codex-routing.md`）。
@@ -110,10 +110,11 @@ Codex は Claude Code の拡張機構に 1:1 対応する仕組みを公式に�
 | `gpt-5.6-terra` | `low`〜`ultra` | `low`〜`xhigh` |
 | `gpt-5.6-luna` | `low`〜`max` | `low`〜`xhigh` |
 | `gpt-5.3-codex-spark` | `low`〜`xhigh` | `low`〜`xhigh` |
+| `gpt-6-astra` | `low`〜`max` | `low`〜`xhigh` |
 
 右の列は、モデルとプラグインの両方が受け付ける範囲である。`none` と `minimal` はプラグインの検証を通るが、モデル一覧に記載が無いため範囲から外してある。
 
-出典は実機の `~/.codex/models_cache.json`（利用可能モデルの一覧。Codex CLI 0.150.0・2026-09-03 取得）と、Codex プラグインの `scripts/codex-companion.mjs` 内の `VALID_REASONING_EFFORTS`。
+出典は実機の `~/.codex/models_cache.json`（利用可能モデルの一覧。Codex CLI 0.153.4・2026-09-08 取得。モデル一覧には `gpt-6-astra` が加わった）と、Codex プラグインの `scripts/codex-companion.mjs` 内の `VALID_REASONING_EFFORTS`。
 
 ### 履歴の訂正（重要）
 
@@ -129,11 +130,17 @@ sol 不可」は現在は誤り。過去に ChatGPT 認証で 400 になった `
 |---|---|---|
 | `config.toml` / `config.seed.toml` の `model` / `model_reasoning_effort` | `gpt-5.6-terra` / `medium` | 指定漏れ時の保険 |
 | self-review `scripts/codex-review.sh` | `-c model=`（default `gpt-5.6-terra`、`CODEX_REVIEW_MODEL` で上書き可） | `--output-schema` 順守を実挙動で確認済み（2026-07-14）。terra を既定として使用 |
-| peer-review `scripts/codex-review.sh` | model 未指定 + `--ignore-user-config` | codex 組み込み既定に追従（＝バージョンで漂う）。決定論が要るなら `-c model=gpt-5.6-sol` を検討 |
+| peer-review `scripts/codex-review.sh` | `-c model=` で明示（既定 `gpt-5.6-terra`。環境変数 `CODEX_REVIEW_MODEL` で上書き） | 0.153.4 からモデル未指定時の Codex 組み込み既定が `gpt-6-astra` になったため |
 | codex-imagegen | `gpt-image-2`（画像モデル） | テキストモデルとは別領域。対象外 |
 
 - 実機の `~/.codex/config.toml` は `gpt-5.6-sol` / `high` へずれていた。2026-09-04 に seed の値（`gpt-5.6-terra` / `medium`）へ戻した。
 - Claude Code は委譲時にモデルと effort を毎回明示する。よって `config.toml` の値は指定漏れ時の保険と位置づける。
+
+### CLI を更新したときの注意
+
+- Codex CLI 0.147.0 で `codex exec --full-auto` は削除された。代替は `--sandbox workspace-write` であり、review-doc と review-adr のスクリプトからは外した。
+- Codex CLI 0.150.0 から、`[projects]` で信頼していないディレクトリでは、そのリポジトリの `AGENTS.md` を読まない。新しいリポジトリへ委譲する前に、`config.toml` の `[projects]` に登録されているかを確認する。
+- Codex プラグインは Claude Code セッションごとに `codex app-server` を常駐させる。CLI を更新しても、更新前に起動したセッションは古いバイナリを使い続けるため、更新後は Claude Code セッションを立ち上げ直す。
 
 ## reasoning effort 制御マップ
 

@@ -99,8 +99,9 @@ graph TD
 ### モデルを指定するときの注意
 
 - モデル ID はフル ID で指定します。Codex プラグインが解釈するエイリアスは `spark` の 1 つだけです。
-- Codex で使う文脈の広さは、`gpt-5.3-codex-spark` が 128k、他のモデルが 272k です（API の長文脈設定はこれと別枠）。大きな文脈を渡す依頼に `gpt-5.3-codex-spark` は使いません。
+- Codex で使う文脈の広さは、`gpt-5.3-codex-spark` が 128k、GPT-5.6 系が 272k です（API の長文脈設定はこれと別枠）。大きな文脈を渡す依頼に `gpt-5.3-codex-spark` は使いません。
 - 前世代の `gpt-5.5` / `gpt-5.4` / `gpt-5.4-mini` は、再現性の検証で世代を固定したいとき以外は使いません。
+- **GPT-6 Astra（`gpt-6-astra`）**は、2026-09-03 に公開された最上位モデルです。文脈は 1.05M トークンで、effort は `low`〜`max` に対応します。プラグイン経由では `xhigh` までです。単価は 100 万トークンあたり入力 10 ドル、出力 50 ドルで、`gpt-5.6-sol` の約 2.5 倍です。既定のルーティングには入れず、ユーザーが明示して指示したときだけ使います。
 
 ## 第 2 軸: effort を上げ下げする
 
@@ -184,6 +185,7 @@ API の単価（100 万トークンあたりのドル。短い文脈の場合。
 
 | モデル | 入力 | 出力 |
 |---|---|---|
+| `gpt-6-astra` | 10 | 50 |
 | `gpt-5.6-sol` | 4 | 20 |
 | `gpt-5.6-terra` | 2 | 12 |
 | `gpt-5.6-luna` | 0.20 | 1.20 |
@@ -205,9 +207,10 @@ API の単価（100 万トークンあたりのドル。短い文脈の場合。
 
 ## 出典
 
-- モデル一覧・各モデルの既定 effort・対応する effort の段・文脈長: 実機の `~/.codex/models_cache.json`（利用可能モデルの一覧。Codex CLI 0.150.0、2026-09-03 取得）
-- プラグインが受け付ける effort とモデルのエイリアス: Codex プラグインの `scripts/codex-companion.mjs`（`VALID_REASONING_EFFORTS` と `MODEL_ALIASES`。v1.0.4）
+- モデル一覧・各モデルの既定 effort・対応する effort の段・文脈長: 実機の `~/.codex/models_cache.json`（利用可能モデルの一覧。Codex CLI 0.153.4、2026-09-08 取得）
+- プラグインが受け付ける effort とモデルのエイリアス: Codex プラグインの `scripts/codex-companion.mjs`（`VALID_REASONING_EFFORTS` と `MODEL_ALIASES`。v1.0.6。許容 effort は前版と同じ）
 - 「モデルと effort はユーザーが明示しない限り指定しない」: 同プラグインの `agents/codex-rescue.md`
 - `medium` を出発点にする推奨、effort 各段の使いどき、API での `gpt-5.6` が `gpt-5.6-sol` を指すこと: OpenAI Model guidance <https://developers.openai.com/api/docs/guides/latest-model>（2026-09-04 参照）
 - 3 モデルの位置づけ: GPT-5.6 の発表 <https://openai.com/index/gpt-5-6/>（2026-09-04 参照）
+- GPT-6 Astra の位置づけと API モデル情報: OpenAI の発表 <https://openai.com/index/gpt-6-astra/>、API モデルページ <https://developers.openai.com/api/docs/models/gpt-6-astra>（2026-09-08 参照）
 - API の単価と `gpt-5.6-sol` の期間限定価格: OpenAI の料金表 <https://developers.openai.com/api/docs/pricing>（2026-09-04 参照）
