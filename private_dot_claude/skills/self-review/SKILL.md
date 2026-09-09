@@ -1,9 +1,5 @@
 ---
-description: >-
-  Claude Code 内蔵 /simplify と外部レビュアー（Claude-p + Codex）を組み合わせた
-  軽量セルフレビュースキル。デフォルトは bug + security の 2 観点 / 2 並列で 1 パス完結。
-  design 観点・Gemini・claude ultrareview はすべて opt-in。判断が必要な項目は開発者に確認する。
-  「セルフレビュー」「レビュー回して」「self-review」等の依頼時に使用。
+description: 自分の変更を、内蔵 /simplify と外部レビュアー（claude -p と Codex）で軽くセルフレビューする。既定は bug + security の 2 観点。「セルフレビュー」「レビュー回して」のときに使う。
 argument-hint: "[--strategy auto|simple|standard|deep] [--scope changed|staged|all] [--max-iterations N] [--skip-simplify] [--skip-external] [--simplify-via internal|codex] [--with-design] [--with-gemini] [--ultrareview] [--attach-full-file] [--force-external] [--deep]"
 ---
 

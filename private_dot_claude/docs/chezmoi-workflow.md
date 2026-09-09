@@ -64,6 +64,20 @@ chezmoi apply
 
 手元で `git log --show-signature` を通すための「信頼する署名者」一覧（`gpg.ssh.allowedSignersFile`）は自動で用意される。`dot_config/git/allowed_signers.tmpl` が `chezmoi apply` の時点でローカルの公開鍵から `~/.config/git/allowed_signers` を生成する（**鍵の中身はリポジトリに入らない**）。署名を使わないマシンでは、このファイルは生成されない。
 
+## プラグインの有効化はプロジェクト側で行う
+
+有効なプラグインのスキル説明は、毎セッションのシステムプロンプトに全部載る。特定のリポジトリでしか使わないプラグイン（例: scrum-penguin）は、ユーザー設定の `enabledPlugins` ではなく、そのリポジトリの `.claude/settings.json` で有効化する。プロジェクト設定はユーザー設定より優先され、git worktree でも共有される（`settings.local.json` は worktree ごとに別なので使わない）。
+
+```json
+{
+  "enabledPlugins": {
+    "scrum-penguin@mationinc-claude-code-baseline": true
+  }
+}
+```
+
+2026-09-09 時点で、`.scrum/` を持つリポジトリのうち autopipe-penguin / scrum-penguin-sandbox / ai-agent-rollout-platform / observability-platform / otocon-replace は既にプロジェクト側で有効化している。wp-platform / audio-summarizer / matchmaking-platform / scrum-penguin は未対応なので、対応が済むまで `chezmoi.toml` の `[data.claude.enabledPlugins]` でユーザー設定側の有効化を維持している。
+
 ## 変更後のコミット
 
 dotfiles の変更後は chezmoi ソースディレクトリでコミット:
