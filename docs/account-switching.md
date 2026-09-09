@@ -85,26 +85,28 @@ codex-use-work
 
 | 使用率 | 表示 | 通知 |
 |---|---|---|
-| < 80% | 緑ゲージ（wide/medium のみ。`5h:NN%`） | なし |
-| 80–89% | 黄ゲージ | なし |
-| ≥ 90% | 赤太字 `⚠ 5h:NN% 切替検討` | macOS 通知（リセット時刻つき）。リセットウィンドウ単位で 1 回のみ |
+| < 70% | 緑ゲージ（wide/medium のみ。`5h:NN%`） | なし |
+| 70–79% | 黄ゲージ | macOS 通知「切替準備」（リセット時刻つき） |
+| ≥ 80% | 赤太字 `⚠ NN%` | macOS 通知「切替推奨」（リセット時刻つき） |
 
 - 5 時間枠（`five_hour`）と 7 日枠（`seven_day`）の高い方を表示
 - `rate_limits` は **Claude.ai Pro/Max のみ**・最初の API レスポンス後に出現。無い場合は従来表示のまま
-- 通知は macOS（`osascript`）限定・background 実行・`resets_at` をキーにした cooldown ファイル（`/tmp/claude-statusline/rl-notified-*`）で重複抑制
+- 通知は macOS（`osascript`）限定・background 実行・通知段階と `resets_at` をキーにした cooldown ファイル（`/tmp/claude-statusline/rl-notified-*`）で重複抑制。リセット後は再通知する
+- 通知値にはアカウントidentityがない。通知ではアカウントを断定せず、手動切替の開始後にCLIとUIで本人を照合する
+- Fableなどstatuslineに含まれない限定枠は検知できず、値の欠落を「制限なし」と扱わない
 
 ### しきい値の変更
 
-環境変数で上書き可能（既定 80 / 90）:
+環境変数で上書き可能（既定 70 / 80）:
 
 ```bash
 export CLAUDE_RL_WARN=70
-export CLAUDE_RL_CRIT=85
+export CLAUDE_RL_CRIT=80
 ```
 
 ### Claude のアカウント切替（手動）
 
-通知が出たら、別アカウントに切替えるには手動で:
+通知が出たら、このCodexタスクへ「Claude切替して」と依頼する。Codexが対象アカウントをUIで照合してから切替える。Claude Codeだけで手動切替する場合は:
 
 ```
 /login   # Claude Code 内で別アカウントにログインし直す（Keychain が入れ替わる）

@@ -16,3 +16,7 @@
 # 2026-07-28: 旧 session-handoff（同日中に session-handover へ改名）
 .claude/skills/session-handoff
 .claude/skills/session-handoff/**
+
+# 2026-08-29: artifact-sharing.md を artifact-conventions.md へ改名（作成時のテーマ切り替え UI 必須化を追加）。
+# ここに書かないと実機の ~/.claude/rules/ に旧ファイルが残り、CLAUDE.md のポインタと二重化する。
+.claude/rules/artifact-sharing.md
