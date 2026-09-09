@@ -68,7 +68,7 @@ Markdown ドキュメント（計画文書・ADR・ガイド等）の日本語�
 
 ### Step 2: 委譲プロンプトの生成
 
-[references/codex-prompt-template.md](references/codex-prompt-template.md) を雛形に、対象ファイル・作業ディレクトリ・文書固有の制約を埋めたプロンプトを **scratchpad にファイルとして書き出す**（コマンド文字列に日本語長文を埋めない。`tool-call-hygiene` 準拠）。
+[references/codex-prompt-template.md](references/codex-prompt-template.md) を雛形に、対象ファイル・作業ディレクトリ・文書固有の制約を埋めたプロンプトを **scratchpad にファイルとして書き出す**（コマンド文字列に日本語長文を埋めない）。
 
 雛形の「変更してはならないもの」は毎回具体化する。特に:
 

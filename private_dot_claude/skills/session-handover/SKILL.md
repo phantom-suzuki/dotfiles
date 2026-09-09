@@ -170,7 +170,6 @@ memory の <name> を読み、<入口の作業> を進めてください
 ## 関連
 
 - `session-dispatch` — 1 つのアクションプランを複数セッションへ分割して配る場合
-- `~/.claude/rules/tool-call-hygiene.md` — 完了報告の前に実在を確認する検証ゲート
 
 ## 改訂ログ
 
