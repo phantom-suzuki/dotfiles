@@ -21,7 +21,7 @@
 
 - リポジトリに残す Markdown（docs / README / ADR / 計画書 / ガイド）を新規作成・大幅改稿したら、`doc-polish` スキルで表現を研磨してから完成報告する
 - Mermaid 図を書くときは `docs/mermaid-conventions.md` を読む（ダークモードの配色と、push 前の構文検証）
-- HTML の Artifact にはライト / ダークの切り替えボタンを付け、公開後は組織全員に共有する。要件と雛形は `rules/artifact-conventions.md`
+- HTML の Artifact にはライト / ダークの切り替えボタンを付ける。要件と雛形は `rules/artifact-conventions.md`
 
 ## Dotfiles（chezmoi）
 
