@@ -1,6 +1,6 @@
 ---
 name: github-api-efficient
-description: GitHub API / gh CLI を使う前に、最もレートリミット効率の良いメソッド選択・静的キャッシュ・事前budgetチェックを強制する規律スキル。`gh api` / `gh project item-list` / `gh issue list` / GraphQL での Issue・Project・PR の取得、一括操作、「GitHub から取得」「一覧取得」「棚卸し」等の依頼時、特に件数が多い・ループする・繰り返し取得する場面の前に必ず使用する。レートリミット枯渇（403/429）・再取得の無駄を構造的に防ぐ。
+description: GitHub API / gh CLI を多数回・ループ・一括で叩く前に、レートリミット効率の良いメソッド選択とキャッシュ、残量確認を行う。「一覧取得」「棚卸し」「Issue / Project を大量に取得」のときに使う。
 ---
 
 # GitHub API Efficient Skill
@@ -11,7 +11,7 @@ GitHub API（`gh` CLI / REST / GraphQL）を使う作業の前に、**3つの規
 2. **静的キャッシュを通す**（同じ取得を二度叩かない・再取得でデバッグしない）
 3. **重い・ループする取得の前に budget を確認する**（`gh api rate_limit` は無料）
 
-> このスキルは 2026-06-15 の実事故から正本化した。takeover 中に「現 Sprint の Issue を取得」で十分なところを `gh project item-list -L 4000` で全件（約3,200件）を取得し、さらに自分の Python パースのバグを直すたびに全件を再取得して GraphQL レートリミットを枯渇させた。失敗の核心は分量ではなく **①指示スコープ超過 ②再取得でのバグ修正 ③事前budget未確認**。
+> このスキルは 2026-06-15 の実事故から正本化した。セッション再開の作業中に（takeover スキル。2026-07-28 に非推奨化し session-handover へ移行中）「現 Sprint の Issue を取得」で十分なところを `gh project item-list -L 4000` で全件（約3,200件）を取得し、さらに自分の Python パースのバグを直すたびに全件を再取得して GraphQL レートリミットを枯渇させた。失敗の核心は分量ではなく **①指示スコープ超過 ②再取得でのバグ修正 ③事前budget未確認**。
 
 ## いつ発動するか（必須）
 

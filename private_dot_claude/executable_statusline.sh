@@ -5,6 +5,18 @@
 
 set -euo pipefail
 
+# --- Last-resort row (safety net), armed before anything can fail ---
+# Everything below (jq parsing, git lookups, rate-limit notices, the account
+# handoff) runs under `set -e`; any non-zero status would abort the script and
+# Claude Code then draws an empty statusline. Arm the EXIT trap first with a
+# bare fallback, then refine `fallback_row` once the fields are parsed. If the
+# normal rows were never printed, the trap emits the fallback and reports
+# success. Subshells reset trap dispositions, so command substitutions and the
+# backgrounded helpers below cannot fire this by accident.
+rendered=0
+fallback_row="claude"
+trap 'if (( ! rendered )); then printf "%s\n" "$fallback_row"; fi; exit 0' EXIT
+
 input=$(cat)
 
 # --- Terminal width ---
@@ -89,8 +101,14 @@ reset_hm() {
 }
 
 # --- Git branch (cached per project, 5s TTL) ---
-cache_dir="/tmp/claude-statusline"
-mkdir -p "$cache_dir"
+# Per-user, mode 0700 cache under /tmp. A pre-existing directory that is a
+# symlink or owned by someone else is never used: fall back to a private
+# throwaway directory so no write here can be redirected by another user.
+cache_dir="/tmp/claude-statusline-${UID:-$(id -u)}"
+[[ -e "$cache_dir" || -L "$cache_dir" ]] || mkdir -m 700 "$cache_dir" 2>/dev/null || true
+if [[ -L "$cache_dir" || ! -d "$cache_dir" || ! -O "$cache_dir" ]]; then
+  cache_dir=$(mktemp -d "${TMPDIR:-/tmp}/claude-statusline.XXXXXX")
+fi
 cache_file="$cache_dir/$(echo "$project_dir" | tr '/' '_')"
 now=$(date +%s)
 
@@ -248,20 +266,31 @@ fi
 # --- Cost formatting ---
 cost_fmt=$(printf '$%.2f' "$cost")
 
+# --- Last-resort row: refine with the parsed fields ---
+# The EXIT trap is armed at the top of the script; from here on the fallback
+# carries the same core fields as the normal rows, without colour.
+fallback_row="${project} ${model} ${used}% ${cost_fmt}"
+
 # --- Rate limit segment (Claude.ai Pro/Max only; appears after 1st API response) ---
 # Nudges an account switch as you approach the usage cap before a rate-limit stop.
 # Thresholds overridable via env. All reads are guarded for absence (set -euo pipefail safe).
-RL_WARN=${CLAUDE_RL_WARN:-80}   # yellow gauge
-RL_CRIT=${CLAUDE_RL_CRIT:-90}   # red + macOS notification ("switch account")
+RL_WARN=${CLAUDE_RL_WARN:-80}   # local prepare notification
+RL_CRIT=${CLAUDE_RL_CRIT:-95}   # local switch notification
+# Local account-manager checkout. Override with CLAUDE_ACCOUNT_MANAGER_DIR on machines
+# that keep it elsewhere; when the flag file is absent no controller is called.
+ACCOUNT_MANAGER_DIR="${CLAUDE_ACCOUNT_MANAGER_DIR:-$HOME/work/claude-code-account-manager}"
+AUTO_ROTATION_FLAG="$ACCOUNT_MANAGER_DIR/state/auto-event-enabled"
+auto_rotation=false
+[[ -f "$AUTO_ROTATION_FLAG" ]] && auto_rotation=true
 rl_short=""; rl_wide=""
-rl_max=0; rl_label=""; rl_reset=""
+rl_max=0; rl_label=""
 if [[ -n "$five_h" ]]; then
-  v=${five_h%%.*}; v=${v:-0}; rl_max=$v; rl_label="5h"; rl_reset="$rl5_reset"
+  v=${five_h%%.*}; v=${v:-0}; rl_max=$v; rl_label="5h"
 fi
 if [[ -n "$seven_d" ]]; then
   v=${seven_d%%.*}; v=${v:-0}
   if (( v > rl_max )); then
-    rl_max=$v; rl_label="7d"; rl_reset="$rl7_reset"
+    rl_max=$v; rl_label="7d"
   fi
 fi
 
@@ -290,21 +319,95 @@ fi
 if [[ -n "$rl_label" ]]; then
   if (( rl_max >= RL_CRIT )); then
     rl_short="\033[31;1m⚠${rl_max}%\033[0m"
-    # Desktop notification — macOS only, debounced once per reset window, backgrounded
-    if [[ "$(uname)" == "Darwin" && -n "$rl_reset" ]]; then
-      flag="$cache_dir/rl-notified-${rl_reset%%.*}"
-      if [[ ! -f "$flag" ]]; then
-        hm=$(reset_hm "$rl_reset"); hm=${hm:-?}
-        ( osascript -e "display notification \"${rl_label} 使用率 ${rl_max}%。${hm} にリセット。別アカウントへの切替を検討してください\" with title \"Claude Code rate limit\" sound name \"Sosumi\"" >/dev/null 2>&1 & )
-        : > "$flag"
-      fi
-    fi
   elif (( rl_max >= RL_WARN )); then
     rl_short="\033[33m${rl_max}%\033[0m"
   else
     # Normal: wide shows detailed limits; narrow stays uncluttered.
     rl_short=""
   fi
+
+fi
+
+# Statusline starts no worker or agent. It calls the local controller once for
+# each threshold phase and reset window; the controller checks the public CLI
+# identity, reads the saved candidate, and shows a single macOS notification.
+# Every `return` below is an explicit `return 0`, and both call sites append
+# `|| true`. A bare `return` (or an unguarded non-zero status) yields the exit
+# status of the preceding test, and under `set -e` that aborts the whole script
+# before a single row is printed — the statusline then renders as a blank bar.
+# The two skip paths are hit constantly in normal operation: once a window has
+# been recorded its success marker exists, and a leaked lock directory lingers
+# until its window rolls over, so a bare `return` blanks the bar for hours.
+rotation_local_script="$ACCOUNT_MANAGER_DIR/skills/claude-account-rotation/scripts/rotation-local"
+
+rotation_local() {
+  "$rotation_local_script" "$@"
+}
+
+# The controller runs in the background on every render, so only call it when
+# the script is ours: owned by this user, executable, and not writable by group
+# or others. Anything else is skipped and the bar just shows the colour.
+rotation_local_trusted() {
+  local perm
+  [[ -f "$rotation_local_script" && -O "$rotation_local_script" && -x "$rotation_local_script" ]] || return 1
+  perm=$(stat -f %Lp "$rotation_local_script" 2>/dev/null || stat -c %a "$rotation_local_script" 2>/dev/null || echo 777)
+  [[ "$perm" =~ ^[0-7]+$ ]] || return 1
+  (( (8#$perm & 8#022) == 0 ))
+}
+
+record_local_notification() {
+  local trigger_window=$1 trigger_used=$2 trigger_reset=$3 phase auto_key auto_lock auto_result result_age result_mtime
+  [[ "$auto_rotation" == true && "$trigger_reset" =~ ^[0-9]+$ ]] || return 0
+  rotation_local_trusted || return 0
+  # The local controller records delivery against account, reset and phase. Do
+  # not keep a window-long shell marker here: it cannot distinguish an account
+  # switch and used to suppress the next account's notification. A short
+  # throttle only protects the render path from spawning an identical process
+  # on every redraw; it starts no agent and makes no model call.
+  phase=prepare
+  (( trigger_used >= 100 )) && phase=stop
+  (( trigger_used >= RL_CRIT && trigger_used < 100 )) && phase=switch
+  auto_key="$cache_dir/rl-local-v2-${trigger_window}-${trigger_reset}-${phase}"
+  auto_lock="$auto_key.lock"
+  auto_result="$auto_key.result"
+  if [[ -f "$auto_result" ]]; then
+    result_mtime=$(stat -f %m "$auto_result" 2>/dev/null || stat -c %Y "$auto_result" 2>/dev/null || echo 0)
+    result_age=$(( $(date +%s) - ${result_mtime:-0} ))
+    (( result_age < 15 )) && return 0
+  fi
+  # Reap a lock left behind by a killed helper (the statusline process group is
+  # torn down on every render, so a slow helper can die before its cleanup).
+  if [[ -d "$auto_lock" ]]; then
+    local lock_age lock_mtime
+    lock_mtime=$(stat -f %m "$auto_lock" 2>/dev/null || stat -c %Y "$auto_lock" 2>/dev/null || echo 0)
+    lock_age=$(( $(date +%s) - ${lock_mtime:-0} ))
+    if (( lock_age > 120 )); then
+      rmdir "$auto_lock" 2>/dev/null || true
+    fi
+  fi
+  mkdir "$auto_lock" 2>/dev/null || return 0
+  (
+    auto_exit=0
+    # The cleanup runs from an EXIT trap so it cannot be skipped by an early
+    # exit inside this subshell, which is what leaks the lock directory.
+    trap 'rmdir "${auto_lock:-}" 2>/dev/null || true' EXIT
+    rotation_local \
+      --state-dir "$ACCOUNT_MANAGER_DIR"/state notify \
+      --window "$trigger_window" --used "$trigger_used" --reset "$trigger_reset" >/dev/null 2>&1 || auto_exit=$?
+    if (( auto_exit == 0 )); then
+      printf '%s exitcode=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$auto_exit" > "$auto_result"
+    else
+      rm -f "$auto_result"
+    fi
+  ) </dev/null >/dev/null 2>&1 &
+  return 0
+}
+
+if [[ -n "$five_h" && "${five_h%%.*}" =~ ^[0-9]+$ ]] && (( ${five_h%%.*} >= RL_WARN )); then
+  record_local_notification 5h "${five_h%%.*}" "${rl5_reset%%.*}" || true
+fi
+if [[ -n "$seven_d" && "${seven_d%%.*}" =~ ^[0-9]+$ ]] && (( ${seven_d%%.*} >= RL_WARN )); then
+  record_local_notification 7d "${seven_d%%.*}" "${rl7_reset%%.*}" || true
 fi
 
 token_window_seg=""
@@ -371,6 +474,8 @@ else
   (( rl_max >= RL_CRIT )) && [[ -n "$rl_short" ]] && line1+=" ${rl_short}"
 fi
 
+# shellcheck disable=SC2034  # read by the EXIT trap armed near cost_fmt
+rendered=1
 printf '%b\n' "$line1"
 [[ -n "$line2" ]] && printf '%b\n' "$line2"
 exit 0

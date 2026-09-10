@@ -1,6 +1,6 @@
 ---
 name: codex-account
-description: Codex CLI の複数アカウントを CODEX_HOME 方式で管理・切替する。「Codex のアカウント切替」「Codex を別アカウントで」「Codex のアカウント追加/設定」「ワークスペースごとに Codex アカウント」「codex-work セットアップ」「Codex のレートリミット退避」等の依頼時に使用。
+description: Codex CLI の複数アカウントを CODEX_HOME 方式で管理・切り替える。「Codex のアカウント切替」「レートリミット退避」「codex-work セットアップ」のときに使う。
 ---
 
 # Codex Account Switch Skill

@@ -31,7 +31,7 @@ chezmoi apply
 |-----------|--------|-----------------|
 | `~/.gitconfig` | `dot_gitconfig.tmpl` | `{{ .name }}`, `{{ .email }}`, `git_signing_enabled`, `git_signing_key` |
 | `~/.zshrc` | `dot_zshrc.tmpl` | なし（クリーンアップ済み、将来のマシン分岐用） |
-| `~/.claude/settings.json` | `private_dot_claude/settings.json.tmpl` | `data.claude.model`, `data.claude.effortLevel`, `data.claude.disable1m`, `data.claude.autoCompactWindow`, `data.claude.autoCompactPct`, `data.claude.mcpServers`, `data.claude.enabledPlugins`, `data.claude.voice` |
+| `~/.claude/settings.json` | `private_dot_claude/settings.json.tmpl` | `data.claude.model`, `data.claude.effortLevel`, `data.claude.disable1m`, `data.claude.autoCompactWindow`, `data.claude.autoCompactPct`, `data.claude.mcpServers`, `data.claude.enabledPlugins`, `data.claude.voice`, `data.claude.defaultMode`, `data.claude.autoMode` |
 
 > **重要（`data.claude.mcpServers` / `enabledPlugins` の安全な運用）**: これらは `chezmoi.toml` の値をそのまま `settings.json` に出力する。①`mcpServers` の `command` / `args` / `env` に API キー・トークンを直書きしない（秘密は環境変数参照や外部 secret manager 経由にする）。②生成済みの `~/.claude/settings.json` を `chezmoi add` / `re-add` しない（秘密が混入した実ファイルをリポジトリに取り込まないため。tmpl 側だけを編集する）。③`enabledPlugins` は信頼済みの marketplace / plugin ID のみ指定する。
 >
@@ -45,6 +45,8 @@ chezmoi apply
 |---|---|
 | `/model` | `data.claude.model` |
 | `/voice` | `data.claude.voice.mode` / `data.claude.voice.enabled` |
+| `/permissions`（既定モードの切り替え） | `data.claude.defaultMode` |
+| `/permissions`（auto mode のセットアップ。`soft_deny` / `environment`） | `data.claude.autoMode`（TOML の配列でそのまま持つ） |
 
 なお `settings.json` がコマンドで書き換わっていると `chezmoi apply` は「chezmoi が書いた後に変更されている」と検出して確認を求める。**確認を求められたら、まず `chezmoi diff` で意図しない巻き戻りが含まれていないかを見る**。`--force` で押し切る前に必ず差分を読むこと。
 
@@ -61,6 +63,20 @@ chezmoi apply
 加えて、その公開鍵を GitHub に **Signing Key として登録する**（Settings → SSH and GPG keys → New SSH key → Key type = Signing Key）。認証用（Authentication Key）として登録済みでも、署名用は別枠での登録が必要。登録しないと GitHub 上で Unverified のままになる。
 
 手元で `git log --show-signature` を通すための「信頼する署名者」一覧（`gpg.ssh.allowedSignersFile`）は自動で用意される。`dot_config/git/allowed_signers.tmpl` が `chezmoi apply` の時点でローカルの公開鍵から `~/.config/git/allowed_signers` を生成する（**鍵の中身はリポジトリに入らない**）。署名を使わないマシンでは、このファイルは生成されない。
+
+## プラグインの有効化はプロジェクト側で行う
+
+有効なプラグインのスキル説明は、毎セッションのシステムプロンプトに全部載る。特定のリポジトリでしか使わないプラグイン（例: scrum-penguin）は、ユーザー設定の `enabledPlugins` ではなく、そのリポジトリの `.claude/settings.json` で有効化する。プロジェクト設定はユーザー設定より優先され、git worktree でも共有される（`settings.local.json` は worktree ごとに別なので使わない）。
+
+```json
+{
+  "enabledPlugins": {
+    "scrum-penguin@mationinc-claude-code-baseline": true
+  }
+}
+```
+
+2026-09-09 時点で、`.scrum/` を持つリポジトリのうち autopipe-penguin / scrum-penguin-sandbox / ai-agent-rollout-platform / observability-platform / otocon-replace は既にプロジェクト側で有効化している。wp-platform / audio-summarizer / matchmaking-platform / scrum-penguin は未対応なので、対応が済むまで `chezmoi.toml` の `[data.claude.enabledPlugins]` でユーザー設定側の有効化を維持している。
 
 ## 変更後のコミット
 

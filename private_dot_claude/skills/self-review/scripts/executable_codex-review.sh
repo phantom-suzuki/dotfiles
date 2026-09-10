@@ -20,6 +20,9 @@
 #     400 invalid_request_error で拒否される（2026-07 実測。5.6 系は影響なし）。
 # - codex exec は git リポジトリ内（trusted directory）を cwd にして実行すること。
 #   リポジトリ外から呼ぶと "Not inside a trusted directory" で失敗する。
+# - codex exec の呼び出しは lib-timeout.sh の _timeout でラップする（macOS に timeout
+#   コマンドは無いため、素の timeout を直接使わないこと）。既定 300 秒、環境変数
+#   CODEX_REVIEW_TIMEOUT で上書き可能。
 #
 # Usage:
 #   cat <<'EOF' | bash codex-review.sh <schema-path> <prompt-body-file>
@@ -33,17 +36,27 @@
 # 標準入力:
 #   diff 本文（git diff の出力）
 #
+# 環境変数:
+#   CODEX_REVIEW_MODEL    codex exec に渡すモデル（default: gpt-5.6-terra）
+#   CODEX_REVIEW_TIMEOUT  codex exec のタイムアウト秒数（default: 300）
+#
 # 出力:
 #   stdout - codex の --output-last-message 内容（finding-schema.json 準拠 JSON を想定）
+#            codex exec 自身が最終メッセージを stdout にも書くため、そちらは /dev/null へ
+#            捨てて二重出力を防いでいる（本体は $TMP から cat する 1 回だけ）
 #   stderr - 進行ログ
 #
 # Exit codes:
 #   0 - 成功
-#   1 - 依存コマンド不足 / 引数不足 / codex 実行失敗
+#   1 - 依存コマンド不足 / 引数不足 / codex 実行失敗 / タイムアウト
 
 set -uo pipefail
 
+LIB_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+source "${LIB_DIR}/lib-timeout.sh"
+
 CODEX_MODEL="${CODEX_REVIEW_MODEL:-gpt-5.6-terra}"
+CODEX_REVIEW_TIMEOUT="${CODEX_REVIEW_TIMEOUT:-300}"
 
 if ! command -v codex >/dev/null 2>&1; then
   >&2 echo "[self-review] codex CLI が見つかりません。security/design 観点は他レビュアーにフォールバックしてください"
@@ -129,16 +142,30 @@ fi
   echo '```diff'
   cat "$DIFF_FILE"
   echo '```'
-} | codex exec \
+} | _timeout "$CODEX_REVIEW_TIMEOUT" codex exec \
   -c model="$CODEX_MODEL" \
   -c model_reasoning_effort="$EFFORT" \
   --output-schema "$SCHEMA" \
   --output-last-message "$TMP" \
   --sandbox read-only \
   ${CODEX_REPRO_FLAGS[@]+"${CODEX_REPRO_FLAGS[@]}"} \
-  -
+  - \
+  >/dev/null
+# codex exec は最終メッセージを自身の stdout にも書くため、ここで /dev/null へ捨てる。
+# 捨てないと --output-last-message ($TMP) の内容と合わせて同じ JSON が 2 回出力される
+# （呼び出し側の validate-findings.sh が「JSON オブジェクトが複数連結されています」で
+# 検出する不具合だった）。stderr は進行ログ・エラー診断に使うため捨てない。
 
 EXIT_CODE=$?
+
+# タイムアウト時の終了コードは _timeout がどの実装に落ちたかで変わる。
+#   GNU timeout / gtimeout → 124
+#   perl の alarm（timeout も gtimeout も無い macOS 標準環境）→ 142（128 + SIGALRM 14）
+# macOS では 142 になるため、124 だけを見るとタイムアウト分岐が死にコードになる。
+if [[ $EXIT_CODE -eq 124 || $EXIT_CODE -eq 142 ]]; then
+  >&2 echo "[self-review] Codex がタイムアウトしました（${CODEX_REVIEW_TIMEOUT}秒）"
+  exit 1
+fi
 
 if [[ $EXIT_CODE -ne 0 ]]; then
   >&2 echo "[self-review] Codex 実行失敗 (exit=$EXIT_CODE)"
