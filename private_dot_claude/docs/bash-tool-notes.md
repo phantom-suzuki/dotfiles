@@ -18,11 +18,11 @@ Claude Code の Bash ツールを使うときに、この環境で実際に起�
 
 ## codex をコマンド位置に書くとフックが拒否する
 
-PreToolUse フック `hooks/block-codex-direct.py` は、コマンド位置のトークンの basename が `codex` の実行を deny する（`codex exec` / `timeout 60 codex` / `FOO=1 codex` / `$(codex ...)` / バッククォート）。クォートや heredoc の中身も分割して検査するので、grep パターンや heredoc 本文に `codex` で始まる行があっても拒否される。
+PreToolUse フック `hooks/block-codex-direct.py` は、コマンド位置のトークンの basename が `codex` の実行を deny する（`codex exec` / `timeout 60 codex` / `FOO=1 codex` / `$(codex ...)` / バッククォート / `>/tmp/out codex`）。2026-09-11 の書き換え（dotfiles PR #75）以降は、クォート文字列・コメント・heredoc 本文を除いてから検査するので、grep パターンや heredoc 本文に `codex` で始まる行があっても拒否されない。例外は、複数行のダブルクォート内で始まるコマンド置換の中の heredoc（dotfiles Issue #113）。
 
 - Codex の呼び出しは `codex:rescue` 経由に統一する（対話は `/codex:rescue`、委譲は `codex-rescue` サブエージェント）
 - レビュー系スキル同梱の `bash .../codex-review.sh` のようなスクリプト呼び出しは検査対象外
-- Codex に渡すプロンプト本文は Write ツールでファイルにしてパスを渡す
+- Codex に渡すプロンプト本文は Write ツールでファイルにしてパスを渡す（長文はコマンド文字列に埋めない、という理由でこの運用は変えない）
 
 ## 長い本文はファイル経由で渡す
 
