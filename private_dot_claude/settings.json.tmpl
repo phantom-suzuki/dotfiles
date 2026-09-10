@@ -165,7 +165,11 @@
       "Bash(git push origin master)",
       "Bash(git reset --hard *)",
       "Bash(git clean -f *)",
-      "Bash(git rebase *)"
+      "Bash(git rebase *)",
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(**/.env)",
+      "Read(**/.env.*)"
     ],
     {{- /* /permissions で切り替えた既定モードは settings.json に直接書かれる。data.claude.defaultMode で上書きする（未定義なら acceptEdits）。 */}}
     "defaultMode": {{ dig "claude" "defaultMode" "acceptEdits" . | toJson }}
