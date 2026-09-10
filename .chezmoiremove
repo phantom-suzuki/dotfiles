@@ -16,3 +16,13 @@
 # 2026-07-28: 旧 session-handoff（同日中に session-handover へ改名）
 .claude/skills/session-handoff
 .claude/skills/session-handoff/**
+
+# 2026-08-29: artifact-sharing.md を artifact-conventions.md へ改名（作成時のテーマ切り替え UI 必須化を追加）。
+# ここに書かないと実機の ~/.claude/rules/ に旧ファイルが残り、CLAUDE.md のポインタと二重化する。
+.claude/rules/artifact-sharing.md
+
+# 2026-09-09: Opus 4.7/4.8 時代の tool call parse エラー対策を撤去（Issue #89 / #90）。直近 400 セッションで発生 0 件。
+# 診断スクリプトは archive/ へ移した。
+.claude/rules/tool-call-hygiene.md
+.claude/skills/tool-call-parse-recovery
+.claude/skills/tool-call-parse-recovery/**

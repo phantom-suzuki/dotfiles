@@ -7,7 +7,7 @@ Codex CLI (`~/.codex/`) の設定管理方針と reasoning effort の使い分�
 | 対象 | 実体 | chezmoi 管理 | 理由 |
 |---|---|---|---|
 | Codex 共通指示 | `~/.codex/AGENTS.md` | ✅ `dot_codex/AGENTS.md` | クリーン・ポータブル。委譲時のグローバル指針 |
-| ポータブル設定 seed | `~/.codex/config.seed.toml` | ✅ `dot_codex/config.seed.toml` | model / effort / features の 3 設定のみ切り出し |
+| ポータブル設定 seed | `~/.codex/config.seed.toml` | ✅ `dot_codex/config.seed.toml` | model / effort / features / agents の 4 設定のみ切り出し |
 | config 本体 | `~/.codex/config.toml` | ❌ 管理外 | 大半が Codex.app の自動生成・マシン固有（下記） |
 | 認証情報 | `~/.codex/auth.json` | ❌ 管理外 | 秘密情報。dotfiles に絶対に入れない |
 
@@ -56,9 +56,10 @@ Codex は Claude Code の拡張機構に 1:1 対応する仕組みを公式に�
 - **hooks**: dotfiles 化済み（`dot_codex/hooks/` の `block-codex-direct.py` / `cleanup.sh` /
   `notify.py` と `dot_codex/hooks.json.tmpl`）。`hooks.json` のマシン固有な絶対パスは
   `{{ .chezmoi.homeDir }}` で抽象化し、レンダリング結果が実機の `hooks.json` と一致することを検証済み。
-- **skills**: 未収録（意図的）。実機の `$HOME/.agents/skills` は Claude 側 skills と大半が重複し、
-  `private_dot_claude/skills/` で既に版管理済み。二重管理・churn を避けるため seed に載せない。
-  Codex 固有の独自スキルを作る場合のみ、その時点で `dot_agents/skills/` 等への収録を検討する。
+- **skills**: 収録済み（`dot_agents/skills/`）。Claude 側 skills の丸ごとコピーはやめ、Codex 単体で
+  意味を持つ 3 個（codex-account / db / terraform-apply-recovery）だけを選び、Codex 向けの短い
+  description に書き直して置く。GPT-6 Astra 向けの公式推奨「スキルは少なく、description は
+  『いつ使う / 何を解く / いつ使わない』だけ」に従った（2026-09-08）。
 - **MCP**: config.toml 本体は管理外（`node_repl` は Codex.app 生成の絶対パス・SHA256・app バージョン
   を含みマシン固有）。ポータブルに移植したいサーバー（chrome-devtools / playwright）だけを
   `config.seed.toml` のコメントサンプルとして残し、新マシンで config.toml へ手で反映する。
@@ -124,7 +125,22 @@ Codex は Claude Code の拡張機構に 1:1 対応する仕組みを公式に�
 sol 不可」は現在は誤り。過去に ChatGPT 認証で 400 になった `gpt-5` / `gpt-5.3-codex` の記録は、
 あくまでそれらのモデル固有の話であり、5.6 系には当てはまらない。
 
-### モデル固定箇所の一覧（2026-09-04 時点）
+### モデル固定箇所の一覧（現行: 2026-09-09 時点）
+
+新マシンへ反映するときは、この表の値を使う。次の節の 2026-07-14 の表は履歴で、値は古い。
+
+| 場所 | 現在の pin | 追従方針 |
+|---|---|---|
+| `config.toml` / `config.seed.toml` の `model` / `model_reasoning_effort` | `gpt-6-astra` / `medium` | 委譲パスの既定。ここで消費を調整 |
+| `config.seed.toml` の `[agents] enabled` | `false` | サブエージェントを無効化（理由は「reasoning effort 制御マップ」の 2026-09-09 の段落） |
+| self-review `scripts/codex-review.sh` | `-c model=`（default `gpt-5.6-terra`、`CODEX_REVIEW_MODEL` で上書き可）、effort `high` 固定 | 2026-07-14 から変更なし |
+| peer-review `scripts/codex-review.sh` | `-c model=`（default `gpt-5.6-terra`、`CODEX_REVIEW_MODEL` で上書き可）、effort は既定 `high`（diff 2,000 行超で `medium`） | 0.153.4 からモデル未指定時の組み込み既定が `gpt-6-astra` になったため明示（2026-09-08） |
+| review-doc / review-adr `scripts/codex-review.sh` | model 未指定 + `--ignore-user-config` | codex 組み込み既定に追従（0.153.4 以降は `gpt-6-astra`。`--full-auto` は 0.147.0 で削除されたため外した） |
+| codex-imagegen | `gpt-image-2`（画像モデル） | テキストモデルとは別領域。対象外 |
+
+### モデル固定箇所の一覧（履歴: 2026-09-04 時点）
+
+以下は 2026-09-04 時点の記録で、現行値ではない。
 
 | 場所 | 現在の pin | 追従方針 |
 |---|---|---|
@@ -148,7 +164,7 @@ sol 不可」は現在は誤り。過去に ChatGPT 認証で 400 になった `
 - `[features]` の `context_management = { experimental_mode = true }` を、対話セッションの試行として有効にした。この設定は Astra 以外のモデルには効かない。
 - スキル一覧（skills catalog）を 109 件から 63 件に減らした。config.toml で `enabled = false` にしたプラグインは次の 2 群。重複: mationinc 側の scrum-penguin / tameny-base、claude-plugins-official の skill-creator。アプリ系: documents / pdf / spreadsheets / presentations / template-creator / sites / visualize。Google Drive 連携プラグインは `[plugins]` の無効化が効かなかったため、`[[skills.config]]` で 5 スキルを個別に無効化した。この結果、一覧内の各スキル説明は 72 文字で切り詰められなくなり、最長 180 文字まで全文が載る。
 - メモリ機能（`[memories] use_memories`）の効果を、同じプロンプト・同じ作業ディレクトリで計測した。初回入力は有効時 27,748 トークン、無効時 24,459 トークン。差は 3,289 トークン（約 12%）で、メモリの指示文は 13,697 文字。対話セッションでの利点を優先し、メモリ機能は有効のままにする。
-- Astra は完了条件が無いと途中で止まる、または必要以上に続ける。委譲プロンプトの「完了条件」は必須とする（task-delegation スキルの v7）。
+- Astra は完了条件が無いと途中で止まる、または必要以上に続ける。委譲プロンプトの「完了条件」は必須とする（task-delegation スキルの v8）。
 - 2026-09-09 にサブエージェント（spawn_agent / send_message / wait_agent 等）を無効化した。設定は `[features] multi_agent = false` と `[agents] enabled = false` の 2 つである。公式の設定リファレンスに載っている 2 キーを使い、`multi_agent_v2 = false` は v2 固定モデルで無視されるため使わない。無効化後のスレッドではサブエージェント用ツールの説明が消え、初回入力は 27,757 トークンから 24,908 トークンに減った。サブエージェントが要る作業は、Claude Code 側の Agent で並列化する。
 
 ## reasoning effort 制御マップ
@@ -161,14 +177,30 @@ sol 不可」は現在は誤り。過去に ChatGPT 認証で 400 になった `
 
 ### config.toml を無視するパス
 
-- **review 系スキル**（peer-review の `codex-review.sh`、self-review の `codex exec`）: `--ignore-user-config` を付けるため config.toml を **無視する**。effort を狙った値にするには `-c model_reasoning_effort=<x>` の **明示指定が必須**（`-c` は CLI 明示なので `--ignore-user-config` があっても効く）。低頻度なので質優先で `high` 固定にしてある。
+- **review 系スキル**（peer-review の `codex-review.sh`、self-review の `codex exec`）: `--ignore-user-config` を付けるため config.toml を **無視する**。effort を狙った値にするには `-c model_reasoning_effort=<x>` の **明示指定が必須**（`-c` は CLI 明示なので `--ignore-user-config` があっても効く）。既定は質優先で `high`。ただし **diff が大きいときはスクリプトが自動で `medium` へ落とす**（下記のレート予算ガード）。
+
+### レート予算ガード（review 系、2026-07-28 導入）
+
+大きな diff を `high` で流すと、1 回で数百万トークンを消費する。これを避けるため、両スクリプトが変更行数を見て effort を切り替える。
+
+| スキル | 行数の測り方 | 閾値の環境変数 | 既定 |
+|---|---|---|---|
+| self-review | stdin の diff を `wc -l` | `SELF_REVIEW_DIFF_LIMIT` | 2000 行 |
+| peer-review | `gh pr view` の additions + deletions | `PEER_REVIEW_DIFF_LIMIT` | 2000 行 |
+
+`CODEX_REVIEW_EFFORT` を設定すると自動判定を止めて値を固定できる（両スキル共通）。
+
+2026-09-08 に、既定モデルを GPT-6 Astra、reasoning effort を medium に変更した。Astra の公式既定 Effort は medium である。手元の実測（2026-09-06〜09-08）では、Astra の high はキャッシュ対象外の入力トークン数が gpt-5.6-sol 系の約 3.4 倍だった（1 セッションあたり）。Fast モードは消費が標準の 2.5 倍になるため、`[features]` の `fast_mode = false` で明示的にオフにしてある。high 以上は、複雑な設計や、失敗した作業を再評価するときだけ、都度指定する。
+
+2026-09-09 にサブエージェントを無効化した。設定は `[agents] enabled = false`（公式 Subagents ドキュメント https://learn.chatgpt.com/docs/agent-configuration/subagents の正式キー）と、補助として `[features]` の `multi_agent = false` / `multi_agent_v2 = false` である。背景として、モデル定義（`~/.codex/models_cache.json`）で gpt-6-astra は `multi_agent_version = v2` かつ `multi_agent_reasoning_effort = xhigh` を持ち、親を medium にしても子は xhigh で動く。2026-09-08 の実測では、Astra の子セッションが親の約 3 倍の非キャッシュ入力を使った。`[features]` の旗だけではモデル定義に上書きされる報告（GitHub Issue #31097、0.148.0 時点）があるため、`[agents] enabled` を主にした。有効性はセッションログの `turn_context.multi_agent_version` が `disabled` になることで確認する。
 
 ## 実務上の含意
 
-- Codex のレートが急増したら、まず **委譲時に `gpt-5.6-sol` や `high` 以上を選んだ回数**を疑う。Claude Code はモデルと effort を毎回明示するため、消費を決めるのはルーティング表（`codex-routing.md`）の判定であって config.toml ではない。
-- 次に `config.toml` の値を確認する。ここが効くのは、明示指定を忘れた呼び出しだけである。seed の値も合わせて更新する。
-- review 系の effort を変えたいときに config.toml をいじっても効かない。該当スクリプトの `-c model_reasoning_effort=` を直接編集する。
-- 運用方針は「委譲はルーティング表に従う、レビュー系だけ high 固定」のメリハリ（2026-06-04 導入、dotfiles PR #7。2026-09-04 に委譲側をルーティング表基準へ変更）。実装は `~/.claude/skills/peer-review/scripts/codex-review.sh` と `~/.claude/skills/self-review/references/review-prompts.md` のインラインコメント参照。
+- Codex のレートが急増したら、まず**委譲時に `gpt-5.6-sol` や `high` 以上を選んだ回数**を疑う。Claude Code はモデルと effort を毎回明示するため、消費を決めるのはルーティング表（`codex-routing.md`）の判定である。次に `config.toml` の値（`xhigh` だと最重）を確認する。ここが効くのは明示指定を忘れた呼び出しと、Codex を直接使う対話セッションである。seed の値も合わせて更新する。
+- review 系の effort を変えたいときに config.toml をいじっても効かない。該当スクリプトの `-c model_reasoning_effort=` を直接編集するか、`CODEX_REVIEW_EFFORT` を設定する。
+- 運用方針は「委譲はルーティング表に従う、レビュー系は既定 high・巨大 diff だけ medium へ自動降格」のメリハリ（2026-06-04 導入 = dotfiles PR #7、2026-07-28 にレート予算ガードを追加、2026-09-04 に委譲側をルーティング表基準へ変更）。実装は `~/.claude/skills/peer-review/scripts/codex-review.sh` と `~/.claude/skills/self-review/scripts/codex-review.sh` のインラインコメント参照。
+- **週間上限は Codex Cloud の PR レビューとローカル委譲が同じ枠を共有する**。消費の実測手順は `~/.claude/skills/task-delegation/SKILL.md` の「レート予算の規律」節を参照。
+- `401 Unauthorized: Missing bearer or basic authentication in header` は上限ではなく**ログイン切れ**である。`~/.codex/auth.json` の有無で切り分ける（詳細は `codex-account` スキルの「認証が切れているときの見分け方」節）。
 
 ## 関連
 

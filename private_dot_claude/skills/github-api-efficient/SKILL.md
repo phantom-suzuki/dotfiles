@@ -1,6 +1,6 @@
 ---
 name: github-api-efficient
-description: GitHub API / gh CLI を使う前に、最もレートリミット効率の良いメソッド選択・静的キャッシュ・事前budgetチェックを強制する規律スキル。`gh api` / `gh project item-list` / `gh issue list` / GraphQL での Issue・Project・PR の取得、一括操作、「GitHub から取得」「一覧取得」「棚卸し」等の依頼時、特に件数が多い・ループする・繰り返し取得する場面の前に必ず使用する。レートリミット枯渇（403/429）・再取得の無駄を構造的に防ぐ。
+description: GitHub API / gh CLI を多数回・ループ・一括で叩く前に、レートリミット効率の良いメソッド選択とキャッシュ、残量確認を行う。「一覧取得」「棚卸し」「Issue / Project を大量に取得」のときに使う。
 ---
 
 # GitHub API Efficient Skill

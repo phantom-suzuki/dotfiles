@@ -1,5 +1,5 @@
 ---
-description: ADR (Architecture Decision Record) を論理一貫性・既存ADRとの矛盾・抜け漏れ・軸選定の妥当性・表記整合の観点でレビューする軽量スキル。外部LLM 1回、修正は提案のみで自動編集なし。「ADRレビュー」「review-adr」「ADR を見て」等の依頼時に使用。
+description: ADR を論理一貫性・既存 ADR との矛盾・抜け漏れ・軸選定・表記整合の観点でレビューする。外部 LLM 1 回、修正は提案のみ。「ADR レビュー」「ADR を見て」のときに使う。
 argument-hint: "[adr-file-path] [--skip-codex] [--with-gemini] [--scope this|all]"
 ---
 
