@@ -1,5 +1,5 @@
 ---
-description: 通常の Markdown ドキュメント（README / マイグレーションガイド / spec / RFC / 技術記事 等、ADR を除く）を、可読性・前後整合・参照リンク・更新漏れの観点でレビューする軽量スキル。修正は提案のみで自動編集なし。「ドキュメントレビュー」「Markdown レビュー」「review-doc」「ガイドを見て」等の依頼時に使用。
+description: ADR 以外の Markdown（README / ガイド / spec / RFC / 記事）を、可読性・前後整合・参照リンク・更新漏れの観点でレビューする。修正は提案のみ。「ドキュメントレビュー」「ガイドを見て」のときに使う。
 argument-hint: "[doc-file-path-or-glob] [--skip-codex] [--with-gemini] [--scope this|related]"
 ---
 

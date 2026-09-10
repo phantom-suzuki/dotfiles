@@ -1,5 +1,5 @@
 ---
-description: Claude Code スキルの設計・構造設計を支援する。Progressive Disclosure、参照ファイル分離、安全原則、フロントマター設計等のベストプラクティスに基づくガイド。「スキル設計」「SKILL.md を書く」「スキル構成を考えたい」等の依頼時に使用。
+description: Claude Code スキルの設計を支援する（Progressive Disclosure、参照ファイル分離、安全原則、フロントマター）。「スキル設計」「SKILL.md を書く」のときに使う。
 ---
 
 # Skill Design Guide

@@ -1,26 +1,22 @@
 # Git Conventions
 
-**適用範囲**: すべての git 操作（ブランチ作成 / コミット / Issue・PR 作成）に適用する。安全操作（force push・reset --hard 等）の制約は `~/.claude/rules/git-safety.md` を参照。
-
-本ファイルは旧 `git-branching.md` / `github-conventions.md` / `commit-conventions.md` を 1 本に統合したもの。
+ブランチ作成・コミット・Issue / PR 作成に適用する。危険な操作の扱いは `git-safety.md`。
 
 ## ブランチ戦略
 
-- **戦略判定**: `develop` ブランチが有れば **GitFlow**、無ければ **GitHub Flow**（`git for-each-ref --format='%(refname)' refs/heads/develop 'refs/remotes/*/develop' | grep -q .`）。`git branch -a` を grep する方式は使わない。行頭の空白や worktree の `+` に左右されるうえ、`feature/develop` のような枝を GitFlow と誤判定する
-- **GitFlow**: `feature/*`（分岐元=develop, マージ先=develop）/ `release/*`（分岐元=develop, マージ先=main+develop）/ `hotfix/*`（分岐元=main, マージ先=main+develop）
-- **GitHub Flow**: `feature/*`・`hotfix/*`（分岐元=main, マージ先=main、PR 経由）
-- **「分岐元」と「マージ先」を混同しない**: ブランチを切るときに使うのが分岐元、PR のベースに指定するのがマージ先。`release/*` は develop から切って main へ PR するため、両者が食い違う唯一のケースになる
-- **命名**: 小文字ハイフン区切り。簡潔かつ内容が分かる名前にし、**Issue があれば**番号を含める。例: `feature/123-add-user-auth`
-- **有効 prefix**: 戦略が定義するのは `feature/` `hotfix/`（`release/` は GitFlow のみ）。補助 prefix `bugfix/` `chore/` は分岐元とマージ先を `feature/` と同じフローに従わせる
+- `develop` ブランチが有れば GitFlow、無ければ GitHub Flow。判定は `git for-each-ref --format='%(refname)' refs/heads/develop 'refs/remotes/*/develop' | grep -q .` で行う（`git branch -a` の grep は `feature/develop` を誤判定する）
+- GitFlow: `feature/*`（develop から切り develop へ）/ `release/*`（develop から切り main と develop へ）/ `hotfix/*`（main から切り main と develop へ）
+- GitHub Flow: `feature/*` と `hotfix/*` は main から切り、PR で main へ
+- 分岐元（ブランチを切る元）とマージ先（PR のベース）を混同しない。`release/*` だけ両者が異なる
+- 命名は小文字ハイフン区切り。Issue があれば番号を含める。例: `feature/123-add-user-auth`。補助 prefix の `bugfix/` `chore/` は `feature/` と同じ流れに従う
 
 ## コミット
 
-- **Conventional Commits**: `feat:` / `fix:` / `refactor:` / `docs:` / `test:` / `chore:`
-- 件名は**英語・72 文字以内**
-- `Co-Authored-By` トレイラーを必ず付与する
-- 1 コミット = 1 論理変更（大きな変更は分割する）
+- Conventional Commits（`feat:` / `fix:` / `refactor:` / `docs:` / `test:` / `chore:`）。件名は英語で 72 文字以内
+- 1 コミット 1 論理変更。`Co-Authored-By` トレイラーを付ける
 
 ## Issue / PR
 
-- **言語**: Issue・PR のタイトルと本文は**日本語**が既定。英語にするのは英語圏 OSS・米国企業リポジトリへの投稿、またはユーザーが明示指定した場合のみ
-- **PR フォーマット**: タイトルは変更内容を 70 文字以内で要約。本文は `## 概要` / `## テスト計画` のセクション構成
+- タイトルと本文は日本語が既定。英語圏の OSS や米国企業のリポジトリ、またはユーザーの指定があるときだけ英語
+- PR タイトルは変更内容を 70 文字以内で要約。本文は `## 概要` と `## テスト計画`。AI が実行できない人手の工程（権限付与・実機確認など）があれば節を立てて書く
+- PR は必ず 1 つ以上の Issue を `Closes` で閉じる。`Refs` で逃げない。PR で AC を満たしきれない Issue は分割し、Feature なら Task を Sub-issues にして PR はその Task を閉じる。マージ後にしかできない AC（実データ投入・実機確認）も別 Task に切り出す

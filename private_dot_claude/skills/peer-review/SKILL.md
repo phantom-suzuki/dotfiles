@@ -1,9 +1,5 @@
 ---
-description: >-
-  他者が作成した Pull Request を俯瞰的観点（セキュリティ / アーキテクチャ / 目的達成 /
-  代替案 / Spec 整合）でレビューするスキル。司令塔（セッションのメインモデル、L1）+ Codex CLI（L2）の
-  2 段構成で独立したセカンドオピニオンを収集し、指摘を統合して PR にコメント投稿する。
-  「PR レビュー」「peer review」「ピアレビュー」「他者の PR を見て」等の依頼時に使用。
+description: 他者の Pull Request を、セキュリティ / アーキテクチャ / 目的達成 / 代替案 / Spec 整合の観点でレビューし、Codex のセカンドオピニオンと統合して PR にコメントする。「PR レビュー」「ピアレビュー」のときに使う。
 argument-hint: "[pr-number-or-url] [--skip-codex] [--with-gemini] [--post-mode comment|approve|request-changes]"
 ---
 
