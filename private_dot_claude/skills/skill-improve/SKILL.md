@@ -85,7 +85,7 @@ chezmoi apply   # ユーザー確認後
 ```
 
 - SKILL.md / rules の `.md` は tmpl ではないので直接編集してよい。
-- `settings.json` 等の tmpl 管理ファイルを触る場合は CLAUDE.md の「tmpl の落とし穴」に従う。
+- `settings.json` 等の tmpl 管理ファイルを触る場合は `~/.claude/docs/chezmoi-workflow.md` の「tmpl の落とし穴」に従う。
 - commit/push はユーザーが判断（`chezmoi cd` → commit）。
 
 ### Step 7: 改善ログの蓄積
