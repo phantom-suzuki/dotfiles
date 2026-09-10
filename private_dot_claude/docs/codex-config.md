@@ -91,17 +91,31 @@ Codex は Claude Code の拡張機構に 1:1 対応する仕組みを公式に�
 
 2026-07-09 に GPT-5.6 が登場し、Codex で `sol` / `terra` / `luna` の 3 モデルが使える。
 **ChatGPT サブスク認証（`auth_mode = chatgpt`）でも 3 モデルすべて使える**ことを 2026-07-14 に
-実挙動で確認した（Codex CLI v0.144.4・Codex.app build 26.707.72221）。
+実挙動で確認し、2026-09-08 に Codex CLI 0.153.4 で再確認した。
 
-- **既定は `gpt-5.6-terra`**（バランス型・消費は sol の 1/2）。委譲パスの常用モデル。
-- **`gpt-5.6-sol`**（最上位・消費は terra の 2 倍）は既定にせず、重い調査・実装・レビューだけ
-  都度 `--model gpt-5.6-sol` で指定する。
-- **`gpt-5.6-luna`**（最軽量・消費は sol の 1/5）は軽い機械的作業向け。
-- モデル ID は **フル ID で指定する**。5.6 系にエイリアスは無い（プラグインのエイリアスは
-  `spark`→`gpt-5.3-codex-spark` の 1 つだけ）。
-- Codex プラグイン（`/codex:rescue` / `codex-rescue`）経由の effort は
-  `none/minimal/low/medium/high/xhigh` の 6 段のみ。対話 UI の **`max` / `ultra` はプラグイン
-  経由では使えない**。
+- **既定は `gpt-5.6-terra`**（バランス型）。委譲パスの常用モデル。
+- **`gpt-5.6-sol`**（旗艦）は既定にしない。やり直しが高くつく作業だけ、都度 `--model gpt-5.6-sol` で指定する（判定基準の定義は `codex-routing.md`）。
+- **`gpt-5.6-luna`**（高速・安価）は軽い機械的作業向け。
+- 消費の目安は「`gpt-5.6-sol` は `gpt-5.6-terra` の約 2 倍、`gpt-5.6-luna` は約 10 分の 1」。固定比率は置かない（入力と出力で比が変わるため）。単価の実数と基準日は `codex-routing.md` の「消費の目安」を参照。
+- モデル ID は **フル ID で指定する**。Codex プラグインのエイリアスは `spark` → `gpt-5.3-codex-spark` の 1 つだけ。
+- OpenAI API では `gpt-5.6` が `gpt-5.6-sol` を指すエイリアスとして存在する。Codex プラグインは 5.6 系のエイリアスを解釈しないため、混同しない。
+- 依頼内容ごとのモデルと effort の選び方は `~/.claude/skills/task-delegation/references/codex-routing.md`（ルーティング表）が正本。
+
+### effort の対応範囲
+
+モデル自身が対応する effort と、Codex プラグイン経由で指定できる effort は一致しない。プラグイン経由で使えるのは `none` / `minimal` / `low` / `medium` / `high` / `xhigh` の 6 段で、対話 UI の `max` / `ultra` は指定できない。
+
+| モデル | モデル自身の対応範囲 | 実際に指定できる範囲 |
+|---|---|---|
+| `gpt-5.6-sol` | `low`〜`ultra` | `low`〜`xhigh` |
+| `gpt-5.6-terra` | `low`〜`ultra` | `low`〜`xhigh` |
+| `gpt-5.6-luna` | `low`〜`max` | `low`〜`xhigh` |
+| `gpt-5.3-codex-spark` | `low`〜`xhigh` | `low`〜`xhigh` |
+| `gpt-6-astra` | `low`〜`max` | `low`〜`xhigh` |
+
+右の列は、モデルとプラグインの両方が受け付ける範囲である。`none` と `minimal` はプラグインの検証を通るが、モデル一覧に記載が無いため範囲から外してある。
+
+出典は実機の `~/.codex/models_cache.json`（利用可能モデルの一覧。Codex CLI 0.153.4・2026-09-08 取得。モデル一覧には `gpt-6-astra` が加わった）と、Codex プラグインの `scripts/codex-companion.mjs` 内の `VALID_REASONING_EFFORTS`。
 
 ### 履歴の訂正（重要）
 
@@ -120,21 +134,38 @@ sol 不可」は現在は誤り。過去に ChatGPT 認証で 400 になった `
 | `config.toml` / `config.seed.toml` の `model` / `model_reasoning_effort` | `gpt-6-astra` / `medium` | 委譲パスの既定。ここで消費を調整 |
 | `config.seed.toml` の `[agents] enabled` | `false` | サブエージェントを無効化（理由は「reasoning effort 制御マップ」の 2026-09-09 の段落） |
 | self-review `scripts/codex-review.sh` | `-c model=`（default `gpt-5.6-terra`、`CODEX_REVIEW_MODEL` で上書き可）、effort `high` 固定 | 2026-07-14 から変更なし |
-| peer-review `scripts/codex-review.sh` | model 未指定 + `--ignore-user-config`、effort `high` 固定 | codex 組み込み既定に追従（＝バージョンで漂う） |
-| review-doc / review-adr `scripts/codex-review.sh` | model 未指定 + `--ignore-user-config` | 同上 |
+| peer-review `scripts/codex-review.sh` | `-c model=`（default `gpt-5.6-terra`、`CODEX_REVIEW_MODEL` で上書き可）、effort は既定 `high`（diff 2,000 行超で `medium`） | 0.153.4 からモデル未指定時の組み込み既定が `gpt-6-astra` になったため明示（2026-09-08） |
+| review-doc / review-adr `scripts/codex-review.sh` | model 未指定 + `--ignore-user-config` | codex 組み込み既定に追従（0.153.4 以降は `gpt-6-astra`。`--full-auto` は 0.147.0 で削除されたため外した） |
 | codex-imagegen | `gpt-image-2`（画像モデル） | テキストモデルとは別領域。対象外 |
 
-### モデル固定箇所の一覧（履歴: 2026-07-14 時点）
+### モデル固定箇所の一覧（履歴: 2026-09-04 時点）
 
-以下は 2026-07-14 時点の記録で、現行値ではない。
-
+以下は 2026-09-04 時点の記録で、現行値ではない。
 
 | 場所 | 現在の pin | 追従方針 |
 |---|---|---|
-| `config.toml` / `config.seed.toml` の `model` | `gpt-5.6-terra`（更新済み） | 委譲パスの既定。ここで消費を調整 |
+| `config.toml` / `config.seed.toml` の `model` / `model_reasoning_effort` | `gpt-5.6-terra` / `medium` | 指定漏れ時の保険 |
 | self-review `scripts/codex-review.sh` | `-c model=`（default `gpt-5.6-terra`、`CODEX_REVIEW_MODEL` で上書き可） | `--output-schema` 順守を実挙動で確認済み（2026-07-14）。terra を既定として使用 |
-| peer-review `scripts/codex-review.sh` | model 未指定 + `--ignore-user-config` | codex 組み込み既定に追従（＝バージョンで漂う）。決定論が要るなら `-c model=gpt-5.6-sol` を検討 |
+| peer-review `scripts/codex-review.sh` | `-c model=` で明示（既定 `gpt-5.6-terra`。環境変数 `CODEX_REVIEW_MODEL` で上書き） | 0.153.4 からモデル未指定時の Codex 組み込み既定が `gpt-6-astra` になったため |
 | codex-imagegen | `gpt-image-2`（画像モデル） | テキストモデルとは別領域。対象外 |
+
+- 実機の `~/.codex/config.toml` は `gpt-5.6-sol` / `high` へずれていた。2026-09-04 に seed の値（`gpt-5.6-terra` / `medium`）へ戻した。
+- Claude Code は委譲時にモデルと effort を毎回明示する。よって `config.toml` の値は指定漏れ時の保険と位置づける。
+
+### CLI を更新したときの注意
+
+- Codex CLI 0.147.0 で `codex exec --full-auto` は削除された。代替は `--sandbox workspace-write` であり、review-doc と review-adr のスクリプトからは外した。
+- Codex CLI 0.150.0 から、`[projects]` で信頼していないディレクトリでは、そのリポジトリの `AGENTS.md` を読まない。新しいリポジトリへ委譲する前に、`config.toml` の `[projects]` に登録されているかを確認する。
+- Codex プラグインは Claude Code セッションごとに `codex app-server` を常駐させる。CLI を更新しても、更新前に起動したセッションは古いバイナリを使い続けるため、更新後は Claude Code セッションを立ち上げ直す。
+
+### GPT-6 Astra 向けの整理（2026-09-08）
+
+- Astra を明示して使うときは、`~/.codex/config.toml` の `[profiles.astra]`（model = `gpt-6-astra`、effort = `medium`）を選び、対話 CLI では `codex --profile astra` で起動する。Claude Code の Codex プラグインはプロファイルを使わないため、`--model gpt-6-astra --effort medium` を渡す。
+- `[features]` の `context_management = { experimental_mode = true }` を、対話セッションの試行として有効にした。この設定は Astra 以外のモデルには効かない。
+- スキル一覧（skills catalog）を 109 件から 63 件に減らした。config.toml で `enabled = false` にしたプラグインは次の 2 群。重複: mationinc 側の scrum-penguin / tameny-base、claude-plugins-official の skill-creator。アプリ系: documents / pdf / spreadsheets / presentations / template-creator / sites / visualize。Google Drive 連携プラグインは `[plugins]` の無効化が効かなかったため、`[[skills.config]]` で 5 スキルを個別に無効化した。この結果、一覧内の各スキル説明は 72 文字で切り詰められなくなり、最長 180 文字まで全文が載る。
+- メモリ機能（`[memories] use_memories`）の効果を、同じプロンプト・同じ作業ディレクトリで計測した。初回入力は有効時 27,748 トークン、無効時 24,459 トークン。差は 3,289 トークン（約 12%）で、メモリの指示文は 13,697 文字。対話セッションでの利点を優先し、メモリ機能は有効のままにする。
+- Astra は完了条件が無いと途中で止まる、または必要以上に続ける。委譲プロンプトの「完了条件」は必須とする（task-delegation スキルの v8）。
+- 2026-09-09 にサブエージェント（spawn_agent / send_message / wait_agent 等）を無効化した。設定は `[features] multi_agent = false` と `[agents] enabled = false` の 2 つである。公式の設定リファレンスに載っている 2 キーを使い、`multi_agent_v2 = false` は v2 固定モデルで無視されるため使わない。無効化後のスレッドではサブエージェント用ツールの説明が消え、初回入力は 27,757 トークンから 24,908 トークンに減った。サブエージェントが要る作業は、Claude Code 側の Agent で並列化する。
 
 ## reasoning effort 制御マップ
 
@@ -165,14 +196,15 @@ sol 不可」は現在は誤り。過去に ChatGPT 認証で 400 になった `
 
 ## 実務上の含意
 
-- Codex のレートが急増したら、まず `config.toml` の `model_reasoning_effort`（`xhigh` だと最重）を疑う。委譲パスの大量実行に効く。seed の値も合わせて更新する。
+- Codex のレートが急増したら、まず**委譲時に `gpt-5.6-sol` や `high` 以上を選んだ回数**を疑う。Claude Code はモデルと effort を毎回明示するため、消費を決めるのはルーティング表（`codex-routing.md`）の判定である。次に `config.toml` の値（`xhigh` だと最重）を確認する。ここが効くのは明示指定を忘れた呼び出しと、Codex を直接使う対話セッションである。seed の値も合わせて更新する。
 - review 系の effort を変えたいときに config.toml をいじっても効かない。該当スクリプトの `-c model_reasoning_effort=` を直接編集するか、`CODEX_REVIEW_EFFORT` を設定する。
-- 運用方針は「普段は medium で節約、レビュー系は既定 high・巨大 diff だけ medium へ自動降格」のメリハリ（2026-06-04 導入 = dotfiles PR #7、2026-07-28 にレート予算ガードを追加）。実装は `~/.claude/skills/peer-review/scripts/codex-review.sh` と `~/.claude/skills/self-review/scripts/codex-review.sh` のインラインコメント参照。
+- 運用方針は「委譲はルーティング表に従う、レビュー系は既定 high・巨大 diff だけ medium へ自動降格」のメリハリ（2026-06-04 導入 = dotfiles PR #7、2026-07-28 にレート予算ガードを追加、2026-09-04 に委譲側をルーティング表基準へ変更）。実装は `~/.claude/skills/peer-review/scripts/codex-review.sh` と `~/.claude/skills/self-review/scripts/codex-review.sh` のインラインコメント参照。
 - **週間上限は Codex Cloud の PR レビューとローカル委譲が同じ枠を共有する**。消費の実測手順は `~/.claude/skills/task-delegation/SKILL.md` の「レート予算の規律」節を参照。
 - `401 Unauthorized: Missing bearer or basic authentication in header` は上限ではなく**ログイン切れ**である。`~/.codex/auth.json` の有無で切り分ける（詳細は `codex-account` スキルの「認証が切れているときの見分け方」節）。
 
 ## 関連
 
 - `~/.claude/skills/task-delegation/SKILL.md` — T2 Codex 委譲の判定（委譲パスの effort はここ経由）。委譲体系の正本
+- `~/.claude/skills/task-delegation/references/codex-routing.md` — Claude Code から Codex へ委譲するときのモデルと effort のルーティング表
 - `~/.codex/AGENTS.md`（`dot_codex/AGENTS.md`）— Codex 側の委譲実行グローバル指針
 - `~/.codex/config.seed.toml` — ポータブル設定の seed

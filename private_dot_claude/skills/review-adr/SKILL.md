@@ -125,7 +125,7 @@ done
 bash "${CLAUDE_SKILL_DIR}/scripts/codex-review.sh" <プロンプトファイルのパス> /tmp/review-adr-codex.txt
 ```
 
-`scripts/codex-review.sh` の内部で `--full-auto` / `--sandbox read-only` / `--ignore-user-config` /
+`scripts/codex-review.sh` の内部で `--sandbox read-only` / `--ignore-user-config` /
 `--ignore-rules` / `--output-last-message` を組み立てて `codex exec` を実行する。
 
 `--with-gemini` 指定時のみ、`references/adr-prompt.md` を使って Gemini を追加実行する（opt-in）。

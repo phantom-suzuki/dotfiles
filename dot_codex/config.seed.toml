@@ -24,11 +24,16 @@
 # 既定 Effort が xhigh になっていることである。[features] の multi_agent /
 # multi_agent_v2 の 2 旗も併せて false にするが、これらはモデル定義に上書きされる
 # 既知の問題（GitHub Issue #31097）があるため補助扱いとする。
+# Claude Code からの委譲では毎回 --model / --effort を明示する（正本は
+# ~/.claude/skills/task-delegation/references/codex-routing.md）。ここの値が効くのは、
+# 明示指定を忘れた呼び出しと、Codex を直接使う対話セッションである。
 model = "gpt-6-astra"
 model_reasoning_effort = "medium"
 
 [features]
 js_repl = false
+# GPT-6 Astra の文脈ノート（実験機能）。Astra 以外のモデルには効かない
+# context_management = { experimental_mode = true }
 fast_mode = false
 multi_agent = false
 multi_agent_v2 = false
@@ -60,6 +65,8 @@ enabled = false
 #              選び、Codex 向けの短い description に書き直して置く。GPT-6 Astra 向けの公式
 #              推奨「スキルは少なく、description は『いつ使う / 何を解く / いつ使わない』だけ」
 #              に従った（2026-09-08）。
+#              2026-09-08: スキル一覧（skills catalog）を絞るため、重複プラグイン（mationinc 側の scrum-penguin / tameny-base、claude-plugins-official の skill-creator）とアプリ系プラグイン（documents / pdf / spreadsheets / presentations / template-creator / sites / visualize / google-drive）を config.toml で `enabled = false` にした。
+#              新マシンでも同じ設定を config.toml に手で反映する。
 #   - mcp … config.toml 本体は管理外（node_repl は Codex.app が生成する絶対パス・SHA256・app
 #           バージョンを含みマシン固有）。ポータブルに移植したいサーバーだけを下記のコメント
 #           サンプルとして seed に残す（新マシンで config.toml へ手で反映する）。
@@ -76,3 +83,9 @@ enabled = false
 # [mcp_servers.playwright]
 # command = "npx"   # 実機は nvm の絶対パスだが、PATH が通っていれば npx で可搬
 # args = ["@playwright/mcp@latest", "--user-data-dir=<各自のキャッシュディレクトリ>"]
+
+# Astra を明示して使うときのプロファイル（対話 CLI では --profile astra）
+[profiles.astra]
+model = "gpt-6-astra"
+model_reasoning_effort = "medium"
+
