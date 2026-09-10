@@ -1,6 +1,6 @@
 ---
 name: review-pr
-description: 自分の PR についたレビューコメント（CodeRabbit / 人間レビュアー）と CI 失敗に対応する。コード修正 → コミット → review thread への返信と resolve までを行う。「レビュー対応」「レビューコメントに返信」「CodeRabbit の指摘を直して」「PR のコメントに対応」「review-pr」等の依頼時に使用。他者の PR をレビューする側の依頼では使わない（レビュアー側は pr-reviewer / peer-review スキルが担う）。
+description: 自分の PR に付いたレビューコメント（CodeRabbit / 人）と CI 失敗に対応する。修正 → コミット → スレッド返信と resolve まで。「レビュー対応」「CodeRabbit の指摘を直して」のときに使う。他者の PR をレビューする側は pr-reviewer / peer-review。
 argument-hint: "[pr-number]"
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: codex-imagegen
-description: Codex CLI 経由で gpt-image-2 を呼び画像を生成する。アーキテクチャ図・UI モック・アイコン・バナー・イラスト・プレースホルダー画像等が必要な場面で使用。「画像を生成」「画像を作って」「画像生成」「gpt-image-2」「OpenAI Images」「アーキテクチャ図」「構成図を画像で」「architecture diagram」等のトリガーで発動。ChatGPT Plus / Pro / Business / Enterprise 以上のサブスクが前提。
+description: Codex CLI 経由で gpt-image-2 を呼び、アーキテクチャ図・UI モック・アイコン・バナーなどの画像を生成する。「画像を生成」「構成図を画像で」のときに使う。ChatGPT Plus 以上のサブスクが前提。
 ---
 
 # Codex Imagegen Skill

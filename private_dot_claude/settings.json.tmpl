@@ -243,7 +243,13 @@
     "type": "command",
     "command": "~/.claude/statusline.sh"
   },
-  "enabledPlugins": {{ dig "claude" "enabledPlugins" (dict "gopls-lsp@claude-plugins-official" true "skill-creator@claude-plugins-official" true "codex@openai-codex" true "scrum-penguin@mationinc-claude-code-baseline" true "tameny-base@mationinc-claude-code-baseline" true) . | toJson }},
+  {{- /*
+    既定で有効にするプラグイン。scrum-penguin は既定から外した（スクラム運用していないリポジトリの
+    セッションにも 16 本のスキル説明が毎回載るため）。スクラム運用するリポジトリでは、そのリポジトリの
+    .claude/settings.json の enabledPlugins で有効化する（docs/chezmoi-workflow.md 参照）。
+    マシン単位で足したいときは data.claude.enabledPlugins で丸ごと上書きする。
+  */}}
+  "enabledPlugins": {{ dig "claude" "enabledPlugins" (dict "gopls-lsp@claude-plugins-official" true "skill-creator@claude-plugins-official" true "codex@openai-codex" true "tameny-base@mationinc-claude-code-baseline" true) . | toJson }},
   "extraKnownMarketplaces": {
     "openai-codex": {
       "source": {

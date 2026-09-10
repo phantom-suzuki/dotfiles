@@ -1,6 +1,6 @@
 ---
 name: skill-improve
-description: 直近セッションの会話ログ（jsonl）から「詰まり・ユーザー修正指示・parse 失敗・レビュー指摘」を signal として抽出し、原因となったスキル/ルールの改善案を提示して、人間承認のうえ chezmoi ソースへ反映する自己改善ループ（MVP・手動実行）。「スキル改善」「振り返って改善」「self-improve」「スキルを直したい」「今のやりとりから学んで」等の依頼時に使用。
+description: 直近セッションの会話ログから詰まり・修正指示・レビュー指摘を拾い、原因となったスキルやルールの改善案を出して、承認のうえ chezmoi ソースへ反映する。「スキル改善」「今のやりとりから学んで」のときに使う。
 disable-model-invocation: true
 argument-hint: "[session-id | latest]"
 ---
