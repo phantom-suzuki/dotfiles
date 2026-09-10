@@ -101,8 +101,14 @@ reset_hm() {
 }
 
 # --- Git branch (cached per project, 5s TTL) ---
-cache_dir="/tmp/claude-statusline"
-mkdir -p "$cache_dir"
+# Per-user, mode 0700 cache under /tmp. A pre-existing directory that is a
+# symlink or owned by someone else is never used: fall back to a private
+# throwaway directory so no write here can be redirected by another user.
+cache_dir="/tmp/claude-statusline-${UID:-$(id -u)}"
+[[ -e "$cache_dir" || -L "$cache_dir" ]] || mkdir -m 700 "$cache_dir" 2>/dev/null || true
+if [[ -L "$cache_dir" || ! -d "$cache_dir" || ! -O "$cache_dir" ]]; then
+  cache_dir=$(mktemp -d "${TMPDIR:-/tmp}/claude-statusline.XXXXXX")
+fi
 cache_file="$cache_dir/$(echo "$project_dir" | tr '/' '_')"
 now=$(date +%s)
 
@@ -332,13 +338,27 @@ fi
 # The two skip paths are hit constantly in normal operation: once a window has
 # been recorded its success marker exists, and a leaked lock directory lingers
 # until its window rolls over, so a bare `return` blanks the bar for hours.
+rotation_local_script="$ACCOUNT_MANAGER_DIR/skills/claude-account-rotation/scripts/rotation-local"
+
 rotation_local() {
-  "$ACCOUNT_MANAGER_DIR"/skills/claude-account-rotation/scripts/rotation-local "$@"
+  "$rotation_local_script" "$@"
+}
+
+# The controller runs in the background on every render, so only call it when
+# the script is ours: owned by this user, executable, and not writable by group
+# or others. Anything else is skipped and the bar just shows the colour.
+rotation_local_trusted() {
+  local perm
+  [[ -f "$rotation_local_script" && -O "$rotation_local_script" && -x "$rotation_local_script" ]] || return 1
+  perm=$(stat -f %Lp "$rotation_local_script" 2>/dev/null || stat -c %a "$rotation_local_script" 2>/dev/null || echo 777)
+  [[ "$perm" =~ ^[0-7]+$ ]] || return 1
+  (( (8#$perm & 8#022) == 0 ))
 }
 
 record_local_notification() {
   local trigger_window=$1 trigger_used=$2 trigger_reset=$3 phase auto_key auto_lock auto_result result_age result_mtime
   [[ "$auto_rotation" == true && "$trigger_reset" =~ ^[0-9]+$ ]] || return 0
+  rotation_local_trusted || return 0
   # The local controller records delivery against account, reset and phase. Do
   # not keep a window-long shell marker here: it cannot distinguish an account
   # switch and used to suppress the next account's notification. A short
