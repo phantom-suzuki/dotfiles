@@ -1,0 +1,15 @@
+{{- /*
+  SSH commit 署名を手元で検証するための「信頼する署名者」一覧。
+  git の gpg.ssh.allowedSignersFile がこのファイルを読む。
+
+  中身は chezmoi apply の時点でローカルの公開鍵ファイルから組み立てる。
+  リポジトリには鍵そのものを置かない（ここにあるのは組み立て方の指示だけ）。
+
+  署名を使わないマシン（git_signing_enabled が未定義 or false）では空を出力する。
+  chezmoi は空のファイルを作らないので、そのマシンにこのファイルは生成されない。
+*/}}
+{{- $signingEnabled := dig "git_signing_enabled" false . }}
+{{- $signingKey := dig "git_signing_key" "" . }}
+{{- if and $signingEnabled $signingKey -}}
+{{ .email }} {{ output "cat" $signingKey | trim }}
+{{ end -}}

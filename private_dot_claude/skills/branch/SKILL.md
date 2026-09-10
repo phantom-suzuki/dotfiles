@@ -12,7 +12,7 @@ Create a branch following the project's branching strategy.
 
 1. **Detect branching strategy**:
    ```bash
-   git branch -a | grep -E '(^|\s|/)develop$'
+   git for-each-ref --format='%(refname)' refs/heads/develop 'refs/remotes/*/develop' | grep -q .
    ```
    - Match found → GitFlow mode
    - No match → GitHub Flow mode
@@ -25,14 +25,16 @@ Create a branch following the project's branching strategy.
 3. **Determine base branch**:
 
    **GitFlow:**
-   | Type | Base Branch |
+
+   | Type | Branch-off point |
    |---------|-------------|
    | feature | develop |
    | release | develop |
    | hotfix | main |
 
    **GitHub Flow:**
-   | Type | Base Branch |
+
+   | Type | Branch-off point |
    |---------|-------------|
    | feature | main |
    | hotfix | main |

@@ -53,18 +53,10 @@ if ! command -v gemini >/dev/null 2>&1; then
   exit 1
 fi
 
-# クロスプラットフォーム timeout ラッパー
-# GNU timeout (Linux) / gtimeout (macOS coreutils) / perl alarm (macOS 標準) の順で試す
-_timeout() {
-  local dur="$1"; shift
-  if command -v timeout >/dev/null 2>&1; then
-    timeout "$dur" "$@"
-  elif command -v gtimeout >/dev/null 2>&1; then
-    gtimeout "$dur" "$@"
-  else
-    perl -e 'my $d=shift; alarm $d; exec @ARGV or die "exec failed: $!"' "$dur" "$@"
-  fi
-}
+# クロスプラットフォーム timeout ラッパー（_timeout）は共有ライブラリから読み込む
+# （codex-review.sh でも同じ仕組みが必要になったため lib-timeout.sh へ切り出し済み）
+LIB_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+source "${LIB_DIR}/lib-timeout.sh"
 
 # 軽量プローブ: 1モデルに対して 1 ショットだけ投げる
 # return: 0 成功 / 2 容量不足 (429) / 1 その他エラー

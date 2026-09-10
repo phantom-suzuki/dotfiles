@@ -56,7 +56,7 @@ pr-reviewer が PR にレビューを投稿するときの文面規範、判定�
 
 ## 投稿レシピ（Pull Request Reviews API）
 
-`gh pr review` は行コメント非対応なので、Reviews API に POST する。日本語をコマンド文字列に埋めず、**ファイル + `jq --rawfile`** で組み立てる（tool-call-hygiene 準拠）。
+`gh pr review` は行コメント非対応なので、Reviews API に POST する。日本語をコマンド文字列に埋めず、**ファイル + `jq --rawfile`** で組み立てる。
 
 ```bash
 # 0. セッションのスクラッチパッド領域を SCRATCH に置く（/tmp 直下は使わない）

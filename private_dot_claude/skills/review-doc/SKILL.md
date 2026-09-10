@@ -1,5 +1,5 @@
 ---
-description: 通常の Markdown ドキュメント（README / マイグレーションガイド / spec / RFC / 技術記事 等、ADR を除く）を、可読性・前後整合・参照リンク・更新漏れの観点でレビューする軽量スキル。修正は提案のみで自動編集なし。「ドキュメントレビュー」「Markdown レビュー」「review-doc」「ガイドを見て」等の依頼時に使用。
+description: ADR 以外の Markdown（README / ガイド / spec / RFC / 記事）を、可読性・前後整合・参照リンク・更新漏れの観点でレビューする。修正は提案のみ。「ドキュメントレビュー」「ガイドを見て」のときに使う。
 argument-hint: "[doc-file-path-or-glob] [--skip-codex] [--with-gemini] [--scope this|related]"
 ---
 
@@ -133,7 +133,7 @@ PR 専用（`codex exec review --base <branch>`）のため流用せず、review
 bash "${CLAUDE_SKILL_DIR}/scripts/codex-review.sh" <プロンプトファイルのパス> /tmp/review-doc-codex.txt
 ```
 
-`scripts/codex-review.sh` の内部で `--full-auto` / `--sandbox read-only` / `--ignore-user-config` /
+`scripts/codex-review.sh` の内部で `--sandbox read-only` / `--ignore-user-config` /
 `--ignore-rules` / `--output-last-message` を組み立てて `codex exec` を実行する。
 
 `--with-gemini` 指定時のみ、Gemini を追加で実行する（opt-in）。Gemini が失敗しても Codex/L1 の経路で続行する。

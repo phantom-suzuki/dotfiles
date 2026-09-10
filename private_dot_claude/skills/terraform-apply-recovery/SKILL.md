@@ -1,6 +1,6 @@
 ---
 name: terraform-apply-recovery
-description: Terraform / Terragrunt の apply 失敗・部分成功・state ドリフトからの復旧手順を正本化したスキル。「apply が失敗した」「EntityAlreadyExists / AlreadyExists / 409」「孤児リソース」「state とのズレ」「凍結フラグを true に戻したい」「caller を re-enable したい」「module rename」「moved block」「import block」「removed block」「partial apply」「terraform state mv」「destroy -target」等の依頼時に必ず使用する。途中で失敗した apply の残骸が後で衝突する典型事故（部分成功 → 残骸放置 → 設計変更 → 再開時に EntityAlreadyExists）を防ぐためのプロセス。AWS provider を主例として記載するが、原則と判断ツリーは provider 非依存。
+description: Terraform / Terragrunt の apply が失敗・部分成功したあとの復旧手順（残骸の確認、state と実リソースの整合、import / moved / removed ブロック、0-diff 再 apply）。「apply が失敗した」「EntityAlreadyExists」「state とズレた」「凍結フラグを戻したい」のときに使う。
 ---
 
 # Terraform / Terragrunt Apply Recovery
