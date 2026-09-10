@@ -83,25 +83,27 @@ codex-use-work
 
 ### 挙動
 
-| 使用率 | 表示 | 通知 |
+| 使用率 | 表示 | ローカル制御への通知依頼 |
 |---|---|---|
-| < 70% | 緑ゲージ（wide/medium のみ。`5h:NN%`） | なし |
-| 70–79% | 黄ゲージ | macOS 通知「切替準備」（リセット時刻つき） |
-| ≥ 80% | 赤太字 `⚠ NN%` | macOS 通知「切替推奨」（リセット時刻つき） |
+| < 80% | 緑ゲージ（wide/medium のみ。`5h:NN%`） | なし |
+| 80–94% | 黄ゲージ | `prepare`（切替準備） |
+| 95–99% | 赤太字 `⚠ NN%` | `switch`（切替） |
+| 100% | 赤太字 `⚠ NN%` | `stop`（停止） |
 
-- 5 時間枠（`five_hour`）と 7 日枠（`seven_day`）の高い方を表示
+- 5 時間枠（`five_hour`）と 7 日枠（`seven_day`）の高い方を表示。通知依頼は枠ごとに出す
 - `rate_limits` は **Claude.ai Pro/Max のみ**・最初の API レスポンス後に出現。無い場合は従来表示のまま
-- 通知は macOS（`osascript`）限定・background 実行・通知段階と `resets_at` をキーにした cooldown ファイル（`/tmp/claude-statusline/rl-notified-*`）で重複抑制。リセット後は再通知する
+- statusline 自身は macOS 通知を出さない。アカウント管理の作業ツリー（既定 `~/work/claude-code-account-manager`、環境変数 `CLAUDE_ACCOUNT_MANAGER_DIR` で変更可）にフラグファイル `state/auto-event-enabled` があるときだけ、同ツリーの `rotation-local notify` を背景で 1 回呼ぶ。通知の表示と重複抑制（アカウント・リセット時刻・段階ごと）はそのローカル制御が担う。フラグが無いマシンでは色の変化だけになる
+- statusline 側は、同じ枠・リセット時刻・段階の呼び出しを 15 秒間だけ間引く（描画のたびに同じプロセスを起こさないため）。枠が変わっても呼び出しを抑え込む長期のマーカーは持たない
 - 通知値にはアカウントidentityがない。通知ではアカウントを断定せず、手動切替の開始後にCLIとUIで本人を照合する
 - Fableなどstatuslineに含まれない限定枠は検知できず、値の欠落を「制限なし」と扱わない
 
 ### しきい値の変更
 
-環境変数で上書き可能（既定 70 / 80）:
+環境変数で上書き可能（既定 80 / 95）:
 
 ```bash
-export CLAUDE_RL_WARN=70
-export CLAUDE_RL_CRIT=80
+export CLAUDE_RL_WARN=80
+export CLAUDE_RL_CRIT=95
 ```
 
 ### Claude のアカウント切替（手動）
