@@ -1,9 +1,5 @@
 ---
-description: >-
-  Claude Code 内蔵 /simplify と外部レビュアー（Claude-p + Codex）を組み合わせた
-  軽量セルフレビュースキル。デフォルトは bug + security の 2 観点 / 2 並列で 1 パス完結。
-  design 観点・Gemini・claude ultrareview はすべて opt-in。判断が必要な項目は開発者に確認する。
-  「セルフレビュー」「レビュー回して」「self-review」等の依頼時に使用。
+description: 自分の変更を、内蔵 /simplify と外部レビュアー（claude -p と Codex）で軽くセルフレビューする。既定は bug + security の 2 観点。「セルフレビュー」「レビュー回して」のときに使う。
 argument-hint: "[--strategy auto|simple|standard|deep] [--scope changed|staged|all] [--max-iterations N] [--skip-simplify] [--skip-external] [--simplify-via internal|codex] [--with-design] [--with-gemini] [--ultrareview] [--attach-full-file] [--force-external] [--deep]"
 ---
 
@@ -34,7 +30,7 @@ Claude Code 内蔵 `/simplify` と外部レビュアーを組み合わせ、**1 
 
 | パラメータ | デフォルト | 説明 |
 |-----------|----------|------|
-| `--strategy` | `auto` | `auto`（diff 規模で simple/standard を自動判定）/ `simple`（Simplify のみ）/ `standard`（bug + security 並列）/ `deep`（design + macro 観点 goal-achievement/spec-consistency + ultrareview 込みの 5 観点並列） |
+| `--strategy` | `auto` | `auto`（diff 規模で simple/standard/docs-only を自動判定）/ `simple`（Simplify のみ）/ `standard`（bug + security 並列）/ `deep`（design + macro 観点 goal-achievement/spec-consistency + ultrareview 込みの 5 観点並列）/ `docs-only`（変更ファイルがすべて非コードのとき自動判定。Simplify と外部レビューを両方スキップし、司令塔が事実照合を行う） |
 | `--scope` | `changed` | `changed`（ベースブランチからの差分）/ `staged`（ステージ済み）/ `all`（全ファイル） |
 | `--max-iterations` | 1（`--deep` 時は 3） | 最大ループ回数。通常は 1 パスで十分 |
 | `--skip-simplify` | false | Simplify をスキップ |
@@ -106,11 +102,14 @@ Claude Code 内蔵 `/simplify` と外部レビュアーを組み合わせ、**1 
    - `staged`: `git diff --cached --name-only`
    - `all`: 全トラッキングファイル
 5. 対象ファイルがなければ「レビュー対象がありません」と報告して終了
-6. `--strategy auto` の場合、diff 規模と opt-in フラグで戦略を決定する:
+6. `--strategy auto` の場合、次の優先順位で戦略を決定する:
+   - **明示指定**（`--strategy simple|standard|deep|docs-only`）: そのまま尊重し、以降の判定はすべて上書きする
    - **`--deep` 指定時**: `deep` を強制
+   - **docs-only 判定**（`--force-external` が指定されている場合はこの判定を無視して通常の経路に入る）:
+     変更ファイルが**すべて非コード**（拡張子が `.md` / `.markdown` / `.txt` / `.rst` / `.adoc`、
+     またはパスが `docs/` 配下）なら `docs-only` と判定する。`simple` / `standard` の閾値判定より**先に**評価する
    - **diff 行数 ≤ 30 かつ ファイル数 ≤ 3 かつ `--force-external` なし**: `simple`（Simplify のみ、外部レビュー自動スキップ）
    - **それ以外**: `standard`（bug + security の 2 並列）
-   - **明示指定**（`--strategy simple|standard|deep`）はそのまま尊重し閾値判定を上書き
 7. `classification-guide.md` は通常 **読み込まない**（分類は外部レビュアー側で済ませているため）。
    明らかな誤分類が多発する場合のみ [references/classification-guide.md](references/classification-guide.md) を読み込んで手動補正する
 8. 初期状態をユーザーに報告する:
@@ -145,6 +144,9 @@ macro 観点（goal-achievement / spec-consistency）は **diff だけでは評�
 ### Step 1: Simplify 実行（原則 Claude Code 内蔵 `/simplify`）
 
 `--skip-simplify` でなければ Simplify を実行する。
+
+**`docs-only` strategy のときは Simplify を実行しない**。理由をユーザーへ 1 行報告する
+（趣旨: 「Simplify はコードの再利用性・複雑さ・効率を見るため、Markdown には作用対象が無い」）。
 
 **原則: 司令塔（セッションのメインモデル）自身が Claude Code 内蔵 `/simplify` スキルを起動する**。Codex 委譲は
 レート消費が大きいため `--simplify-via=codex` 指定時のみの opt-in に降格した。
@@ -202,8 +204,9 @@ Step 1 で変更があった場合、**stash や中間コミットを作らず�
 
 ### Step 3: 外部レビュー実行
 
-`--skip-external` または `simple` strategy（`--force-external` 無し）の場合はこの Step を丸ごとスキップ。
-それ以外は strategy に応じて以下を実行する。
+`--skip-external` または `simple` / `docs-only` strategy（`--force-external` 無し）の場合はこの Step を
+丸ごとスキップ。`docs-only` の場合は理由をユーザーへ 1 行報告する（趣旨: 「bug / security の外部レビューは
+実行コードを対象とするため、Markdown には作用対象が無い」）。それ以外は strategy に応じて以下を実行する。
 
 #### 共通: 対象ファイル添付（B-1: 誤検知防止、`--attach-full-file` opt-in）
 
@@ -220,11 +223,26 @@ Step 1 で変更があった場合、**stash や中間コミットを作らず�
 
 | CLI | 必須フラグ |
 |-----|----------|
-| `claude -p` | `--output-format json --json-schema "$(cat ${CLAUDE_SKILL_DIR}/references/schemas/finding-schema.json)"`（フラグ引数は **JSON 文字列**、ファイルパスではない）、`--permission-mode dontAsk`、`--allowedTools "Read"`。`ANTHROPIC_API_KEY` 設定時のみ追加で `--bare`（OAuth ログイン環境では `--bare` を付けると認証エラー `Not logged in` になるため Step 0 で自動判定） |
-| `scripts/codex-review.sh`（内部で `codex exec` を実行） | **Bash から `codex exec` を直接叩かない**（PreToolUse フック `block-codex-direct.py` にブロックされる）。呼び出しはスキル同梱の [scripts/codex-review.sh](scripts/codex-review.sh) を経由する（スクリプトファイルの呼び出しは同フックの検査対象外）。スクリプト内部でサブコマンド **`exec`**（`exec review` は `--output-schema` 非対応のため使わない）、`--output-schema`、`--output-last-message <tmpfile>`、`--sandbox read-only` を組み立てる。`codex >= 0.122` の環境では `--ignore-user-config` / `--ignore-rules` も付与（古いバージョンでは省略） |
-| `claude ultrareview` | `--json`（exit code 0=完了/1=失敗/130=Ctrl-C を尊重）。Pro/Max は無料枠 3 回、以降は課金 |
+| `claude -p` | `--output-format json --json-schema "$(cat "$CLAUDE_SCHEMA")"`（フラグ引数は **JSON 文字列**、ファイルパスではない）、`--permission-mode dontAsk`、`--allowedTools "Read"`。`ANTHROPIC_API_KEY` 設定時のみ追加で `--bare`（OAuth ログイン環境では `--bare` を付けると認証エラー `Not logged in` になるため Step 0 で自動判定）。**`$CLAUDE_SCHEMA` は `finding-schema.json` から `jq 'del(."$schema")'` で `$schema` キーを除去した一時ファイル**（`--json-schema` は `$schema` キー付きスキーマを `no schema with key or ref "..."` エラーで拒否するため。`finding-schema.json` 自体は変更しない）。呼び出しは `scripts/lib-timeout.sh` の `_timeout` でラップする（macOS に `timeout` コマンドは無い） |
+| `scripts/codex-review.sh`（内部で `codex exec` を実行） | **Bash から `codex exec` を直接叩かない**（PreToolUse フック `block-codex-direct.py` にブロックされる）。呼び出しはスキル同梱の [scripts/codex-review.sh](scripts/codex-review.sh) を経由する（スクリプトファイルの呼び出しは同フックの検査対象外）。スクリプト内部でサブコマンド **`exec`**（`exec review` は `--output-schema` 非対応のため使わない）、`--output-schema`、`--output-last-message <tmpfile>`、`--sandbox read-only` を組み立て、`_timeout`（既定 300 秒、`CODEX_REVIEW_TIMEOUT` で上書き可）でラップする。`codex >= 0.122` の環境では `--ignore-user-config` / `--ignore-rules` も付与（古いバージョンでは省略） |
+| `claude ultrareview` | `--json`（exit code 0=完了/1=失敗/130=Ctrl-C を尊重）。Pro/Max は無料枠 3 回、以降は課金。**呼び出しは `scripts/lib-timeout.sh` の `_timeout` でラップする**（他の 2 つと同じ。包まないと、CLI が応答しなくなったときにレビュー全体が止まり、fallback にも進めない）。タイムアウトしたら bug 観点の fallback（`claude -p`）へ進む |
 
 呼び出し例とプロンプト詳細は [references/review-prompts.md](references/review-prompts.md) を参照。
+
+#### 共通: レビュアー出力の検証（[scripts/validate-findings.sh](scripts/validate-findings.sh)）
+
+シェルの終了コードが 0 でも、出力が空・壊れた JSON・スキーマ違反であることがある。
+**すべてのレビュアー呼び出しの直後に [scripts/validate-findings.sh](scripts/validate-findings.sh) を通し**、
+検証・正規化してから結果を採用する。詳細な仕様（claude -p / codex-review.sh の出力構造の違いを含む）は
+[references/review-prompts.md](references/review-prompts.md) の「共通: レビュアー出力の検証」節を参照。
+
+- 検証に失敗したレビュアーは「失敗」として扱い、fallback 順に次を試す
+- **検証を通過していない出力を「指摘 0 件」と解釈してはならない**
+- **`claude ultrareview` の出力も例外にしない。** ultrareview は `finding-schema.json` と
+  完全には一致しない形を返しうるため、まず `aspect` / `category` / `severity` を補う正規化を
+  かけ、**その結果を `validate-findings.sh` へ通す**。ここで失敗したら、ほかのレビュアーと
+  同じく bug 観点の fallback（`claude -p`）へ進む
+- Step 8 の最終サマリに、各観点が検証を通過したかどうかを含める
 
 #### strategy: standard（デフォルト・bug + security の 2 並列）
 
@@ -262,6 +280,19 @@ Step 1 で変更があった場合、**stash や中間コミットを作らず�
 
 `--deep` 無し で `--with-design` のみ指定された場合、standard の 2 並列に design 観点を加えて 3 並列で起動する。
 ultrareview は明示的に `--ultrareview` を付けない限り起動しない。
+
+#### strategy: docs-only（外部レビューをスキップし、司令塔が事実照合する）
+
+`docs-only` では bug / security の外部レビューを呼ばない。ただし「レビューを飛ばして問題なしで終える」のは
+危険なので、代わりに**司令塔（セッションのメインモデル）自身が事実照合を行う**。最低限、次を確認する:
+
+- 文書が参照している Issue 番号・Pull Request 番号が実在し、内容が食い違っていないか
+- 相対リンクの参照先が実在するか
+- Mermaid 図があれば構文が通るか（`~/.claude/docs/mermaid-conventions.md` の検証レシピ）
+- 記述している日付・固有名詞が事実と一致するか
+
+この事実照合を専用の観点としてスクリプト化するのは現時点では未実装。将来の課題として
+[docs/improvement-ideas.md](docs/improvement-ideas.md) に記録してある。
 
 #### レビュアーが全滅した場合
 
@@ -358,6 +389,7 @@ git commit -m "refactor: self-review (simplify + review fixes)"
 以下の条件に 1 つでも該当したら、以降のステップをスキップして Step 8 へ直行する:
 
 - **`simple` strategy**（diff ≤ 30 行 かつ ファイル ≤ 3、`--force-external` なし）→ Step 3 を全スキップし、Simplify 結果のみで Step 6 → Step 8 へ
+- **`docs-only` strategy**（変更ファイルがすべて非コード、`--force-external` なし）→ Step 1（Simplify）と Step 3（外部レビュー）を両方スキップし、司令塔の事実照合結果のみで Step 8 へ。**`--force-external` を指定したときは Step 3 を実行する**（Step 0 の戦略判定・Step 3 と同じ優先順位にそろえる。`--force-external` は「自動スキップを無視して外部レビューを回す」ための指定なので、docs-only でも同じ意味になる）。なお Simplify は `--force-external` の有無に関わらずスキップする（Markdown には作用対象が無いため）
 - 外部レビュー結果の findings が 0 件 かつ Simplify でも変更なし → 何もコミットせず終了
 - critical が 0 件 かつ judgment が 0 件 → judgment フェーズをスキップ（auto-fix のみ適用して Step 6 へ）
 
@@ -373,7 +405,7 @@ git commit -m "refactor: self-review (simplify + review fixes)"
 - primary → fallback が発生したレビュアーの内訳
 - judgment が 4 件以上発生して info に格下げされた件数（あれば）
 - 残存する info 項目（将来の改善提案）
-- 終了理由（収束完了 / 上限到達 / simple 早期終了）
+- 終了理由（収束完了 / 上限到達 / simple 早期終了 / docs-only 早期終了）
 
 ## エラーハンドリング
 
@@ -383,7 +415,7 @@ git commit -m "refactor: self-review (simplify + review fixes)"
 | Gemini 429 (MODEL_CAPACITY_EXHAUSTED) | サーバー容量不足 | scripts/gemini-review.sh が 1 回リトライ → モデルフォールバック → クールダウン記録し、`[self-review] gemini unavailable...` を返して終了。呼び出し側は `--with-gemini` を外すか手動続行で対応する |
 | Codex レート制限 | 5時間ウィンドウ超過 | 次のレビュアー (Claude-p) へフォールバック。Simplify を Codex に委譲する `--simplify-via=codex` は特にレートを食う |
 | Codex `--output-schema` 違反 | gpt-5-codex 系モデルでツール起動時に schema が無視される既知バグ | `-c model=gpt-5.6-terra`（default、`CODEX_REVIEW_MODEL` で上書き可。terra は schema 順守を確認済み）+ `--output-last-message` の組合せで回避。Schema 違反検出時は Claude-p フォールバック |
-| Claude-p タイムアウト | ネットワークまたはAPI負荷 | 120秒タイムアウトで次のレビュアーへ |
+| Claude-p タイムアウト | ネットワークまたはAPI負荷 | `scripts/lib-timeout.sh` の `_timeout` でラップし 120 秒でタイムアウト、次のレビュアーへ。macOS に `timeout` コマンドは無いので、素の `timeout` を使わないこと |
 | ultrareview 失敗 (`exit 1`) | 課金枠超過 / API 障害 | 通常の `claude -p --bare` にフォールバック |
 | 全レビュアー失敗 | 全CLIが利用不可 | ユーザーに報告、Simplify 結果のみで判断を仰ぐ |
 | git コミット失敗 | pre-commit hook 等 | エラー内容を表示し、ユーザーに対応を確認 |

@@ -134,7 +134,7 @@ Gemini は `--with-gemini` 指定時のみ経路に入る。
   - `codex >= 0.122` 環境では `--ignore-user-config --ignore-rules` もスクリプト内部の判定で追加する（旧 `$CODEX_REPRO_FLAGS`、判定ロジックは Step 0 からスクリプトへ移設済み）
   - モデルはスクリプトが `-c model=`（default: `gpt-5.6-terra`、環境変数 `CODEX_REVIEW_MODEL` で上書き可）で明示する。terra は `--output-schema` 順守を確認済み（2026-07-14）。`--model gpt-5` と旧既定 `gpt-5.3-codex` は ChatGPT アカウント認証だと 400 で拒否されるため使わない（2026-07 実測。5.6 系は影響なし）
   - レビュー指示は `--output-schema` 用プロンプト本文に「以下の diff をレビューせよ」と明示して埋め込む
-- **`claude ultrareview`**: `--json` を必須化。exit code 0=完了 / 1=失敗 / 130=Ctrl-C を尊重し、stdout のみパース対象とする
+- **`claude ultrareview`**: `--json` を必須化。exit code 0=完了 / 1=失敗 / 130=Ctrl-C を尊重し、stdout のみパース対象とする。**呼び出しは `scripts/lib-timeout.sh` の `_timeout` でラップする**（`claude -p` / `codex-review.sh` と同じ）。タイムアウトしたら bug 観点の fallback へ進む。正規化した出力は `validate-findings.sh` へ通す
 
 ### 呼び出し例（bug 観点を Claude-p に投げる、デフォルト）
 
@@ -144,18 +144,42 @@ SCHEMA="${CLAUDE_SKILL_DIR}/references/schemas/finding-schema.json"
 ATTACHED=$(...上記の対象ファイル添付ブロックを生成...)
 PROMPT=$(build_prompt "$ASPECT" "$ATTACHED")  # 「観点別プロンプトの組み立て」節参照
 
-echo "$DIFF" | claude -p \
+# claude -p の --json-schema は $schema キー付きスキーマを拒否する
+# （エラー: no schema with key or ref "https://json-schema.org/draft/2020-12/schema"）。
+# finding-schema.json 自体は変更せず、claude -p に渡す直前だけ jq で $schema を取り除く。
+CLAUDE_SCHEMA=$(mktemp "${TMPDIR:-/tmp}/self-review-schema.XXXXXX")
+jq 'del(."$schema")' "$SCHEMA" > "$CLAUDE_SCHEMA"
+trap 'rm -f "$CLAUDE_SCHEMA"' EXIT
+
+# クロスプラットフォーム timeout ラッパー（macOS に timeout コマンドは無いため必須）
+source "${CLAUDE_SKILL_DIR}/scripts/lib-timeout.sh"
+
+OUT=$(mktemp "${TMPDIR:-/tmp}/self-review-bug.XXXXXX.json")
+echo "$DIFF" | _timeout 120 claude -p \
   $BARE_CLAUDE \
   --model sonnet \
   --output-format json \
-  --json-schema "$(cat "$SCHEMA")" \
+  --json-schema "$(cat "$CLAUDE_SCHEMA")" \
   --permission-mode dontAsk \
   --allowedTools "Read" \
-  --append-system-prompt "あなたは ${ASPECT} 観点に特化したコードレビュアーです。$PROMPT"
+  --append-system-prompt "あなたは ${ASPECT} 観点に特化したコードレビュアーです。$PROMPT" \
+  > "$OUT"
+
+# 出力の検証・正規化（「共通: レビュアー出力の検証」節参照）。
+# 通過していない出力を「指摘 0 件」と解釈してはならない。失敗したら fallback へ。
+if NORMALIZED=$(bash "${CLAUDE_SKILL_DIR}/scripts/validate-findings.sh" "$OUT"); then
+  : # $NORMALIZED を採用
+else
+  : # 検証失敗。fallback（Codex → Gemini）へ
+fi
 ```
 
 `$BARE_CLAUDE` は Step 0 で `ANTHROPIC_API_KEY` が設定済みのとき `--bare`、未設定なら空文字に設定される。
-`--json-schema` は **schema ファイルの中身（JSON 文字列）** を渡すフラグであり、ファイルパスではない点に注意（`$(cat "$SCHEMA")` で展開する）。
+`--json-schema` は **schema ファイルの中身（JSON 文字列）** を渡すフラグであり、ファイルパスではない点に注意（`$(cat "$CLAUDE_SCHEMA")` で展開する）。
+
+**他の `claude -p` 呼び出し例（design / macro goal-achievement 等）も同じ 3 点（$schema 除去 /
+`_timeout` ラップ / `validate-findings.sh` 検証）を適用すること**。以降の呼び出し例では重複を避けて
+`--json-schema "$(cat "$SCHEMA")"` の簡略表記のままにしているが、実行時は上のブロックと同じ手順を踏む。
 
 ### 呼び出し例（bug 観点を ultrareview に投げる、`--ultrareview` 時）
 
@@ -164,19 +188,39 @@ echo "$DIFF" | claude -p \
 # 一時ファイルは mktemp で衝突回避（CWE-377/379 対策）
 umask 077
 TMP=$(mktemp "${TMPDIR:-/tmp}/ultrareview.XXXXXX.json")
-trap 'rm -f "$TMP"' EXIT
+NORMALIZED_FILE=$(mktemp "${TMPDIR:-/tmp}/ultrareview-normalized.XXXXXX.json")
+trap 'rm -f "$TMP" "$NORMALIZED_FILE"' EXIT
 
-claude ultrareview --json > "$TMP"
+# 他のレビュアーと同じく _timeout でラップする。包まないと、CLI が応答しなくなったときに
+# レビュー全体がそこで止まり、fallback にも進めない。
+source "${CLAUDE_SKILL_DIR}/scripts/lib-timeout.sh"
+_timeout 600 claude ultrareview --json > "$TMP"
 RC=$?
 case $RC in
-  0) jq '.' "$TMP" ;;        # 成功: findings を整形
-  1) echo "ultrareview 失敗、claude -p にフォールバック" >&2 ;;
-  130) echo "Ctrl-C 中断" >&2 ;;
+  0) : ;;                    # 成功: 下の正規化と検証へ進む
+  1) echo "ultrareview 失敗、claude -p にフォールバック" >&2; exit 1 ;;
+  130) echo "Ctrl-C 中断" >&2; exit 130 ;;
+  *) echo "ultrareview がタイムアウト（または想定外の終了 $RC）、claude -p にフォールバック" >&2; exit 1 ;;
 esac
+
+# ultrareview の出力は finding-schema.json と完全には一致しないことがあるため、
+# aspect: bug / category / severity を補完する正規化をかける（下の注記を参照）。
+normalize_ultrareview "$TMP" > "$NORMALIZED_FILE"
+
+# 正規化した結果も、ほかのレビュアーと同じ検証ゲートを通す。
+if VALIDATED=$(bash "${CLAUDE_SKILL_DIR}/scripts/validate-findings.sh" "$NORMALIZED_FILE"); then
+  echo "$VALIDATED"
+else
+  echo "ultrareview の出力が検証を通らず、claude -p にフォールバック" >&2
+  exit 1
+fi
 ```
 
 ultrareview の出力は `finding-schema.json` と完全には一致しない可能性があるため、
-パース後に `aspect: bug` / `category` / `severity` を補完する正規化レイヤを通す。
+パース後に `aspect: bug` / `category` / `severity` を補完する正規化レイヤ
+（上の `normalize_ultrareview`）を通す。**正規化しただけで採用してはならない。**
+正規化した結果を `validate-findings.sh` へ通し、失敗したら fallback へ進む
+（ほかのレビュアーとまったく同じ扱いにする）。
 
 ### 呼び出し例（security 観点を Codex に投げる）
 
@@ -197,15 +241,63 @@ PROMPT_FILE=$(mktemp "${TMPDIR:-/tmp}/self-review-prompt.XXXXXX.md")
 trap 'rm -f "$PROMPT_FILE"' EXIT
 echo "$PROMPT_BODY" > "$PROMPT_FILE"
 
-echo "$DIFF" | bash "${CLAUDE_SKILL_DIR}/scripts/codex-review.sh" "$SCHEMA" "$PROMPT_FILE"
+OUT=$(mktemp "${TMPDIR:-/tmp}/self-review-security.XXXXXX.json")
+echo "$DIFF" | bash "${CLAUDE_SKILL_DIR}/scripts/codex-review.sh" "$SCHEMA" "$PROMPT_FILE" > "$OUT"
+
+# 出力の検証・正規化（「共通: レビュアー出力の検証」節参照）。
+if NORMALIZED=$(bash "${CLAUDE_SKILL_DIR}/scripts/validate-findings.sh" "$OUT"); then
+  : # $NORMALIZED を採用
+else
+  : # 検証失敗。fallback（Claude-p → Gemini）へ
+fi
 ```
 
-`scripts/codex-review.sh` の内部で `-c model_reasoning_effort=high` / `--output-schema` /
+`scripts/codex-review.sh` の内部で `-c model_reasoning_effort` / `--output-schema` /
 `--output-last-message`（一時ファイルは `mktemp` で衝突回避、CWE-377/379 対策）/ `--sandbox read-only` /
 `--ignore-user-config --ignore-rules`（`codex >= 0.122` のみ、旧 `$CODEX_REPRO_FLAGS` の判定ロジック）を
 組み立てて `codex exec` を実行する。フラグの詳細はスクリプト本体のコメントを参照。
 
-`-c model_reasoning_effort=high` は外部レビューの effort を high に固定する。`--ignore-user-config` で `~/.codex/config.toml` を無視するため、effort を狙った値にするには `-c` 明示指定が必須。委譲パスのグローバル default は medium に下げてレートを節約しつつ、低頻度なセカンドオピニオンだけ high を選ぶメリハリ運用（委譲パスは config.toml を尊重するが、レビュー系は `--ignore-user-config` で読まない）。
+`-c model_reasoning_effort` は外部レビューの effort を指定する。`--ignore-user-config` で `~/.codex/config.toml` を無視するため、effort を狙った値にするには `-c` 明示指定が必須。委譲パスのグローバル default は medium に下げてレートを節約しつつ、低頻度なセカンドオピニオンだけ high を選ぶメリハリ運用（委譲パスは config.toml を尊重するが、レビュー系は `--ignore-user-config` で読まない）。
+
+#### effort の自動判定（レート予算ガード）
+
+既定は high だが、**diff が大きいときはスクリプトが自動で medium へ落とす**。Codex の週間上限は
+Codex Cloud の PR レビューとローカル委譲が同じ枠を食い合うため、1 回で数百万トークンを使う
+巨大レビューを抑える必要がある（実測: 2026-07-27 にレビュー系 5 回で 1,400 万トークン、
+1 回平均 280 万・最大 722 万）。
+
+| 環境変数 | 既定値 | 役割 |
+|---|---|---|
+| `SELF_REVIEW_DIFF_LIMIT` | 2000 | この行数を超えたら effort を medium へ落とす |
+| `CODEX_REVIEW_EFFORT` | （未設定） | effort を明示指定し、自動判定を無効化する |
+
+精度が要る大きな変更をレビューしたいときは、対象ファイルを絞って呼び直すか、
+`CODEX_REVIEW_EFFORT=high` を明示する。peer-review 側も同じ仕組みを持つ
+（閾値は `PEER_REVIEW_DIFF_LIMIT`、行数は `gh pr view` の additions + deletions で測る）。
+
+### 共通: レビュアー出力の検証（[scripts/validate-findings.sh](../scripts/validate-findings.sh)）
+
+シェルの終了コードが 0 でも、出力が空・壊れた JSON・スキーマ違反であることがある
+（primary レビュアーが起動直後にエラーで落ちても全体の終了コードは 0 のまま、というケースが実際に発生した）。
+**すべてのレビュアー呼び出しの直後**にこのスクリプトを通し、検証・正規化する。
+
+```
+Usage: validate-findings.sh <出力ファイルのパス>
+```
+
+- 標準出力: 検証を通過した場合、正規化した単一 JSON オブジェクト（`findings` 配列 + `summary`）
+- 標準エラー: 失敗理由（`[self-review] ` 接頭辞）
+- 終了コード: 0 = 通過 / 1 = 検証失敗
+
+検証を通過していない出力は**「指摘 0 件」と解釈してはならない**。失敗したレビュアーは「失敗」として扱い、
+fallback 順に次のレビュアーを試す。Step 8 の最終サマリには各観点が検証を通過したかどうかを含める。
+
+`claude -p` と `scripts/codex-review.sh` は出力の形が異なるため、`validate-findings.sh` が正規化する:
+
+| レビュアー | 出力構造 |
+|-----------|---------|
+| `claude -p --output-format json` | ラッパー形式。`.is_error`（失敗判定）/ `.subtype`（成功時 `"success"`）/ `.structured_output`（本体、findings + summary を持つ）/ `.result`（人間向けテキスト） |
+| `scripts/codex-review.sh` | `{"findings":[...],"summary":"..."}` を裸で返す（ラッパー無し） |
 
 ### 呼び出し例（design 観点を Claude-p に投げる、`--with-design` 時のデフォルト）
 
@@ -346,10 +438,15 @@ if [ -n "$ANTHROPIC_API_KEY" ]; then export BARE_CLAUDE="--bare"; else export BA
 umask 077
 TMP=$(mktemp "${TMPDIR:-/tmp}/ultrareview.XXXXXX.json")
 trap 'rm -f "$TMP"' EXIT
-claude ultrareview --json > "$TMP"
+source "${CLAUDE_SKILL_DIR}/scripts/lib-timeout.sh"
+_timeout 600 claude ultrareview --json > "$TMP"
 ```
 
 PR 番号や base branch も指定可（詳細は `claude ultrareview --help`）。
+
+`_timeout` で包むのは、CLI が応答しなくなったときにレビュー全体を止めないためである
+（`claude -p` / `codex-review.sh` と同じ扱い）。取得したあとの正規化と検証は
+「呼び出し例（bug 観点を ultrareview に投げる）」を参照する。
 
 ### 課金
 

@@ -1,5 +1,5 @@
 ---
-description: レビュー依頼を受けたとき、7 つのレビュースキル（self-review / review-pr / pr-reviewer / peer-review / review-adr / review-doc / dependabot-review）から最適なものを判定する分岐ガイド。「どのレビュー使う？」「レビュースキル使い分け」「review-dispatch」「レビュー判定」等の依頼時、または対象が曖昧で起点となるレビュースキルを 1 つに絞れないときに使用。
+description: レビュー依頼の対象（自分の PR / 他者の PR / ADR / 文書 / bot PR）から、使うレビュースキルを 1 つに絞る分岐ガイド。「どのレビューを使う？」や対象が曖昧なときに使う。
 argument-hint: ""
 ---
 

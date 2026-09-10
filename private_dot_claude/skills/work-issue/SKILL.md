@@ -1,6 +1,6 @@
 ---
 name: work-issue
-description: GitHub Issue 番号を引数に取り、その Issue を着手から PR 作成・CodeRabbit 対応・マージ指示伺いまで完遂させる /goal コマンド文字列を生成する。「Issue に着手して」「この Issue を PR まで」「work-issue」等、Issue 番号を渡して一気通貫で進めたい依頼時に使用。
+description: GitHub Issue 番号から、着手 → 修正 → セルフレビュー → PR 作成 → CodeRabbit 対応 → マージ指示伺いまで進める /goal コマンド文字列を生成する。「この Issue を PR まで」のときに使う。
 disable-model-invocation: true
 ---
 

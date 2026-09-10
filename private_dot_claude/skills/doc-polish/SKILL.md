@@ -1,5 +1,5 @@
 ---
-description: Markdown ドキュメントの日本語表現を研磨し、改善の適用からコミットまで行う実行系スキル。一般的でない表現・難しい言い回し・造語/略語・図の不足をチェックし、編集は Codex (GPT-5.6) へ委譲、司令塔が diff 検証・事実照合・Mermaid 構文検証を行う。「ドキュメント研磨」「表現を磨いて」「わかりやすく直して」「doc-polish」等の依頼時に使用。
+description: Markdown ドキュメントの日本語表現を研磨する（一般的でない表現・難しい言い回し・造語や略語・図の不足）。編集は Codex へ委譲し、diff 検証・事実照合・Mermaid 構文検証を自分で行う。「表現を磨いて」「わかりやすく直して」のときに使う。
 ---
 
 # Skill: doc-polish
@@ -9,9 +9,9 @@ description: Markdown ドキュメントの日本語表現を研磨し、改善�
 Markdown ドキュメント（計画文書・ADR・ガイド等）の日本語表現を研磨し、改善を適用する。レビュー観点は 4 つ:
 
 1. **一般的でない表現**: 社内・業界で通じない独特な言い回し（例:「〜に接地する」「波状起票」「tail 収束」「並行充填」）
-2. **難しい言い回し**: 長文・主語省略・二重否定・動作名詞の連結（`~/.claude/rules/easy-japanese.md` の R1〜R8 が正本）
+2. **難しい言い回し・名称の解決強要**: 長文・主語省略・二重否定・動作名詞の連結に加え、project 固有名詞への役割併記（R8）と総称語（leaf / caller / node 等）の具体化（R9）。`~/.claude/rules/easy-japanese.md` の R1〜R9 が正本
 3. **造語・略語・記号参照**: 独自略語の展開、ID・節番号参照への名称併記、独自グルーピング語の定義（下記「表記規律」が正本。初出に説明を添えるだけでは不十分）
-4. **図の不足**: 文章・表だけでは構造や時系列が掴みにくい節への Mermaid 図挿入（`~/.claude/rules/mermaid-conventions.md` が正本）
+4. **図の不足**: 文章・表だけでは構造や時系列が掴みにくい節への Mermaid 図挿入（`~/.claude/docs/mermaid-conventions.md` が正本）
 
 役割分担: **編集の実行は Codex（T2）へ委譲**し、**司令塔（T1）は diff 検証・事実照合・構文検証・コミット判断**を担う（`task-delegation` スキルの体系に従う）。ただし日本語の表現レベルの修正は司令塔が直接 Edit してよい（feedback メモリ「日本語の表現修正は Sonnet に委譲しない」）。
 
@@ -56,7 +56,7 @@ Markdown ドキュメント（計画文書・ADR・ガイド等）の日本語�
 | パラメータ | 必須 | デフォルト | 説明 |
 |---|:--:|---|---|
 | 対象 | Yes | — | PR 番号（例: `PR #1297`）またはファイルパス |
-| モデル | No | `gpt-5.6-terra` | 機械的置換のみなら `luna`、大規模・高難度なら `sol` |
+| モデル / effort | No | `gpt-5.6-terra` × `medium` | 依頼の性質に応じて選ぶ。判定条件の正本は `task-delegation/references/codex-routing.md`（ルーティング表）。ここに条件を再掲しない |
 
 ## 実行手順
 
@@ -68,7 +68,7 @@ Markdown ドキュメント（計画文書・ADR・ガイド等）の日本語�
 
 ### Step 2: 委譲プロンプトの生成
 
-[references/codex-prompt-template.md](references/codex-prompt-template.md) を雛形に、対象ファイル・作業ディレクトリ・文書固有の制約を埋めたプロンプトを **scratchpad にファイルとして書き出す**（コマンド文字列に日本語長文を埋めない。`tool-call-hygiene` 準拠）。
+[references/codex-prompt-template.md](references/codex-prompt-template.md) を雛形に、対象ファイル・作業ディレクトリ・文書固有の制約を埋めたプロンプトを **scratchpad にファイルとして書き出す**（コマンド文字列に日本語長文を埋めない）。
 
 雛形の「変更してはならないもの」は毎回具体化する。特に:
 
@@ -82,10 +82,10 @@ Markdown ドキュメント（計画文書・ADR・ガイド等）の日本語�
 `codex:rescue` 経由で委譲する（Bash 直叩き禁止）:
 
 ```text
-/codex:rescue --model gpt-5.6-terra <対象の 1 行サマリ>。詳細指示は <プロンプトファイルの絶対パス> を読むこと。作業ディレクトリは <worktree の絶対パス>
+/codex:rescue --model <ルーティング表で選んだモデル> --effort <同じく選んだ effort> <対象の 1 行サマリ>。詳細指示は <プロンプトファイルの絶対パス> を読むこと。作業ディレクトリは <worktree の絶対パス>
 ```
 
-800 行超・複数文書で難度が高い場合は `--model gpt-5.6-sol` に切り替える。Codex 未導入環境では T3 実行サブエージェント（重い実行役）へフォールバックする。
+モデルと effort は毎回明示する（省くと `~/.codex/config.toml` の既定値に落ちる）。どの組み合わせを選ぶかは `task-delegation/references/codex-routing.md`（ルーティング表）で判定し、`<...>` を判定結果で置き換える。文書研磨は通常作業なので既定は `gpt-5.6-terra` × `medium` になるが、判定を省いて固定しない。Codex 未導入環境では T3 実行サブエージェント（重い実行役）へフォールバックする。
 
 ### Step 4: 司令塔の diff 検証（必須）
 
@@ -134,12 +134,12 @@ bash ~/.claude/skills/doc-polish/scripts/check-mermaid.sh <対象 md の絶対�
 |---|---|---|
 | checkout が untracked と衝突 | main に旧 tracked ファイルの残骸 | worktree に展開する（Step 1）。untracked を消さない |
 | Codex が制約を破った（見出し・数値変更） | プロンプトの制約が曖昧 | 該当箇所を司令塔が Edit で戻すか、制約を具体化して再委譲 |
-| Mermaid parse FAIL | 日本語ノード ID・構文誤り | `mermaid-conventions.md` の落とし穴節を参照して修正 |
+| Mermaid parse FAIL | 日本語ノード ID・構文誤り | `~/.claude/docs/mermaid-conventions.md` の落とし穴節を参照して修正 |
 | Codex 未導入 | プラグインなし | T3 実行サブエージェント（重い実行役）へフォールバック |
 
 ## 関連
 
-- `~/.claude/rules/easy-japanese.md` — 日本語規律の正本（R1〜R8）
-- `~/.claude/rules/mermaid-conventions.md` — Mermaid カラールール・検証レシピの正本
+- `~/.claude/rules/easy-japanese.md` — 日本語規律の正本（R1〜R9）
+- `~/.claude/docs/mermaid-conventions.md` — Mermaid カラールール・検証レシピの正本
 - `~/.claude/skills/task-delegation/SKILL.md` — T1/T2/T3 委譲体系の正本
 - `~/.claude/skills/review-doc/` — 提案のみの軽量レビュー（棲み分け先）

@@ -1,6 +1,6 @@
 ---
 name: md-visual
-description: Markdown ドキュメント（計画・ロードマップ・レポート・提案等）を、claude.ai の Artifact として閲覧できる「視覚版」の自己完結 HTML に起こして publish する。「Markdown から視覚版を作って」「この plan を視覚化して」「ロードマップを見やすく」等の依頼時に使用。Markdown を SoT（ソース）、HTML を生成ビュー（ビルド成果物）として扱い、二重管理にしない。既存 Artifact の URL を渡された場合は同一 URL に再デプロイして最新 MD に追従させる。
+description: Markdown の計画・ロードマップ・レポートを、claude.ai の Artifact で見る自己完結 HTML に起こして公開する。Markdown を正本、HTML を生成物として扱う。「視覚版を作って」「この plan を見やすく」のときに使う。既存 Artifact の URL があれば同じ URL に再デプロイする。
 ---
 
 # md-visual — Markdown を視覚版 Artifact に起こす

@@ -2,3 +2,27 @@
 # 2026-07-17: explain-discipline スキルを廃止し communication-style.md へ統合（PR #63）
 .claude/skills/explain-discipline
 .claude/skills/explain-discipline/**
+
+# 2026-07-26: 常時読み込みのルール層を減らす作業（Issue #69 / PR #86）。docs/ へ移動、または git-conventions.md へ統合して
+# 不要になった rules。ここに書かないと実機の ~/.claude/rules/ に旧ファイルが残り、
+# 常時読み込みが減らないうえ docs/ 側と二重化する。
+.claude/rules/codex-config.md
+.claude/rules/mermaid-conventions.md
+.claude/rules/commit-conventions.md
+.claude/rules/git-branching.md
+.claude/rules/github-conventions.md
+.claude/rules/task-delegation.md
+
+# 2026-07-28: 旧 session-handoff（同日中に session-handover へ改名）
+.claude/skills/session-handoff
+.claude/skills/session-handoff/**
+
+# 2026-08-29: artifact-sharing.md を artifact-conventions.md へ改名（作成時のテーマ切り替え UI 必須化を追加）。
+# ここに書かないと実機の ~/.claude/rules/ に旧ファイルが残り、CLAUDE.md のポインタと二重化する。
+.claude/rules/artifact-sharing.md
+
+# 2026-09-09: Opus 4.7/4.8 時代の tool call parse エラー対策を撤去（Issue #89 / #90）。直近 400 セッションで発生 0 件。
+# 診断スクリプトは archive/ へ移した。
+.claude/rules/tool-call-hygiene.md
+.claude/skills/tool-call-parse-recovery
+.claude/skills/tool-call-parse-recovery/**
