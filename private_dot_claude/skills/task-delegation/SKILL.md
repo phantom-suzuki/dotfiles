@@ -351,7 +351,7 @@ git diff <base>..HEAD --name-only | grep -E '\.terraform/|terraform-provider-|\.
 2. それでも改善しない場合、より強い実行役へリルート（軽い実行役 → 重い実行役 → 司令塔 T1）
 3. 規模が大きい場合はタスク分割
 
-**Codex（T2）の場合は `references/codex-routing.md` の「失敗したときの昇格」に従う**（effort を 1 段上げる → モデルを 1 つ上げる → 司令塔 T1 へ戻す）。ここに手順を二重に書かない。
+**Codex（T2）の場合は `references/codex-routing.md` の「失敗したときの昇格」の表に従う**。移り先はモデルごとに違う（例: `gpt-5.3-codex-spark` は effort を上げられず `gpt-5.6-terra` × `medium` へ移る）ため、ここに手順を再掲しない。
 
 ## アンチパターン
 

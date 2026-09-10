@@ -82,10 +82,10 @@ Markdown ドキュメント（計画文書・ADR・ガイド等）の日本語�
 `codex:rescue` 経由で委譲する（Bash 直叩き禁止）:
 
 ```text
-/codex:rescue --model gpt-5.6-terra --effort medium <対象の 1 行サマリ>。詳細指示は <プロンプトファイルの絶対パス> を読むこと。作業ディレクトリは <worktree の絶対パス>
+/codex:rescue --model <ルーティング表で選んだモデル> --effort <同じく選んだ effort> <対象の 1 行サマリ>。詳細指示は <プロンプトファイルの絶対パス> を読むこと。作業ディレクトリは <worktree の絶対パス>
 ```
 
-モデルと effort は毎回明示する（省くと `~/.codex/config.toml` の既定値に落ちる）。どの組み合わせを選ぶかは `task-delegation/references/codex-routing.md`（ルーティング表）で判定する。Codex 未導入環境では T3 実行サブエージェント（重い実行役）へフォールバックする。
+モデルと effort は毎回明示する（省くと `~/.codex/config.toml` の既定値に落ちる）。どの組み合わせを選ぶかは `task-delegation/references/codex-routing.md`（ルーティング表）で判定し、`<...>` を判定結果で置き換える。文書研磨は通常作業なので既定は `gpt-5.6-terra` × `medium` になるが、判定を省いて固定しない。Codex 未導入環境では T3 実行サブエージェント（重い実行役）へフォールバックする。
 
 ### Step 4: 司令塔の diff 検証（必須）
 
