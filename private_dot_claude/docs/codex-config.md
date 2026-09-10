@@ -7,7 +7,7 @@ Codex CLI (`~/.codex/`) の設定管理方針と reasoning effort の使い分�
 | 対象 | 実体 | chezmoi 管理 | 理由 |
 |---|---|---|---|
 | Codex 共通指示 | `~/.codex/AGENTS.md` | ✅ `dot_codex/AGENTS.md` | クリーン・ポータブル。委譲時のグローバル指針 |
-| ポータブル設定 seed | `~/.codex/config.seed.toml` | ✅ `dot_codex/config.seed.toml` | model / effort / features の 3 設定のみ切り出し |
+| ポータブル設定 seed | `~/.codex/config.seed.toml` | ✅ `dot_codex/config.seed.toml` | model / effort / features / agents の 4 設定のみ切り出し |
 | config 本体 | `~/.codex/config.toml` | ❌ 管理外 | 大半が Codex.app の自動生成・マシン固有（下記） |
 | 認証情報 | `~/.codex/auth.json` | ❌ 管理外 | 秘密情報。dotfiles に絶対に入れない |
 
@@ -111,7 +111,23 @@ Codex は Claude Code の拡張機構に 1:1 対応する仕組みを公式に�
 sol 不可」は現在は誤り。過去に ChatGPT 認証で 400 になった `gpt-5` / `gpt-5.3-codex` の記録は、
 あくまでそれらのモデル固有の話であり、5.6 系には当てはまらない。
 
-### モデル固定箇所の一覧（2026-07-14 時点）
+### モデル固定箇所の一覧（現行: 2026-09-09 時点）
+
+新マシンへ反映するときは、この表の値を使う。次の節の 2026-07-14 の表は履歴で、値は古い。
+
+| 場所 | 現在の pin | 追従方針 |
+|---|---|---|
+| `config.toml` / `config.seed.toml` の `model` / `model_reasoning_effort` | `gpt-6-astra` / `medium` | 委譲パスの既定。ここで消費を調整 |
+| `config.seed.toml` の `[agents] enabled` | `false` | サブエージェントを無効化（理由は「reasoning effort 制御マップ」の 2026-09-09 の段落） |
+| self-review `scripts/codex-review.sh` | `-c model=`（default `gpt-5.6-terra`、`CODEX_REVIEW_MODEL` で上書き可）、effort `high` 固定 | 2026-07-14 から変更なし |
+| peer-review `scripts/codex-review.sh` | model 未指定 + `--ignore-user-config`、effort `high` 固定 | codex 組み込み既定に追従（＝バージョンで漂う） |
+| review-doc / review-adr `scripts/codex-review.sh` | model 未指定 + `--ignore-user-config` | 同上 |
+| codex-imagegen | `gpt-image-2`（画像モデル） | テキストモデルとは別領域。対象外 |
+
+### モデル固定箇所の一覧（履歴: 2026-07-14 時点）
+
+以下は 2026-07-14 時点の記録で、現行値ではない。
+
 
 | 場所 | 現在の pin | 追従方針 |
 |---|---|---|
