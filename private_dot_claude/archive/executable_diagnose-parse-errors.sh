@@ -217,7 +217,7 @@ if [ "$TOT_INJ" -gt 0 ]; then
     echo "  → 主因は Case B。hygiene ルール(引数の書き方)では緩和不可。"
     echo "    対処: claude update / 新規セッション / /effort medium 一時切替 / /bug 報告。"
   elif [ "$ratio" -le 30 ]; then
-    echo "  → 主因は Case A。tool-call-hygiene.md(引数の単純化)で緩和を。"
+    echo "  → 主因は Case A。引数の単純化で緩和を（旧 rules/tool-call-hygiene.md は撤去済み）。"
   else
     echo "  → Case A/B 混在。両方の対処を併用。"
   fi
