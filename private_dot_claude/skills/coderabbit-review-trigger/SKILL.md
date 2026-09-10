@@ -2,11 +2,10 @@
 description: >-
   CodeRabbit のレビューを PR にトリガーし、トリガー後に「レビューが起動したか / rate limit で
   制限中か / 結果が投稿されたか」を監視・判定するスキル。`@coderabbitai review` / `full review`
-  はコメントを投げても rate limit（Fair Usage Limits）で実レビューが実行されないことがある。
-  その場合も、CodeRabbit は制限を知らせるコメントを投稿する。制限中のコメントには
-  「Full review finished」が併記されることがあり、完了と誤読しやすい。本スキルはトリガー →
-  応答コメントの監視 → 状態判定 →（制限中なら解除目安の算出）まで行う。approve は扱わない
-  （coderabbit-approve へ）。「CodeRabbit にレビューさせて」
+  はコメントを投げても rate limit（Fair Usage Limits）で silent に skip されることがあり、
+  投げっぱなしだと起動したか分からない。しかも制限中でも「Full review finished」と併記されるため
+  完了と誤読しやすい。本スキルはトリガー → 応答コメントの監視 → 状態判定 →（制限中なら解除目安の
+  算出）まで行う。approve は扱わない（coderabbit-approve へ）。「CodeRabbit にレビューさせて」
   「CodeRabbit をトリガー」「full review 依頼」「レビュー回して」「CodeRabbit 起動したか確認」
   「rate limit 中か見て」「CodeRabbit の反応を監視」等の依頼時に使用。
 argument-hint: "[PR番号] [--mode full|incremental]"
@@ -14,7 +13,7 @@ argument-hint: "[PR番号] [--mode full|incremental]"
 
 # CodeRabbit Review Trigger + Startup Monitor
 
-CodeRabbit に**レビューをトリガー**し、その直後に **起動したか / 制限中か / 結果が出たか** を確認するための正本手順。rate limit 中は、CodeRabbit が実レビューを実行しない。その場合も CodeRabbit は制限を知らせるコメントを投稿するので、本スキルはそのコメントを取得して状態を判定する。「投げたのに起動したか分からない」を防ぐのが目的である。
+CodeRabbit に**レビューをトリガー**し、その直後に **起動したか / 制限中か / 結果が出たか** を確認するための正本手順。トリガー系コマンド（`review` / `full review`）は投稿しても rate limit で無言のまま skip されることがあり、「投げたのに起動したか分からない」を防ぐのが本スキルの目的。
 
 ## なぜトリガーだけでは不十分か
 
@@ -52,29 +51,24 @@ bash ~/.claude/skills/coderabbit-review-trigger/scripts/trigger-and-watch.sh <PR
 - **長時間 sleep はハーネスでブロックされることがある**。監視窓を長く取りたいときは、この呼び出し自体を**バックグラウンド実行**する（Bash の `run_in_background`）。
 
 スクリプトは最終行に `STATE=...` を出す。意味は次のとおり。
-判定が完了した場合の終了コードは 0 である。実行エラーは 1、引数エラーは 2 で終了する。
 
 | STATE | 意味 | 次アクション |
 |---|---|---|
 | `POSTED` | walkthrough / actionable comments 等の結果が投稿された | 指摘を確認。承認が要れば `coderabbit-approve` へ |
 | `REVIEWING` | レビュー実行中の応答を確認 | 少し置いて `--no-trigger` で再確認 |
 | `RATE_LIMITED` | 制限中。実レビューは未実施 | `RETRY_AFTER` の目安まで待って再トリガー（Step 2） |
-| `RATE_LIMIT_EXPIRED` | 制限通知は残っているが、解除目安を過ぎている | 再トリガーしてよい（Step 2） |
 | `OTHER` | CodeRabbit 応答はあるが分類外 | 本文を目視確認 |
 | `NO_RESPONSE` | 監視窓内に新規応答なし | `--poll`/`--max` を増やすか、後刻 `--no-trigger` で確認 |
-| `ERROR` | 引数、GitHub API、またはコマンドのエラー | エラーメッセージを確認してから再実行 |
 
 ### Step 2: rate limit 解除後の再トリガー
 
-`RATE_LIMITED` のとき、スクリプトは `RETRY_AFTER: 約 N 分後（目安 <UTC 時刻>）` を出す。解除前に再トリガーしても、実レビューは実行されない。目安時刻まで待ってから再実行する。
+`RATE_LIMITED` のとき、スクリプトは `RETRY_AFTER: 約 N 分後（目安 <UTC 時刻>）` を出す。**解除前に催促しても再び skip されるだけ**なので、目安時刻まで待ってから再実行する。
 
 ```bash
 # 解除目安を過ぎたら、トリガーせず監視のみで実状態を確認 → まだ結果が無ければ再トリガー
 bash .../trigger-and-watch.sh <PR> --no-trigger        # 現状だけ確認
 bash .../trigger-and-watch.sh <PR> --mode full         # 再トリガー + 監視
 ```
-
-`--no-trigger` が `RATE_LIMIT_EXPIRED` を返した場合は、解除目安を過ぎている。再トリガーしてよい。
 
 待機を自動化するなら、解除目安まで空けて再実行する形をバックグラウンドに置く（`run_in_background` で「解除時刻付近に起動 → `--no-trigger` で確認 → 未完なら再トリガー」）。数十分規模の待機を前面で回さない。
 
@@ -89,18 +83,15 @@ bash .../trigger-and-watch.sh <PR> --no-trigger
 ## 判定の要点（スクリプトの内部ロジック）
 
 - **rate limit を最優先で判定**する。「Full review finished」と rate limit が併記されるため、finished 語を先に見ると誤判定する。
-- ポーリング中の取得失敗は、連続 3 回まで再試行する。3 回連続で失敗した場合は `ERROR` で終了する。
-- 最新の CodeRabbit コメントは全ページを `--slurp` で束ね、コメント ID でソートして取る。**この gh では `--slurp` と `--jq` は併用できない**ため、`--slurp` の出力をパイプで jq に渡す。
+- 最新の CodeRabbit コメントは全ページを `--slurp` で束ねて `created_at` でソートして取る。**この gh では `--slurp` と `--jq` は併用できない**ため、`--slurp` の出力をパイプで jq に渡す。
 - コメント本文には制御文字が混じることがある。生テキストを別 jq に食わせると `U+0000-001F` で parse error になるため、`jq -c` で valid JSON 化してから `.body` を再取得する。
-- baseline には、トリガー前の最新 CodeRabbit コメント ID を使う。baseline より大きい ID の応答だけを「今回の応答」とみなす。baseline はトリガーする経路でのみ取得する（`--no-trigger` では使わないため）。
-- 解除目安の表記は 2 通りある。`Your next included review will be available in 44 minutes.` と、`**Next review available in:** **59 minutes**` のように Markdown の強調が間に挟まる形である。どちらも拾えるよう、`available in` と数字の間に記号と空白を許容する正規表現を使う。
-- `--no-trigger` では、制限通知の投稿時刻と解除目安から**解除済みかどうか**を判定する。解除目安を過ぎていれば `RATE_LIMIT_EXPIRED` を返す。解除目安が本文に無い場合や時刻の変換に失敗した場合は、安全側に倒して `RATE_LIMITED` のままにする。
+- baseline（トリガー前の最新 CodeRabbit コメント時刻）より後の応答だけを「今回の応答」とみなし、古いコメントで誤判定しない。
 
 ## アンチパターン
 
-- ❌ `@coderabbitai full review` を投げて完了扱いにする（rate limit 中は実レビューが実行されない。制限を知らせるコメントの確認が必須）
+- ❌ `@coderabbitai full review` を投げて完了扱いにする（rate limit で silent skip されうる。応答監視が必須）
 - ❌ 「Full review finished」だけ見て結果が出たと判断する（rate limit 併記時は結果未投稿）
-- ❌ rate limit 解除前に催促を繰り返す（実レビューは実行されない。目安時刻まで待つ）
+- ❌ rate limit 解除前に催促を繰り返す（再 skip されるだけ。目安時刻まで待つ）
 - ❌ 本スキルで approve まで期待する（approve は `coderabbit-approve`）
 - ❌ 数十分の解除待ちを前面 `sleep` で回す（ハーネスでブロックされうる。バックグラウンドに置く）
 
