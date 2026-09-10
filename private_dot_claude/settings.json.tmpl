@@ -2,7 +2,7 @@
   {{- /* 上書き: data.claude.model で変更可。未定義なら現行 default。
          値は toString | toJson で「文字列化 + JSON エスケープ」してから埋め込む
          （quote や制御文字を含む値でも出力 JSON が壊れないようにするため）。 */}}
-  "model": {{ dig "claude" "model" "claude-fable-5[1m]" . | toString | toJson }},
+  "model": {{ dig "claude" "model" "claude-fable-5-1[1m]" . | toString | toJson }},
   {{- /*
     effortLevel は data.claude.effortLevel を定義したマシンでのみ出力する。
     未定義ならキー自体を出力しない（= ハーネス既定に従う。現行 main と同一出力）。
@@ -97,6 +97,10 @@
       "Bash(ls *)",
       "Bash(ls)",
       "Bash(pwd)",
+      "Bash(cd *)",
+      "Bash(echo *)",
+      "Bash(printf *)",
+      "Bash(test *)",
       "Bash(tree *)",
       "Bash(tree)",
       "Bash(grep *)",
@@ -162,7 +166,8 @@
       "Read(**/.env)",
       "Read(**/.env.*)"
     ],
-    "defaultMode": "acceptEdits"
+    {{- /* /permissions で切り替えた既定モードは settings.json に直接書かれる。data.claude.defaultMode で上書きする（未定義なら acceptEdits）。 */}}
+    "defaultMode": {{ dig "claude" "defaultMode" "acceptEdits" . | toJson }}
   },
   "hooks": {
     "PreToolUse": [
@@ -265,6 +270,13 @@
   "skipWorkflowUsageWarning": true,
   "teammateMode": "auto",
   "skipAutoPermissionPrompt": true,
+  {{- /*
+    auto mode の設定（soft_deny / environment）。/permissions の auto mode セットアップが settings.json に
+    直接書き込むため、data.claude.autoMode に置かないと apply のたびに消える。未定義ならキー自体を出さない。
+  */}}
+  {{- with dig "claude" "autoMode" "" . }}
+  "autoMode": {{ . | toJson }},
+  {{- end }}
   "mcpServers": {{ dig "claude" "mcpServers" (dict "playwright" (dict "command" "npx" "args" (list "@playwright/mcp@latest"))) . | toJson }},
   "tui": "fullscreen"
 }

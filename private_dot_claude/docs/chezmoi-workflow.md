@@ -31,7 +31,7 @@ chezmoi apply
 |-----------|--------|-----------------|
 | `~/.gitconfig` | `dot_gitconfig.tmpl` | `{{ .name }}`, `{{ .email }}`, `git_signing_enabled`, `git_signing_key` |
 | `~/.zshrc` | `dot_zshrc.tmpl` | なし（クリーンアップ済み、将来のマシン分岐用） |
-| `~/.claude/settings.json` | `private_dot_claude/settings.json.tmpl` | `data.claude.model`, `data.claude.effortLevel`, `data.claude.disable1m`, `data.claude.autoCompactWindow`, `data.claude.autoCompactPct`, `data.claude.mcpServers`, `data.claude.enabledPlugins`, `data.claude.voice` |
+| `~/.claude/settings.json` | `private_dot_claude/settings.json.tmpl` | `data.claude.model`, `data.claude.effortLevel`, `data.claude.disable1m`, `data.claude.autoCompactWindow`, `data.claude.autoCompactPct`, `data.claude.mcpServers`, `data.claude.enabledPlugins`, `data.claude.voice`, `data.claude.defaultMode`, `data.claude.autoMode` |
 
 > **重要（`data.claude.mcpServers` / `enabledPlugins` の安全な運用）**: これらは `chezmoi.toml` の値をそのまま `settings.json` に出力する。①`mcpServers` の `command` / `args` / `env` に API キー・トークンを直書きしない（秘密は環境変数参照や外部 secret manager 経由にする）。②生成済みの `~/.claude/settings.json` を `chezmoi add` / `re-add` しない（秘密が混入した実ファイルをリポジトリに取り込まないため。tmpl 側だけを編集する）。③`enabledPlugins` は信頼済みの marketplace / plugin ID のみ指定する。
 >
@@ -45,6 +45,8 @@ chezmoi apply
 |---|---|
 | `/model` | `data.claude.model` |
 | `/voice` | `data.claude.voice.mode` / `data.claude.voice.enabled` |
+| `/permissions`（既定モードの切り替え） | `data.claude.defaultMode` |
+| `/permissions`（auto mode のセットアップ。`soft_deny` / `environment`） | `data.claude.autoMode`（TOML の配列でそのまま持つ） |
 
 なお `settings.json` がコマンドで書き換わっていると `chezmoi apply` は「chezmoi が書いた後に変更されている」と検出して確認を求める。**確認を求められたら、まず `chezmoi diff` で意図しない巻き戻りが含まれていないかを見る**。`--force` で押し切る前に必ず差分を読むこと。
 
