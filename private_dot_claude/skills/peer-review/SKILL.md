@@ -27,7 +27,7 @@ L1 と L2 は **異なる強み** を持つため、観点を分担すること�
 
 | レイヤ | 強み | 主担当の観点 | 苦手 |
 |--------|------|-------------|------|
-| **L1 司令塔（セッションのメインモデル）** | 大きなコンテキスト把握、ADR/Issue/Epic 横断、設計意図の理解 | architecture / spec-consistency / alternatives / goal-achievement（設計レベル） | 実コード細部の機械検証 |
+| **L1 統括セッション（セッションのメインモデル）** | 大きなコンテキスト把握、ADR/Issue/Epic 横断、設計意図の理解 | architecture / spec-consistency / alternatives / goal-achievement（設計レベル） | 実コード細部の機械検証 |
 | **L2 Codex** | リポジトリ実体への grep/sed 即時実行、構文・依存関係の機械検証、コード変更の論理整合 | security（実コード）/ goal-achievement（実装到達度）/ コード変更の整合性 | プロジェクト固有の設計意図・ステークホルダーコンテキスト |
 
 L1 プロンプトには「コード細部は L2 に任せ、設計意図に集中」と明示。
@@ -83,9 +83,9 @@ L2 (Codex) は `codex exec review --base <branch>` の標準観点に任せ、�
 6. **CLAUDE.md（該当領域）**: 対象ディレクトリの CLAUDE.md（infra/CLAUDE.md 等）
 7. **既存レビュー**: 他のレビュアーの既存コメント（重複指摘を避ける）
 
-### Step 2: L1 司令塔 俯瞰レビュー（設計・コンテキスト担当）
+### Step 2: L1 統括セッション 俯瞰レビュー（設計・コンテキスト担当）
 
-Claude 自身（司令塔、1M context 対応モデル推奨）で俯瞰レビューを実施する。
+Claude 自身（統括セッション、1M context 対応モデル推奨）で俯瞰レビューを実施する。
 
 **L1 の担当観点**: architecture / spec-consistency / alternatives / goal-achievement（設計レベル）。
 **L1 が踏み込まないこと**: 実コード細部の検証（grep でしか分からない依存関係、関数間の整合性、テスト網羅性）。これらは L2 Codex が独立に検証する。
@@ -98,7 +98,7 @@ L1 を非対話で `claude -p` に投げる場合は以下のフラグを必須�
 - `--output-format json --json-schema "${CLAUDE_SKILL_DIR}/references/schemas/finding-schema.json"`（指摘構造の固定）
 
 出力: `/tmp/peer-review-<PR>-l1.json`（schema 準拠、findings + summary）。
-対話的に司令塔上で直接レビューする場合はこのフラグは不要だが、L1/L2 のマージ容易性のため最終的に同 schema に揃えること。
+対話的に統括セッション上で直接レビューする場合はこのフラグは不要だが、L1/L2 のマージ容易性のため最終的に同 schema に揃えること。
 
 ### Step 3: L2 Codex セカンドオピニオン（実コード担当）
 

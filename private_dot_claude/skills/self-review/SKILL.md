@@ -30,12 +30,12 @@ Claude Code 内蔵 `/simplify` と外部レビュアーを組み合わせ、**1 
 
 | パラメータ | デフォルト | 説明 |
 |-----------|----------|------|
-| `--strategy` | `auto` | `auto`（diff 規模で simple/standard/docs-only を自動判定）/ `simple`（Simplify のみ）/ `standard`（bug + security 並列）/ `deep`（design + macro 観点 goal-achievement/spec-consistency + ultrareview 込みの 5 観点並列）/ `docs-only`（変更ファイルがすべて非コードのとき自動判定。Simplify と外部レビューを両方スキップし、司令塔が事実照合を行う） |
+| `--strategy` | `auto` | `auto`（diff 規模で simple/standard/docs-only を自動判定）/ `simple`（Simplify のみ）/ `standard`（bug + security 並列）/ `deep`（design + macro 観点 goal-achievement/spec-consistency + ultrareview 込みの 5 観点並列）/ `docs-only`（変更ファイルがすべて非コードのとき自動判定。Simplify と外部レビューを両方スキップし、統括セッションが事実照合を行う） |
 | `--scope` | `changed` | `changed`（ベースブランチからの差分）/ `staged`（ステージ済み）/ `all`（全ファイル） |
 | `--max-iterations` | 1（`--deep` 時は 3） | 最大ループ回数。通常は 1 パスで十分 |
 | `--skip-simplify` | false | Simplify をスキップ |
 | `--skip-external` | false | 外部レビューをスキップ（Simplify のみ実行） |
-| `--simplify-via` | `internal` | `internal`（司令塔自身の `/simplify`）/ `codex`（`codex:codex-rescue` サブエージェント経由で委譲、レート消費に注意） |
+| `--simplify-via` | `internal` | `internal`（統括セッション自身の `/simplify`）/ `codex`（`codex:codex-rescue` サブエージェント経由で委譲、レート消費に注意） |
 | `--with-design` | false | design 観点を追加（claude -p または `--with-gemini` 時は Gemini） |
 | `--with-gemini` | false | Gemini を opt-in。プリフライトが起動するのもこの指定時のみ |
 | `--ultrareview` | false | bug の primary を `claude ultrareview --json` に置換（課金あり: Pro/Max は 3 回無料、以降 $5–$20/run） |
@@ -74,7 +74,7 @@ Claude Code 内蔵 `/simplify` と外部レビュアーを組み合わせ、**1 
    **Codex の可否判定は Bash から直接行わない**（`command -v codex` は PreToolUse フック
    `block-codex-direct.py` にブロックされる）。Codex の利用可否・バージョン差分の判定は
    呼び出し先に委ねる:
-   - Step 1-2（Simplify 委譲）: `codex:codex-rescue` は Codex 未導入・未認証時に何も返さない（空出力）ため、呼び出し側（司令塔）が空出力を失敗と解釈して内蔵 `/simplify` にフォールバックする
+   - Step 1-2（Simplify 委譲）: `codex:codex-rescue` は Codex 未導入・未認証時に何も返さない（空出力）ため、呼び出し側（統括セッション）が空出力を失敗と解釈して内蔵 `/simplify` にフォールバックする
    - Step 3（security/design レビュー）: [scripts/codex-review.sh](scripts/codex-review.sh) が内部で
      `command -v codex` と `--ignore-user-config` 対応判定（旧 `CODEX_REPRO_FLAGS`）を行う
      （スクリプトファイルの中身は同フックの検査対象外）
@@ -148,12 +148,12 @@ macro 観点（goal-achievement / spec-consistency）は **diff だけでは評�
 **`docs-only` strategy のときは Simplify を実行しない**。理由をユーザーへ 1 行報告する
 （趣旨: 「Simplify はコードの再利用性・複雑さ・効率を見るため、Markdown には作用対象が無い」）。
 
-**原則: 司令塔（セッションのメインモデル）自身が Claude Code 内蔵 `/simplify` スキルを起動する**。Codex 委譲は
+**原則: 統括セッション（セッションのメインモデル）自身が Claude Code 内蔵 `/simplify` スキルを起動する**。Codex 委譲は
 レート消費が大きいため `--simplify-via=codex` 指定時のみの opt-in に降格した。
 
 #### 1-1. 内蔵 `/simplify` で実行（デフォルト経路）
 
-司令塔が対象ファイル群に対して `/simplify` を起動し、再利用性チェック・複雑さ除去・効率性改善を行う。
+統括セッションが対象ファイル群に対して `/simplify` を起動し、再利用性チェック・複雑さ除去・効率性改善を行う。
 `/simplify` の進行中は git に触れないこと（最終コミットは Step 6 で 1 回にまとめる）。
 
 #### 1-2. Codex に委譲する場合（`--simplify-via=codex` 指定時のみ）
@@ -181,11 +181,11 @@ Agent ツールで `subagent_type: "codex:codex-rescue"` を起動し、以下�
 ## 制約
 - public API の互換性を壊さない
 - テストを変更する必要がある大幅なリファクタは行わない（judgment に任せる）
-- **git add / commit / push は一切実行しないこと**（司令塔側で最終的に 1 コミットにまとめる）
+- **git add / commit / push は一切実行しないこと**（統括セッション側で最終的に 1 コミットにまとめる）
 - 変更したファイルの一覧を最後に箇条書きで出力すること
 ```
 
-完了後、司令塔は `git diff --stat` で差分の規模だけ確認する（diff 本体を全件精読はしない）。
+完了後、統括セッションは `git diff --stat` で差分の規模だけ確認する（diff 本体を全件精読はしない）。
 Codex 委譲が失敗した場合（`codex:codex-rescue` が空出力を返す Codex 未導入・未認証時を含む）は
 内蔵 `/simplify` にフォールバックし、ユーザーに失敗を 1 行で報告する。
 
@@ -281,10 +281,10 @@ Step 1 で変更があった場合、**stash や中間コミットを作らず�
 `--deep` 無し で `--with-design` のみ指定された場合、standard の 2 並列に design 観点を加えて 3 並列で起動する。
 ultrareview は明示的に `--ultrareview` を付けない限り起動しない。
 
-#### strategy: docs-only（外部レビューをスキップし、司令塔が事実照合する）
+#### strategy: docs-only（外部レビューをスキップし、統括セッションが事実照合する）
 
 `docs-only` では bug / security の外部レビューを呼ばない。ただし「レビューを飛ばして問題なしで終える」のは
-危険なので、代わりに**司令塔（セッションのメインモデル）自身が事実照合を行う**。最低限、次を確認する:
+危険なので、代わりに**統括セッション（セッションのメインモデル）自身が事実照合を行う**。最低限、次を確認する:
 
 - 文書が参照している Issue 番号・Pull Request 番号が実在し、内容が食い違っていないか
 - 相対リンクの参照先が実在するか
@@ -300,10 +300,10 @@ ultrareview は明示的に `--ultrareview` を付けない限り起動しない
 
 ### Step 4: 指摘の集約（分類は行わない）
 
-外部レビュアーが `category` フィールドを付与して返してくるので、**司令塔側では再分類しない**。
+外部レビュアーが `category` フィールドを付与して返してくるので、**統括セッション側では再分類しない**。
 各 finding の `category`（`auto-fix` / `judgment` / `info`）をそのまま信頼してグルーピングするだけ。
 
-この層で司令塔がやるのは以下だけ:
+この層で統括セッションがやるのは以下だけ:
 
 1. 複数観点の findings をマージし、重複を除去する
    （重複判定は [references/review-prompts.md](references/review-prompts.md) の「並列モードでの重複除去」ルールに従う）
@@ -313,13 +313,13 @@ ultrareview は明示的に `--ultrareview` を付けない限り起動しない
 4. severity でソート（critical → warning → info）
 5. 最終サマリに観点別件数（例: `bug: 3 / security: 1` または deep 時 `bug: 3 / security: 1 / design: 2 / goal-achievement: 1 / spec-consistency: 0`）を出力できるよう集計する
 
-**司令塔が category を書き換えて良いケース（例外）**:
+**統括セッションが category を書き換えて良いケース（例外）**:
 - 明らかに誤分類に見える（例: 変更不要な info が auto-fix になっている）
 - severity: critical なのに info になっている
 - 多数決で矛盾している（parallel で 2 レビュアーの category が割れた場合は保守側 = judgment を採用）
 
 それ以外では findings 本文を読み直さず、カテゴリだけを見て次のステップに渡す
-（これにより司令塔のコンテキスト消費を大きく削減できる）。
+（これにより統括セッションのコンテキスト消費を大きく削減できる）。
 
 参考: [references/classification-guide.md](references/classification-guide.md)
 （こちらは外部レビュアーのプロンプト作成時の元データとして保持。通常の実行フローでは読み込み不要）
@@ -389,7 +389,7 @@ git commit -m "refactor: self-review (simplify + review fixes)"
 以下の条件に 1 つでも該当したら、以降のステップをスキップして Step 8 へ直行する:
 
 - **`simple` strategy**（diff ≤ 30 行 かつ ファイル ≤ 3、`--force-external` なし）→ Step 3 を全スキップし、Simplify 結果のみで Step 6 → Step 8 へ
-- **`docs-only` strategy**（変更ファイルがすべて非コード、`--force-external` なし）→ Step 1（Simplify）と Step 3（外部レビュー）を両方スキップし、司令塔の事実照合結果のみで Step 8 へ。**`--force-external` を指定したときは Step 3 を実行する**（Step 0 の戦略判定・Step 3 と同じ優先順位にそろえる。`--force-external` は「自動スキップを無視して外部レビューを回す」ための指定なので、docs-only でも同じ意味になる）。なお Simplify は `--force-external` の有無に関わらずスキップする（Markdown には作用対象が無いため）
+- **`docs-only` strategy**（変更ファイルがすべて非コード、`--force-external` なし）→ Step 1（Simplify）と Step 3（外部レビュー）を両方スキップし、統括セッションの事実照合結果のみで Step 8 へ。**`--force-external` を指定したときは Step 3 を実行する**（Step 0 の戦略判定・Step 3 と同じ優先順位にそろえる。`--force-external` は「自動スキップを無視して外部レビューを回す」ための指定なので、docs-only でも同じ意味になる）。なお Simplify は `--force-external` の有無に関わらずスキップする（Markdown には作用対象が無いため）
 - 外部レビュー結果の findings が 0 件 かつ Simplify でも変更なし → 何もコミットせず終了
 - critical が 0 件 かつ judgment が 0 件 → judgment フェーズをスキップ（auto-fix のみ適用して Step 6 へ）
 
