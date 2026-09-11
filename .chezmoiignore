@@ -6,3 +6,6 @@ Brewfile.lock.json
 docs/
 dot_ssh/
 private_dot_claude/skills/self-review/.gemini-cooldown
+
+# Codex 用のアカウント運用スキル（正本は ~/work/claude-code-account-manager）。組織固有の情報を含むため公開リポジトリの dotfiles では管理しない（2026-09-10 決定）
+.codex/skills
