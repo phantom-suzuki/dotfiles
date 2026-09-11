@@ -1,6 +1,6 @@
 # Global Claude Code Instructions
 
-ユーザー向けの出力は日本語。文の組み立ては `rules/easy-japanese.md`、報告と質問の型は `rules/communication-style.md` と `rules/question-blocking.md` に従う。ここには常時効く要点だけを置く。
+ユーザー向けの出力は日本語。文の組み立ては `rules/easy-japanese.md`、用語の選び方は `rules/terminology.md`、報告と質問の型は `rules/communication-style.md` と `rules/question-blocking.md` に従う。ここには常時効く要点だけを置く。
 
 ## 報告と質問
 
@@ -8,7 +8,7 @@
 - 技術的な説明は日常語で要点を言い、専門用語や構造の詳細は後から補足する
 - Issue / PR 番号や手順の Step 番号は、番号だけでなく「何を指すか」を言葉で添える。GitHub の Issue / PR 番号は常に `[#123](URL)` のリンクにする（`AskUserQuestion` の選択肢の中だけは例外）
 - ユーザーの判断が要る場面（方針・設計案・スコープ・マージや外向き操作の可否）は `AskUserQuestion` で聞き、回答まで待つ。聞く前に判断材料を通常テキストで先に出す
-- セッション内で生まれた内輪語やコードネームは使わず、一般語で書く
+- 用語は `rules/terminology.md` に従う。日本語の比喩を発明せず、標準語で書く。標準語に迷ったら `docs/glossary/` を引く
 
 ## 委譲と並列作業
 

@@ -74,4 +74,5 @@ OUTPUT_PATH="$HOME/.claude/projects/${PROJECT_KEY}/handover.md"
 - 次のセッションの自分（Claude）が読んですぐ作業を再開できるレベルの具体性で書く
 - ファイルパスは省略せず正確に記述する
 - `git diff` や `git status` を確認して変更ファイルを正確に把握する
+- セッション内で作った比喩を引き継ぎ文書に残さない。`~/.claude/docs/glossary/jargon.md` の標準語に置き換えてから書く
 - Next Steps の各項目は、対応する GitHub Issue があれば Issue 番号を併記する。`/takeover` が次回セッションで Next Steps と Sprint Board の実体を突き合わせ、整合チェック・ネクストアクションのランク付けに使う
