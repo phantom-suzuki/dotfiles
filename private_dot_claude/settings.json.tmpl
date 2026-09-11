@@ -10,6 +10,13 @@
   {{- if dig "claude" "effortLevel" "" . }}
   "effortLevel": {{ dig "claude" "effortLevel" "" . | toString | toJson }},
   {{- end }}
+  {{- /*
+    モデルごとの effort。用途別の使い分け（司令塔 = Fable 5.1 は high、作業者 = Opus 5 は medium）を
+    保存する。/effort は settings.json に直接書くため、マシン固有の値は data.claude.modelSettings で
+    丸ごと上書きする。キーはモデル ID（`[1m]` などのサフィックスを除いた形）。
+    用途別の起動コマンド（claude-plan / claude-work）は dot_zshrc.tmpl、説明は docs/chezmoi-workflow.md。
+  */}}
+  "modelSettings": {{ dig "claude" "modelSettings" (dict "claude-fable-5-1" (dict "effortLevel" "high") "claude-opus-5" (dict "effortLevel" "medium")) . | toJson }},
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
     "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "64000",
