@@ -107,7 +107,7 @@ Confirm the self-review skill has been run on this branch (from session history,
 gh pr view <PR> --json reviews,comments
 ```
 
-Check for `CHANGES_REQUESTED` from human reviewers or bots (especially `coderabbitai`), and for unresolved review comments. In repos where CodeRabbit is active (`coderabbitai` reviews exist), verify that all CodeRabbit findings have been addressed.
+Check for `CHANGES_REQUESTED` from reviewers, and for unresolved review comments.
 
 > Note: `--json reviews,comments` does not expose review-thread resolved/unresolved state, so this is an approximation. For a strict check of unresolved threads, use `gh api graphql` and inspect `reviewThreads.isResolved`.
 

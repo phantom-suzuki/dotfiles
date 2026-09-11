@@ -81,7 +81,7 @@ L2 (Codex) は `codex exec review --base <branch>` の標準観点に任せ、�
 4. **関連 ADR / Spec**: PR 本文 / diff 内で参照される `.md` ファイルを Read
 5. **既存の同類ドキュメント**: 対象ファイルと同ディレクトリの関連ドキュメント（例: dns-domain.md 更新なら ses.md も読む）を Read
 6. **CLAUDE.md（該当領域）**: 対象ディレクトリの CLAUDE.md（infra/CLAUDE.md 等）
-7. **既存レビュー**: CodeRabbit 等の既存レビューコメント（重複指摘を避ける）
+7. **既存レビュー**: 他のレビュアーの既存コメント（重複指摘を避ける）
 
 ### Step 2: L1 司令塔 俯瞰レビュー（設計・コンテキスト担当）
 
@@ -145,7 +145,7 @@ L1 が schema 違反した場合は手動補正、Codex が異常応答（agent_
 
 ### Step 5: ドラフト作成
 
-**原則: 指摘ごとに行コメントへ分離、トップコメントはサマリに絞る**（CodeRabbit 形式）。
+**原則: 指摘ごとに行コメントへ分離、トップコメントはサマリに絞る**。
 
 #### トップコメント
 [templates/top-comment.md](templates/top-comment.md) のテンプレートに沿って `/tmp/pr<PR>-comments/top.md` に作成:
@@ -220,10 +220,10 @@ gh pr view <PR> --json reviews --jq '.reviews[-1] | {author, state, submittedAt}
 ## 注意事項
 
 - **投稿は破壊的操作に準じる**: 他者に見える行為のため、ユーザー承認なしに `gh pr review` を実行しない
-- **CodeRabbit 既存指摘との棲み分け**: CodeRabbit は行レベル具体、peer-review は俯瞰。重複する場合は「refer（賛同）」「対応方針の確定促進」に留め、指摘の二重化を避ける
+- **他のレビュアーの既存指摘との棲み分け**: 既に出ている指摘と重複する場合は「賛同」「対応方針の確定促進」に留め、指摘の二重化を避ける
 - **対話型判断が基本**: 指摘を一覧で出して「どれを採用する？」と聞くより、1 件ずつ解説しながら判断を仰ぐ方が、ユーザーの理解度・納得度・指摘の精度が上がる
 - **L1/L2 の観点分担を守る**: L1 Claude は設計・コンテキスト、L2 Codex は実コード検証。両者で同じ観点を二重に動かすと重複指摘とノイズが増える。「Claude が実コード細部を grep する」「Codex に設計意図を解釈させる」のはアンチパターン
 - **Codex 呼び出しは `codex-review.sh` 経由**: 直叩きすると `--base + PROMPT` 排他エラーや agent_message 抽出の差異で時間を溶かす。スクリプトを更新したい場合は scripts/ 側を直す
 - **任意の代替経路**: `openai/codex-plugin-cc` プラグイン導入済みなら `/codex:review --background --base <ref>` で session 管理付き呼び出しに切り替え可能（次フェーズで本実装に統合する想定）
 - **`self-review` や `review-pr` と混同しないこと**: 3 者は対象も操作も異なる
-- **文体**: 日本語、敬体、git-conventions.md の Issue / PR 節に準拠。CodeRabbit への言及は日本語で OK（返信ではなく言及なので）
+- **文体**: 日本語、敬体、git-conventions.md の Issue / PR 節に準拠

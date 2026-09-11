@@ -9,7 +9,7 @@ description: Dependabot / Renovate の bot 作成 PR を専用観点でレビュ
 Dependabot / Renovate の bot 作成 PR を専用観点でレビューする軽量スキル。
 **主目的は「単一ファイル更新で済むはずがない bump で追従漏れが起きていないか」を決定論的に検知すること**。
 
-LLM レビュー（CodeRabbit）と棲み分け、確定的な grep ベースの検知を提供する。
+LLM による読解ではなく、確定的な grep ベースの検知を提供する。
 追従更新が必要なら、**ユーザー承認後** に **別ブランチで** 追従 PR を作成する（元 bot PR には触らない — rebase で消える/競合するリスク回避）。
 
 ## パラメータ

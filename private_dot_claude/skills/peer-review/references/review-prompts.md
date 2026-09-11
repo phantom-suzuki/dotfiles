@@ -26,7 +26,7 @@ Claude 自身（オーケストレーター）が俯瞰レビューを実施す�
    - 関連 ADR / Spec の要点
    - 既存の同類ドキュメント（責務重複チェック用）
    - 対象領域の CLAUDE.md
-   - 既存 CodeRabbit / 他レビュアーの指摘
+   - 他のレビュアーの既存指摘
 4. [review-checklist.md](review-checklist.md) の俯瞰 5 観点
 5. [classification-guide.md](classification-guide.md) の分類ルール
 6. **L1 担当観点の明示**: 「architecture / spec-consistency / alternatives / goal-achievement（設計レベル）に集中する。実コード細部の grep ベース検証は L2 Codex が担当するので踏み込まない」
@@ -122,7 +122,7 @@ Gemini Pro は `MODEL_CAPACITY_EXHAUSTED` で失敗することが多く、リ�
 <ADR / Spec の要点を 200 字程度にサマライズ>
 
 # 既存レビュー指摘
-<CodeRabbit 等の既存指摘、あれば>
+<他のレビュアーの既存指摘、あれば>
 
 # レビュー観点（必須、俯瞰的）
 1. **セキュリティ**
@@ -186,9 +186,9 @@ bash "${CLAUDE_SKILL_DIR}/scripts/gemini-review.sh" <PR番号>
 - 特に **Epic 備考**は PR 本文に含まれない設計前提があるので必ず含める
 - ADR は「ステータス（承認済み/提案中）」も含める
 
-### 既存 CodeRabbit 指摘の渡し方
+### 既存レビュー指摘の渡し方
 
-- 指摘の二重化を避けるため、「既存の CodeRabbit 指摘」セクションで明示
+- 指摘の二重化を避けるため、「既存レビュー指摘」セクションで明示
 - 「**この指摘と重複しないよう、俯瞰観点に絞る**」と誘導
 
 ### L1/L2 の観点分担で重複を減らす
