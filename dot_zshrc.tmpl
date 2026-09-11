@@ -54,6 +54,12 @@ export VISUAL='nvim'
 # Worktree + Claude Code workflow
 [[ -f ~/.config/zsh/worktree.zsh ]] && source ~/.config/zsh/worktree.zsh
 
+# 用途別の Claude Code 起動。素の `claude` は司令塔用（settings.json の既定: Fable 5.1 1M / effort high）。
+# 以前撤去した全セッション共通の effort alias とは違い、素の `claude` の挙動は変えない。
+# 対応表は ~/.claude/docs/chezmoi-workflow.md の「用途別のモデルと effort」。
+claude-plan() { command claude --model 'opus[1m]' --effort high "$@"; }    # 段取りが決まっていて判断コストが多少ある作業
+claude-work() { command claude --model 'opus[1m]' --effort medium "$@"; }  # 司令塔の指示で動く作業者セッション
+
 # Starship prompt
 eval "$(starship init zsh)"
 

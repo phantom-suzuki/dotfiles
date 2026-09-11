@@ -44,9 +44,22 @@ chezmoi apply
 | コマンド | 更新する `chezmoi.toml` のキー |
 |---|---|
 | `/model` | `data.claude.model` |
+| `/effort` | `data.claude.modelSettings`（モデル ID ごとの `effortLevel`。テンプレート既定は Fable 5.1 = high、Opus 5 = medium） |
 | `/voice` | `data.claude.voice.mode` / `data.claude.voice.enabled` |
 | `/permissions`（既定モードの切り替え） | `data.claude.defaultMode` |
 | `/permissions`（auto mode のセットアップ。`soft_deny` / `environment`） | `data.claude.autoMode`（TOML の配列でそのまま持つ） |
+
+### 用途別のモデルと effort
+
+セッションの用途でモデルと effort を使い分ける。`settings.json` に持てる既定は 1 つなので、既定は司令塔用にし、他の用途は zsh の起動関数（`dot_zshrc.tmpl`）で `--model` と `--effort` を渡す。関数は素の `claude` の挙動を変えない。
+
+| 用途 | モデル / effort | 起動 |
+|---|---|---|
+| 司令塔・要件定義・判断が多い作業・基本設計 | Fable 5.1（1M）/ high | 素の `claude`（`settings.json` の既定） |
+| ロードマップや段取りが決まっていて判断コストが多少ある作業 | Opus 5（1M）/ high | `claude-plan` |
+| 司令塔の指示で動く作業者セッション | Opus 5（1M）/ medium | `claude-work` |
+
+セッション内で `/model` や `/effort` を使うと `settings.json` の `model` / `modelSettings` が書き換わる。恒久的に変えるなら上の表と `chezmoi.toml` の `[data.claude]` を更新し、一時的なら次の `chezmoi apply` で既定に戻ってよい。
 
 なお `settings.json` がコマンドで書き換わっていると `chezmoi apply` は「chezmoi が書いた後に変更されている」と検出して確認を求める。**確認を求められたら、まず `chezmoi diff` で意図しない巻き戻りが含まれていないかを見る**。`--force` で押し切る前に必ず差分を読むこと。
 
