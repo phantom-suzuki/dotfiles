@@ -41,9 +41,9 @@ argument-hint: "[doc-file-path-or-glob] [--skip-codex] [--with-gemini] [--scope 
 | L | 参照リンク | リンク切れ、内部相対パス、Issue/PR/ADR 番号、外部 URL の妥当性 |
 | U | 更新漏れ | 同ディレクトリの README / 目次、対比表、関連ガイド・spec の追従更新 |
 
-**review-adr / CodeRabbit との棲み分け**:
+**review-adr との棲み分けと観点の絞り込み**:
 - ADR の論理一貫性・既存矛盾は review-adr に委ねる
-- 表記レベルの細かい指摘（typo、リンク文字列）は CodeRabbit と重複しがち。初出のみ指摘し、繰り返さない
+- 表記レベルの細かい指摘（typo、リンク文字列）は初出のみ指摘し、繰り返さない
 
 ## 対象判定（ADR 除外ルール）
 
@@ -191,7 +191,7 @@ L1 / L2 の `findings` を統合し、severity でソートしてユーザーに
 ## 注意事項
 
 - **ファイル編集は提案のみ**: ドキュメントの自動編集は行わず、ユーザーの明示承認後に 1 件ずつ Edit
-- **CodeRabbit との棲み分け**: 表記・リンク切れの細部は CodeRabbit に任せ、本スキルは可読性・整合・更新漏れにフォーカス
+- **観点の絞り込み**: 表記・リンク切れの細部は初出のみに留め、本スキルは可読性・整合・更新漏れにフォーカス
 - **対話型判断**: finding 一覧で「全部対応」ではなく、1 件ずつ判断を仰ぐ
 - **`--scope related` の使い所**: 関連ファイルとの更新漏れ（同ディレクトリの README、対比表など）を検出したいとき
 - **対象は ADR 以外の Markdown のみ**: ADR は review-adr、コード変更は self-review、他者 PR は peer-review

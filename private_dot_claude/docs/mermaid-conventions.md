@@ -61,7 +61,7 @@ graph LR
 
 ## 描画検証（Mermaid 追加・変更時は push 前に必須）
 
-GitHub は Mermaid をクライアント側でレンダリングし、**CI も CodeRabbit も Mermaid の構文を検証しない**（CodeRabbit はレンダリングせず APPROVED を出す）。構文エラーは PR 差分ビューで人が目視するまで分からない。よって **Mermaid を追加・変更したら push する前に `mermaid.parse()` で構文検証する**。
+GitHub は Mermaid をクライアント側でレンダリングし、**CI は Mermaid の構文を検証しない**。構文エラーは PR 差分ビューで人が目視するまで分からない。よって **Mermaid を追加・変更したら push する前に `mermaid.parse()` で構文検証する**。
 
 検証レシピ（一時ディレクトリで実行）:
 

@@ -1,12 +1,12 @@
 ---
 name: work-issue
-description: GitHub Issue 番号から、着手 → 修正 → セルフレビュー → PR 作成 → CodeRabbit 対応 → マージ指示伺いまで進める /goal コマンド文字列を生成する。「この Issue を PR まで」のときに使う。
+description: GitHub Issue 番号から、着手 → 修正 → セルフレビュー → PR 作成 → レビュー対応 → マージ指示伺いまで進める /goal コマンド文字列を生成する。「この Issue を PR まで」のときに使う。
 disable-model-invocation: true
 ---
 
 # Work Issue Skill
 
-GitHub Issue 番号を引数に受け取り、その Issue を **着手 → AC 判断 → 修正 → セルフレビュー → PR 作成 → CodeRabbit 対応 → Approved/CI 確認 → 動作確認 → マージ指示伺い** まで完遂させるための `/goal` コマンド文字列を生成して提示する。
+GitHub Issue 番号を引数に受け取り、その Issue を **着手 → AC 判断 → 修正 → セルフレビュー → PR 作成 → レビュー対応 → CI 確認 → 動作確認 → マージ指示伺い** まで完遂させるための `/goal` コマンド文字列を生成して提示する。
 
 ## このスキルの役割（重要）
 
@@ -39,7 +39,7 @@ gh issue view <番号> --json number,title,state --jq '"#\(.number) [\(.state)] 
 以下のテンプレートの `<番号>` を確定した Issue 番号で置換し、**そのまま貼り付け可能な 1 行**としてコードブロックで提示する。
 
 ```text
-/goal Issue #<番号> を着手してください。Issue の AC が明確でない場合は判断を仰いでください。修正後はセルフレビューを行い、問題がなくなったら PR を作成、CodeRabbit のレビューを待ち必要に応じて review-pr スキルで指摘対応、CodeRabbit Approved・CI 通過を確認できたら動作確認のうえマージ指示を仰いでください。
+/goal Issue #<番号> を着手してください。Issue の AC が明確でない場合は判断を仰いでください。修正後はセルフレビューを行い、問題がなくなったら PR を作成、レビュアーの指摘があれば review-pr スキルで対応し、CI 通過を確認できたら動作確認のうえマージ指示を仰いでください。
 ```
 
 提示時に「この行をプロンプトに貼って実行すると、Stop hook 付きで完遂まで自走します」と 1 行添える。
@@ -58,8 +58,8 @@ gh issue view <番号> --json number,title,state --jq '"#\(.number) [\(.state)] 
 | 修正 | 委譲先を判定して実装（既定は Codex 委譲） | task-delegation / codex:rescue |
 | セルフレビュー | 問題がなくなるまで確認 | self-review |
 | PR 作成 | ブランチ作成 → コミット → push → PR | branch / commit / pr |
-| レビュー対応 | CodeRabbit のレビューを待ち、指摘があれば対応 | review-pr |
-| マージ前確認 | CodeRabbit Approved・CI 通過・動作確認 | — |
+| レビュー対応 | レビュアーの指摘と CI 失敗に対応 | review-pr |
+| マージ前確認 | CI 通過・動作確認 | — |
 | マージ | **ユーザーの明示指示を仰いでから実行**（git-safety 準拠） | — |
 
 ## 制約

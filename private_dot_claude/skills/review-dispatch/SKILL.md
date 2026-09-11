@@ -86,7 +86,7 @@ PR 全体（コード + ADR + ドキュメント）を俯瞰しつつ、ADR フ�
 
 自分の PR に ADR が含まれる場合は本節の対象外（`/self-review` を使う）。
 
-### 自分の PR に bot レビューがついた（CodeRabbit / gemini-code-assist 等）
+### 自分の PR に bot レビューがついた（gemini-code-assist 等）
 
 → `/review-pr` で対応する。
 

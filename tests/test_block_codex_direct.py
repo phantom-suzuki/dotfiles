@@ -65,7 +65,7 @@ CASES = [
     ("quoted env value then codex", 'FOO="a b" codex exec', True),
     ("env wrapper quoted value", "env FOO='a b' codex exec", True),
     ("command sub heredoc delim", "cat <<$(printf EOF)\n$(printf EOF)\ncodex exec\n$(printf EOF)", True),
-    # --- MUST BLOCK: leading-redirection regressions from CodeRabbit review ---
+    # --- MUST BLOCK: leading-redirection regressions from review ---
     ("leading output redirection", ">/tmp/out codex exec", True),
     ("leading fd redirection", "2>/tmp/err codex exec", True),
     ("leading split redirection", "> /tmp/out codex exec", True),
@@ -91,7 +91,7 @@ CASES = [
     ("dollar-bracket simple delim via ;", "x=$[1 << EOF;]\ncodex exec\nEOF", True),
     ("dollar-bracket multiline quote body", 'x=$[1 << EOF]\nFOO="a\nb" codex exec\nEOF]', True),
     ("nested subscript in dollar-bracket", "x=$[a[1] << EOF ]\ncodex exec\nEOF", True),
-    # --- MUST BLOCK: subshell / ANSI-C quick wins found in CodeRabbit review --
+    # --- MUST BLOCK: subshell / ANSI-C quick wins found in review --
     ("subshell direct", "(codex exec)", True),
     ("subshell chained", "(cd /tmp && codex exec)", True),
     ("subshell with wrapper", "(timeout 60 codex exec)", True),

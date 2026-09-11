@@ -26,3 +26,9 @@
 .claude/rules/tool-call-hygiene.md
 .claude/skills/tool-call-parse-recovery
 .claude/skills/tool-call-parse-recovery/**
+
+# 2026-09-11: CodeRabbit の利用を廃止（Issue #114）。実機に残る 2 スキルを消す。
+.claude/skills/coderabbit-approve
+.claude/skills/coderabbit-approve/**
+.claude/skills/coderabbit-review-trigger
+.claude/skills/coderabbit-review-trigger/**

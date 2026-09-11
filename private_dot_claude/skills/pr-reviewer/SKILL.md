@@ -64,10 +64,10 @@ gh api /repos/<owner>/<repo>/pulls/<N>/comments  # 行コメント
 
 - **自分（レビュアー本人）の過去レビューがあるか**で新規 / 再レビューを分ける。他者のレビューがあっても、自分が未レビューなら「新規」。
 - **他レビュアーの `CHANGES_REQUESTED` が残っている場合**、それが**修正済みかを時刻の前後で確認する**。変更要求の `submittedAt` より後に対応コミットの `committedDate` があれば、指摘は解消済みで re-review 待ちの可能性が高い。この判定を誤ると「もう直っている指摘」を蒸し返してしまう。
-- CI の通過状況（`gh pr checks`）、CodeRabbit のレビュー状態も拾う（最終報告に使う）。
+- CI の通過状況（`gh pr checks`）も拾う（最終報告に使う）。
 - PR 本文から関連 Issue / Epic / ADR（`#\d+`、`.md` パス）を抽出し、必要なら `gh issue view` / Read で背景を補う。
 
-トリアージ結果を**表**でユーザーに提示する（PR / 内容 / 自分のレビュー有無 / 他者レビュー / CodeRabbit / CI）。
+トリアージ結果を**表**でユーザーに提示する（PR / 内容 / 自分のレビュー有無 / 他者レビュー / CI）。
 
 ## Step 2: L1(Claude) + L2(Codex) レビュー
 
@@ -116,7 +116,7 @@ L1 と L2 の指摘を統合し、`peer-review` の分類（must-fix / should-fi
 ## Step 5: 後片付け・最終サマリ
 
 - Step 2 で作った worktree を削除する（`git worktree remove --force` → `git worktree prune`）。
-- 全 PR の投稿結果を**表**でまとめる（PR / 判定 / 投稿リンク / 他者レビュー / CodeRabbit / CI）。CI・CodeRabbit の通過状況、残っている変更要求（re-review 待ち等）も添える。
+- 全 PR の投稿結果を**表**でまとめる（PR / 判定 / 投稿リンク / 他者レビュー / CI）。CI の通過状況、残っている変更要求（re-review 待ち等）も添える。
 
 ---
 
@@ -128,5 +128,4 @@ L1 と L2 の指摘を統合し、`peer-review` の分類（must-fix / should-fi
 
 - `peer-review` スキル（単一 PR の観点定義・分類基準・投稿形式の土台）
 - `review-pr` スキル（名前が紛らわしいが対象が逆。`review-pr` は**自分の PR** に付いたレビューコメントへの対応、本スキル `pr-reviewer` は**他者の PR** のレビュー統率）
-- `coderabbit-approve` スキル（CodeRabbit の正式 APPROVED を得る運用）
 - `~/.claude/rules/git-safety.md`（投稿・マージの安全原則）
