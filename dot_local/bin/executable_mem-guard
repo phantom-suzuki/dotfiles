@@ -8,15 +8,25 @@
 #   mem-guard -v       毎回いまの値を表示する
 set -u
 
+# launchd 経由では PATH がほぼ空になる。sysctl を見失うと「空き 100%」と誤報するので明示する。
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin
+
 WARN_FREE_PCT=15     # 空きメモリがこの割合を下回ったら警告
 CRIT_FREE_PCT=8      # この割合を下回ったら危険
 WARN_SWAP_GB=8       # スワップ使用量がこれを超えたら警告
-WARN_CLAUDE=10       # 同時に生きている Claude Code セッション数がこれを超えたら警告
+WARN_CLAUDE=25       # 同時に生きている Claude Code セッション数がこれを超えたら警告
+COOLDOWN_WARN=1800   # 警告を鳴らす間隔の下限（秒）。2 分ごとに鳴ると無視するようになるため
+COOLDOWN_CRIT=300    # 危険水域を鳴らす間隔の下限（秒）
+STATE=${TMPDIR:-/tmp}/mem-guard.last
 
 VERBOSE=0
 [ "${1:-}" = "-v" ] && VERBOSE=1
 
-free_pct=$(sysctl -n kern.memorystatus_level 2>/dev/null || echo 100)
+free_pct=$(sysctl -n kern.memorystatus_level 2>/dev/null || true)
+if ! printf '%s' "${free_pct:-}" | grep -qE '^[0-9]+$'; then
+  logger -t mem-guard "計測に失敗しました（kern.memorystatus_level を読めない）"
+  exit 3
+fi
 swap_used_mb=$(sysctl -n vm.swapusage 2>/dev/null | sed -E 's/.*used = ([0-9.]+)M.*/\1/' | cut -d. -f1)
 [ -z "${swap_used_mb:-}" ] && swap_used_mb=0
 swap_used_gb=$((swap_used_mb / 1024))
@@ -30,17 +40,28 @@ if [ "$VERBOSE" = "1" ]; then
     "$free_pct" "$swap_used_gb" "$nprocs" "$nclaude" "$nnode"
 fi
 
+# $1=種別（warn/crit）で間隔を分ける。同じ種別を続けて鳴らさない。
 notify() {
-  local title="$1" body="$2"
-  osascript -e "display notification \"${body}\" with title \"${title}\" sound name \"Sosumi\"" 2>/dev/null
+  local kind="$1" title="$2" body="$3"
+  local cooldown=$COOLDOWN_WARN
+  [ "$kind" = "crit" ] && cooldown=$COOLDOWN_CRIT
+
+  local now last=0
+  now=$(date +%s)
+  [ -f "${STATE}.${kind}" ] && last=$(cat "${STATE}.${kind}" 2>/dev/null || echo 0)
   logger -t mem-guard "${title}: ${body}"
+  if [ $((now - last)) -lt "$cooldown" ]; then
+    return
+  fi
+  echo "$now" > "${STATE}.${kind}"
+  osascript -e "display notification \"${body}\" with title \"${title}\" sound name \"Sosumi\"" 2>/dev/null
 }
 
 top3=$(ps -Ao rss,comm | awk 'NR>1{s[$2]+=$1} END{for(k in s) printf "%.1fGB %s\n", s[k]/1048576, k}' \
   | sort -rn | head -3 | awk '{n=split($2,p,"/"); printf "%s %s; ", $1, p[n]}')
 
 if [ "$free_pct" -le "$CRIT_FREE_PCT" ]; then
-  notify "メモリが危険水域（空き ${free_pct}%）" "強制再起動の恐れ。今すぐ不要なセッションを閉じてください。上位: ${top3}"
+  notify crit "メモリが危険水域（空き ${free_pct}%）" "強制再起動の恐れ。今すぐ不要なセッションを閉じてください。上位: ${top3}"
   exit 2
 fi
 
@@ -50,7 +71,7 @@ msgs=""
 [ "$nclaude" -ge "$WARN_CLAUDE" ] && msgs="${msgs}Claude Code が ${nclaude} セッション（node ${nnode} / 全 ${nprocs} プロセス）。"
 
 if [ -n "$msgs" ]; then
-  notify "メモリ残量が減っています" "${msgs} 上位: ${top3}"
+  notify warn "メモリ残量が減っています" "${msgs} 上位: ${top3}"
   exit 1
 fi
 exit 0
