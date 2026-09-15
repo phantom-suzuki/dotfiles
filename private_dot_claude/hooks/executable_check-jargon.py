@@ -51,12 +51,36 @@ def load_patterns(glossary):
     return out
 
 
+# transcript は 100MB を超えることがある。全体を読むとメモリを 10 倍使うので末尾だけ読む。
+# 4MB で assistant 行が見つからないときだけ 32MB まで広げる。
+TAIL_STEPS = (4 * 1024 * 1024, 32 * 1024 * 1024)
+
+
+def read_tail(path, tail_bytes):
+    """ファイル末尾 tail_bytes 分の行を返す。先頭の欠けた行は捨てる。"""
+    try:
+        p = pathlib.Path(path)
+        size = p.stat().st_size
+        with p.open("rb") as f:
+            if size > tail_bytes:
+                f.seek(size - tail_bytes)
+                f.readline()
+            chunk = f.read()
+    except Exception:
+        return []
+    return chunk.decode("utf-8", errors="ignore").splitlines()
+
+
 def last_assistant_text(transcript):
     """transcript の最後の assistant メッセージから、ユーザー向けの本文だけを返す。"""
-    try:
-        lines = pathlib.Path(transcript).read_text(encoding="utf-8").splitlines()
-    except Exception:
-        return ""
+    for tail_bytes in TAIL_STEPS:
+        text = _scan_lines(read_tail(transcript, tail_bytes))
+        if text:
+            return text
+    return ""
+
+
+def _scan_lines(lines):
     for line in reversed(lines):
         if '"assistant"' not in line:
             continue
