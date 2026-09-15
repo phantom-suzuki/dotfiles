@@ -1,0 +1,56 @@
+#!/bin/bash
+# メモリ枯渇の兆候を見張り、危険水域で通知する。
+# 2026-09-15 の強制再起動（watchdog timeout）を受けて追加した。
+# 原因はメモリを使い切って macOS のページ回収が止まったこと。手遅れになる前に気づくのが目的。
+#
+# 使い方:
+#   mem-guard          しきい値を超えたときだけ通知する（LaunchAgent から定期実行）
+#   mem-guard -v       毎回いまの値を表示する
+set -u
+
+WARN_FREE_PCT=15     # 空きメモリがこの割合を下回ったら警告
+CRIT_FREE_PCT=8      # この割合を下回ったら危険
+WARN_SWAP_GB=8       # スワップ使用量がこれを超えたら警告
+WARN_CLAUDE=10       # 同時に生きている Claude Code セッション数がこれを超えたら警告
+
+VERBOSE=0
+[ "${1:-}" = "-v" ] && VERBOSE=1
+
+free_pct=$(sysctl -n kern.memorystatus_level 2>/dev/null || echo 100)
+swap_used_mb=$(sysctl -n vm.swapusage 2>/dev/null | sed -E 's/.*used = ([0-9.]+)M.*/\1/' | cut -d. -f1)
+[ -z "${swap_used_mb:-}" ] && swap_used_mb=0
+swap_used_gb=$((swap_used_mb / 1024))
+nprocs=$(ps -Ao pid= | wc -l | tr -d ' ')
+# Claude Code は起動後に自分のプロセス名をバージョン番号（例: 2.1.268）へ変える。両方を数える。
+nclaude=$(ps -Ao comm= | sed 's|.*/||' | grep -cE '^(claude|[0-9]+\.[0-9]+\.[0-9]+)$')
+nnode=$(ps -Ao comm= | sed 's|.*/||' | grep -cx node)
+
+if [ "$VERBOSE" = "1" ]; then
+  printf '空きメモリ: %s%%  スワップ: %sGB  プロセス: %s（claude %s / node %s）\n' \
+    "$free_pct" "$swap_used_gb" "$nprocs" "$nclaude" "$nnode"
+fi
+
+notify() {
+  local title="$1" body="$2"
+  osascript -e "display notification \"${body}\" with title \"${title}\" sound name \"Sosumi\"" 2>/dev/null
+  logger -t mem-guard "${title}: ${body}"
+}
+
+top3=$(ps -Ao rss,comm | awk 'NR>1{s[$2]+=$1} END{for(k in s) printf "%.1fGB %s\n", s[k]/1048576, k}' \
+  | sort -rn | head -3 | awk '{n=split($2,p,"/"); printf "%s %s; ", $1, p[n]}')
+
+if [ "$free_pct" -le "$CRIT_FREE_PCT" ]; then
+  notify "メモリが危険水域（空き ${free_pct}%）" "強制再起動の恐れ。今すぐ不要なセッションを閉じてください。上位: ${top3}"
+  exit 2
+fi
+
+msgs=""
+[ "$free_pct" -le "$WARN_FREE_PCT" ] && msgs="空き ${free_pct}%。"
+[ "$swap_used_gb" -ge "$WARN_SWAP_GB" ] && msgs="${msgs}スワップ ${swap_used_gb}GB。"
+[ "$nclaude" -ge "$WARN_CLAUDE" ] && msgs="${msgs}Claude Code が ${nclaude} セッション（node ${nnode} / 全 ${nprocs} プロセス）。"
+
+if [ -n "$msgs" ]; then
+  notify "メモリ残量が減っています" "${msgs} 上位: ${top3}"
+  exit 1
+fi
+exit 0
