@@ -201,6 +201,11 @@
             "type": "command",
             "command": "bash ~/.claude/hooks/cleanup.sh",
             "timeout": 60
+          },
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/check-jargon.py",
+            "timeout": 10
           }
         ]
       }
@@ -290,6 +295,7 @@
   {{- with dig "claude" "autoMode" "" . }}
   "autoMode": {{ . | toJson }},
   {{- end }}
-  "mcpServers": {{ dig "claude" "mcpServers" (dict "playwright" (dict "command" "npx" "args" (list "@playwright/mcp@latest"))) . | toJson }},
+  {{/* ブラウザ MCP は全セッションで常駐すると重い（24 セッションで 4.3GB）。使うリポジトリごとに local scope で足す */}}
+  "mcpServers": {{ dig "claude" "mcpServers" (dict) . | toJson }},
   "tui": "fullscreen"
 }

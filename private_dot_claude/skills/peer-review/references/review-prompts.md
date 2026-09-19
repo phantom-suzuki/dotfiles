@@ -1,6 +1,6 @@
 # レビュアー別プロンプトテンプレート
 
-peer-review は **Claude（L1）+ Codex（L2）** の 2 段構成。Gemini は `--with-gemini` で opt-in の第 3 レーン。
+peer-review は **Claude（L1）+ Codex（L2）** の 2 段構成。Gemini は `--with-gemini` で opt-in の 3 つ目のレビュー経路。
 
 ## L1/L2 の観点分担（重要）
 
@@ -94,7 +94,7 @@ bash "${CLAUDE_SKILL_DIR}/scripts/codex-review.sh" <PR番号> [base-branch] > /t
 
 ## L3 (opt-in): Gemini CLI
 
-Gemini を **追加の第 3 レーン** として呼び出す（`--with-gemini` 指定時のみ）。`scripts/gemini-review.sh` がモデルフォールバック内蔵。
+Gemini を **3 つ目のレビュー経路** として呼び出す（`--with-gemini` 指定時のみ）。`scripts/gemini-review.sh` がモデルフォールバック内蔵。
 
 ### 注意: capacity 制約が頻発
 

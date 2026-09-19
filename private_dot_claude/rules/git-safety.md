@@ -2,14 +2,21 @@
 
 ## 機械的に止まる操作
 
-次の操作は settings.json の deny と tameny-base プラグインの PreToolUse フックが拒否する。回避策を探さない。
+次の操作は settings.json の deny と tameny-base プラグインの PreToolUse フックが拒否する。エラーになるので回避策を探さない。
 
 - `git push --force` / `-f`（`--force-with-lease` は可）
 - `git reset --hard`、`git clean -f`、`git checkout .` / `git restore .`
+- `git branch -D`（強制削除。`-d` は可）
 - `--no-verify`
-- `main` / `master` / `develop` / `release/*` への直接 push
-- `gh pr merge`
-- `git rebase`（この環境では deny。取り込みは `git merge` で行う）
+- `main` / `master` への直接 push
+- `git rebase`（取り込みは `git merge` で行う）
+
+## 確認プロンプトが出る操作
+
+次の操作はブロックされず、承認を求めるプロンプトが出る。ユーザーが明示的に指示したときだけ実行し、プロンプトの承認を待つ。
+
+- `gh pr merge`（PR のマージ。判断の基準は下の「判断が要る操作」に従う）
+- `develop` / `release/*` への直接 push
 
 ## 判断が要る操作
 

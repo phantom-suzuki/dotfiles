@@ -294,17 +294,17 @@ fallback (primary が失敗した場合):
 > Created: 2026-08-25 (JST)
 > Context: bug/security 観点の呼び出し経路の不具合修正（`fix/self-review-invocation-reliability`）で
 > `docs-only` strategy を追加した。Markdown のみの変更では bug/security の外部レビューを丸ごとスキップし、
-> 代わりに司令塔（セッションのメインモデル）が事実照合を行う運用にしたが、この事実照合を専用の観点として
+> 代わりに統括セッション（セッションのメインモデル）が事実照合を行う運用にしたが、この事実照合を専用の観点として
 > スクリプト化する作業は今回の修正範囲外とし、見送った。
 
-`docs-only` のときに司令塔が確認すべき最低限の項目（SKILL.md の「strategy: docs-only」節と同一）:
+`docs-only` のときに統括セッションが確認すべき最低限の項目（SKILL.md の「strategy: docs-only」節と同一）:
 
 - 文書が参照している Issue 番号・Pull Request 番号が実在し、内容が食い違っていないか
 - 相対リンクの参照先が実在するか
 - Mermaid 図があれば構文が通るか（`~/.claude/docs/mermaid-conventions.md` の検証レシピ）
 - 記述している日付・固有名詞が事実と一致するか
 
-現状は司令塔が手動でこれらを確認する運用に留まる。将来的には、これらの項目を機械的にチェックする
+現状は統括セッションが手動でこれらを確認する運用に留まる。将来的には、これらの項目を機械的にチェックする
 スクリプト（例: Issue/PR 番号の存在確認は `gh issue view` / `gh pr view` の exit code で、相対リンクの
 存在確認はファイルシステム走査で自動化できる）を追加し、`docs-only` strategy 専用のレビュアーとして
 Step 3 に組み込むことを検討する。

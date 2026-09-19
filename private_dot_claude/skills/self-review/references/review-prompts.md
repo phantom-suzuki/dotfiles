@@ -478,7 +478,7 @@ Pro/Max は **3 回無料**、それ以降は **$5–$20/run** の extra usage �
 
 **Bash から `codex exec` を直接実行しない**（PreToolUse フック `block-codex-direct.py` にブロックされる）。
 以下のコマンド一式は [../scripts/codex-review.sh](../scripts/codex-review.sh) の内部実装であり、
-呼び出し側（司令塔 / Agent ツール）は次のようにスクリプトを経由する:
+呼び出し側（統括セッション / Agent ツール）は次のようにスクリプトを経由する:
 
 ```bash
 SCHEMA="${CLAUDE_SKILL_DIR}/references/schemas/finding-schema.json"

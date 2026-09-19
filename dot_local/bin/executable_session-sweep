@@ -1,0 +1,64 @@
+#!/bin/bash
+# 何日も生き残っている Claude Code / Codex / node のセッションを見つけて片付ける。
+# 2026-09-15 の強制再起動では、7 日分のセッションが積み上がって 24GB を使い切っていた。
+#
+# 使い方:
+#   session-sweep              一覧だけ出す（既定。何も終了しない）
+#   session-sweep --days 2     2 日以上前に起動したものを対象にする（既定は 1 日）
+#   session-sweep --kill       一覧に出たものへ終了要求（SIGTERM）を送る
+#
+# 自分自身と、その親のセッションは対象から外す。
+set -u
+
+DAYS=1
+KILL=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --days) DAYS="$2"; shift 2 ;;
+    --kill) KILL=1; shift ;;
+    *) echo "不明な引数: $1" >&2; exit 2 ;;
+  esac
+done
+
+MIN_SEC=$((DAYS * 86400))
+# 自分の先祖（この shell を動かしている Claude Code 自身を含む）を列挙して除外する
+SELF=$$
+ANCESTORS=" "
+p=$SELF
+while [ -n "$p" ] && [ "$p" != "0" ] && [ "$p" != "1" ]; do
+  ANCESTORS="${ANCESTORS}${p} "
+  p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')
+done
+
+# etime を秒に直す。形式は [[dd-]hh:]mm:ss
+etime_sec() {
+  echo "$1" | awk -F'[-:]' '{
+    if (NF==4) print $1*86400+$2*3600+$3*60+$4;
+    else if (NF==3) print $1*3600+$2*60+$3;
+    else print $1*60+$2;
+  }'
+}
+
+printf '%-8s %-12s %-9s %s\n' PID 起動からの経過 RSS プロセス
+found=0
+while read -r pid etime rss comm; do
+  case "$ANCESTORS" in *" $pid "*) continue ;; esac
+  name=${comm##*/}
+  # Claude Code は起動後に名前をバージョン番号（2.1.268）へ変える。IP アドレスと混ざらないよう厳密に見る。
+  if ! printf '%s' "$name" | grep -qE '^(claude|codex|node|[0-9]+\.[0-9]+\.[0-9]+)$'; then
+    continue
+  fi
+  sec=$(etime_sec "$etime")
+  [ "$sec" -lt "$MIN_SEC" ] && continue
+  printf '%-8s %-12s %6sMB  %s\n' "$pid" "$etime" "$((rss / 1024))" "$name"
+  found=$((found + 1))
+  [ "$KILL" = "1" ] && kill -TERM "$pid" 2>/dev/null
+done < <(ps -Ao pid=,etime=,rss=,comm=)
+
+if [ "$found" = "0" ]; then
+  echo "（${DAYS} 日以上前から生きているセッションはありません）"
+elif [ "$KILL" = "1" ]; then
+  echo "${found} 件に終了要求を送りました。"
+else
+  echo "${found} 件見つかりました。終了させるなら --kill を付けてください。"
+fi
