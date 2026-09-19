@@ -12,3 +12,6 @@ private_dot_claude/skills/self-review/.gemini-cooldown
 
 # リポジトリ直下の回帰テスト（PR #75）。実機には展開しない
 tests/
+
+# テスト実行が作る Python のキャッシュ。実機には展開しない
+**/__pycache__

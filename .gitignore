@@ -5,3 +5,5 @@ __pycache__/
 # 雛形は .envrc.bak として手元に置くが、これもリポジトリには入れない。
 .envrc
 .envrc.bak
+__pycache__/
+*.pyc
