@@ -158,20 +158,69 @@
       "WebFetch(domain:*)",
       "WebSearch"
     ],
+    {{- /*
+      deny と ask の git ルールは、tameny-base プラグインの git-safety-check.sh が
+      持っていた守りを引き取ったもの（2026-09-19）。プラグインを外した理由は、
+      あのフックが gh pr merge のたびに無条件で確認を求め、事前に指示していても
+      止まっていたこと。Claude Code にはフックを 1 つだけ無効にする設定が無く、
+      止められるのはプラグイン単位だけなので、必要な守りだけをここへ書き写した。
+      パターンの書き方は Claude Code 内蔵の既定ルールに合わせている
+      （`git commit *--no-veri*` のように、途中の * が空文字にも一致する）。
+    */}}
     "deny": [
       "Bash(git push --force *)",
       "Bash(git push -f *)",
+      "Bash(git push * -f*)",
+      "Bash(git push *--force*)",
       "Bash(git push origin main *)",
       "Bash(git push origin master *)",
       "Bash(git push origin main)",
       "Bash(git push origin master)",
+      "Bash(git push *:main*)",
+      "Bash(git push *:master*)",
+      "Bash(git push *refs/heads/main*)",
+      "Bash(git push *refs/heads/master*)",
       "Bash(git reset --hard *)",
       "Bash(git clean -f *)",
       "Bash(git rebase *)",
+      {{- /* --no-verify: hooks を飛ばして壊れたまま進めるのを防ぐ。rebase は上で全面 deny 済み */}}
+      "Bash(git commit *--no-veri*)",
+      "Bash(git push *--no-veri*)",
+      "Bash(git merge *--no-veri*)",
+      {{- /* branch の強制削除。-d は未マージを検知して止まるので許す */}}
+      "Bash(git branch -D*)",
+      "Bash(git branch * -D*)",
+      "Bash(git branch *--force*)",
+      {{- /* 作業ツリーの全変更を捨てる形。退避するなら git stash を使う */}}
+      "Bash(git checkout .)",
+      "Bash(git checkout . *)",
+      "Bash(git checkout -- .*)",
+      "Bash(git checkout * -- .*)",
+      "Bash(git restore .)",
+      "Bash(git restore . *)",
+      "Bash(git restore -- .*)",
+      "Bash(git restore --worktree *)",
       "Read(.env)",
       "Read(.env.*)",
       "Read(**/.env)",
       "Read(**/.env.*)"
+    ],
+    {{- /*
+      ask は許可リストより強く、auto mode でも確認を求める。
+      main / master への push は上の deny が受け持つので、ここは develop と release/* だけ。
+      gh pr merge は意図的に入れていない（毎回の確認をやめるのが移行の目的）。
+    */}}
+    "ask": [
+      "Bash(git push origin develop)",
+      "Bash(git push origin develop *)",
+      "Bash(git push * develop)",
+      "Bash(git push * develop *)",
+      "Bash(git push *:develop*)",
+      "Bash(git push *refs/heads/develop*)",
+      "Bash(git push origin release/*)",
+      "Bash(git push * release/*)",
+      "Bash(git push *:release/*)",
+      "Bash(git push *refs/heads/release/*)"
     ],
     {{- /* /permissions で切り替えた既定モードは settings.json に直接書かれる。data.claude.defaultMode で上書きする（未定義なら acceptEdits）。 */}}
     "defaultMode": {{ dig "claude" "defaultMode" "acceptEdits" . | toJson }}
@@ -271,7 +320,13 @@
     .claude/settings.json の enabledPlugins で有効化する（docs/chezmoi-workflow.md 参照）。
     マシン単位で足したいときは data.claude.enabledPlugins で丸ごと上書きする。
   */}}
-  "enabledPlugins": {{ dig "claude" "enabledPlugins" (dict "gopls-lsp@claude-plugins-official" true "skill-creator@claude-plugins-official" true "codex@openai-codex" true "tameny-base@mationinc-claude-code-baseline" true) . | toJson }},
+  {{- /*
+    tameny-base は 2026-09-19 に既定から外した。同梱のスキル 13 本はすべて
+    private_dot_claude/skills/ に同名のものがあり、失うものは無い。外した理由は
+    git-safety-check.sh が gh pr merge のたびに確認を求め、切る手段が
+    プラグインごと無効にするしか無かったため。守りは上の deny / ask へ引き取った。
+  */}}
+  "enabledPlugins": {{ dig "claude" "enabledPlugins" (dict "gopls-lsp@claude-plugins-official" true "skill-creator@claude-plugins-official" true "codex@openai-codex" true) . | toJson }},
   "extraKnownMarketplaces": {
     "openai-codex": {
       "source": {
