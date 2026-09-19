@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Stop hook: 直前の応答に内輪語が混ざっていないか点検し、当たった語を記録する。
-
-非ブロッキング設計: 常に exit 0 で返し、応答を差し戻さない。
-まず誤検知の具合を観測する段階のため、記録だけを取る（2026-09-11 開始）。
-止める設定に上げるかは、~/.claude/state/jargon-hits.jsonl の中身を見てから決める。
+"""Stop hook: 直前の応答に内輪語が混ざっていないか点検する。
 
 検出リストの正本は ~/.claude/docs/glossary/jargon.md の表。
 2 列目がバッククォートで囲まれた正規表現の行だけを読む。`—` の行は検出しない。
+
+当たった語は ~/.claude/state/jargon-hits.jsonl に記録する。そのうえで、4 列目（補足）に
+`[block]` と書かれた語だけは応答を差し戻し、標準語で書き直させる。
+
+2026-09-11 は全語を記録だけにして始めた。8 日で 541 回当たり、誤検知の無かった 7 語
+（司令塔 / HQ / N 枠 / N 班 / レーン / 受け皿 / 検算）に 2026-09-19 から `[block]` を付けた。
+記録だけの語で誤検知が無いと分かったら、jargon.md の補足に `[block]` を書き足して上げる。
 """
 import sys
 import os
@@ -27,7 +30,7 @@ PATH_LIKE = re.compile(r"[~./][\w./-]*[\w/-]")
 
 
 def load_patterns(glossary):
-    """jargon.md から (内輪語, コンパイル済みパターン, 標準語) を読む。"""
+    """jargon.md から (内輪語, コンパイル済みパターン, 標準語, 差し戻すか) を読む。"""
     out = []
     try:
         text = glossary.read_text(encoding="utf-8")
@@ -37,7 +40,7 @@ def load_patterns(glossary):
         m = ROW.match(line)
         if not m:
             continue
-        term, pat_cell, standard = (m.group(i).strip() for i in (1, 2, 3))
+        term, pat_cell, standard, note = (m.group(i).strip() for i in (1, 2, 3, 4))
         b = BACKTICKED.match(pat_cell)
         if not b:
             continue
@@ -45,7 +48,7 @@ def load_patterns(glossary):
         if pattern in ("—", "-", ""):
             continue
         try:
-            out.append((term, re.compile(pattern), standard))
+            out.append((term, re.compile(pattern), standard, "[block]" in note))
         except re.error:
             continue
     return out
@@ -116,7 +119,7 @@ def main():
     except Exception:
         sys.exit(0)
 
-    # 差し戻しの連鎖を防ぐ。記録だけの段階でも作法として守る。
+    # 差し戻しの連鎖を防ぐ。すでに 1 度差し戻したターンでは点検しない。
     if data.get("stop_hook_active"):
         sys.exit(0)
 
@@ -140,10 +143,13 @@ def main():
 
     body = strip_noise(text)
     hits = []
-    for term, pat, standard in patterns:
+    blocking = []
+    for term, pat, standard, is_block in patterns:
         found = pat.findall(body)
         if found:
             hits.append({"term": term, "standard": standard, "count": len(found)})
+            if is_block:
+                blocking.append((term, standard))
 
     if not hits:
         sys.exit(0)
@@ -162,7 +168,22 @@ def main():
     except Exception:
         pass
 
-    sys.exit(0)
+    if not blocking:
+        sys.exit(0)
+
+    # 差し戻しは終了コード 2 と stderr で行う。公式ドキュメントが Stop について
+    # 「exit code 2 は停止を妨げ、会話を続けさせる」と定めている唯一の手段である
+    # （JSON の decision フィールドは Stop については文書化されていない）。
+    detail = " / ".join(
+        "「" + term + "」は「" + standard + "」と書く"
+        for term, standard in dict.fromkeys(blocking)
+    )
+    sys.stderr.write(
+        "直前の応答に内輪語が混ざっています: " + detail + "。"
+        "同じ内容を標準語で書き直して、ユーザーへもう一度伝えてください。"
+        "用語の正本は ~/.claude/docs/glossary/jargon.md です。\n"
+    )
+    sys.exit(2)
 
 
 if __name__ == "__main__":

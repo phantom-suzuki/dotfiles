@@ -11,7 +11,7 @@
   "effortLevel": {{ dig "claude" "effortLevel" "" . | toString | toJson }},
   {{- end }}
   {{- /*
-    モデルごとの effort。用途別の使い分け（司令塔 = Fable 5.1 は high、作業者 = Opus 5 は medium）を
+    モデルごとの effort。用途別の使い分け（統括セッション = Fable 5.1 は high、担当セッション = Opus 5 は medium）を
     保存する。/effort は settings.json に直接書くため、マシン固有の値は data.claude.modelSettings で
     丸ごと上書きする。キーはモデル ID（`[1m]` などのサフィックスを除いた形）。
     用途別の起動コマンド（claude-plan / claude-work）は dot_zshrc.tmpl、説明は docs/chezmoi-workflow.md。
@@ -187,6 +187,16 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/check-question.py",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "Stop": [
@@ -286,6 +296,11 @@
   */}}
   "voice": {{ dig "claude" "voice" (dict "enabled" true "mode" "hold" "autoSubmit" false) . | toJson }},
   "skipWorkflowUsageWarning": true,
+  {{- /*
+    --model フラグで起動したとき、セッション内のモデル切り替えを許すか。
+    false にすると claude-plan / claude-work で指定したモデルが固定される。
+  */}}
+  "switchModelsOnFlag": {{ dig "claude" "switchModelsOnFlag" false . | toJson }},
   "teammateMode": "auto",
   "skipAutoPermissionPrompt": true,
   {{- /*
