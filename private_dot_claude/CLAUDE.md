@@ -15,6 +15,7 @@
 - 実装・修正・調査は自分で行うのが既定。委譲するのは次のいずれかに当たるとき: 並列化で時間が縮む / 大量のファイル読みや長い出力を主コンテキストから切り離したい / Codex が得意な領域（自律的な長い試行錯誤・Web リサーチ・画像生成）である
 - 委譲するときもセッションコストを意識する。サブエージェントには目的と完了条件を短く渡し、コードは貼らずパスで示す。同じ作業への再委譲は 3 回までを目安にする。判断基準の詳細は `task-delegation` スキル
 - Codex へ委譲するときはモデルと reasoning effort を毎回明示する。省くと `~/.codex/config.toml` の既定値に落ち、依頼の重さに合わなくなる。選び方は `skills/task-delegation/references/codex-routing.md`
+- Slack の閲覧・検索・過去メッセージの調査は Codex に委譲する（Codex 側で `slack@openai-curated` プラグインが有効）。この CLI の Slack コネクタや Chrome 拡張の再認証をユーザーに頼まない。Codex の `mcp_servers` に slack が無くても「接続できない」と判断しない
 - 複数 Issue を同時に進めるときは git worktree で分離する（同一ブランチなら Agent Teams、Issue 別ブランチなら worktree ごとに Agent）。手順は `parallel-work-decision` スキル
 - diff の確認・コミット・push はユーザー確認の流れに残す（`rules/git-safety.md`）
 
