@@ -39,8 +39,12 @@ Go template 構文（`{{ .variable }}`）を使用するファイル:
 
 | 変数 | 意味 | default |
 |------|------|---------|
-| `data.claude.model` | モデル名 | `claude-opus-4-8` |
+| `data.claude.model` | モデル名 | `claude-opus-5-5[1m]`（2026-09-25 に変更） |
 | `data.claude.effortLevel` | reasoning effort | 未設定（キー非出力 = ハーネス既定） |
+| `data.claude.modelSettings` | モデルごとの effort | Fable 5.1 は `high`、Opus 5 は `medium`（Opus 5.5 は未設定 = ハーネス既定） |
+| `data.claude.defaultMode` | 許可モードの既定 | `auto`（2026-09-25 に `acceptEdits` から変更） |
+| `data.claude.autoMode` | auto mode の判定ルール | 未設定（キー非出力）。リポジトリ固有の決まりは、そのリポジトリの CLAUDE.md に書く（`autoMode` はリポジトリの settings からは読まれない） |
+| `data.claude.mcpServers` | 全セッション共通の MCP | 空。ブラウザ MCP は使うリポジトリごとに local scope で足す（メモリ対策） |
 | `data.claude.disable1m` | 1M コンテキスト無効化（`"1"`=無効 / `"0"`=有効） | 未設定（キー非出力 = 1M 有効） |
 | `data.claude.autoCompactWindow` | auto-compact のコンテキスト窓 | 未設定（キー非出力） |
 | `data.claude.autoCompactPct` | auto-compact 発火閾値 % | `30`（1M 前提の値） |
