@@ -114,8 +114,21 @@ if [[ ! "$DIFF_LIMIT" =~ ^[0-9]+$ ]]; then
   exit 1
 fi
 
+# 標準入力が端末のままなら、diff が流し込まれていない。待ち続けずに止める。
+# 背景で呼ぶと入力が閉じないまま待ち続け、レビューが止まって見える（2026-09-26 に発生・D611）。
+if [[ -t 0 ]]; then
+  >&2 echo "[self-review] エラー: diff を標準入力で渡してください（例: git diff | bash codex-review.sh <schema> <prompt>）"
+  exit 1
+fi
+
 # stdin の diff を一旦ファイルへ落として行数を数える（パイプは 1 度しか読めないため）
 cat - > "$DIFF_FILE"
+
+# 空の diff は見るものが無い。黙って Codex に渡さず止める（`< /dev/null` で呼んだときもここで止まる）。
+if [[ ! -s "$DIFF_FILE" ]]; then
+  >&2 echo "[self-review] エラー: 標準入力の diff が空です"
+  exit 1
+fi
 DIFF_LINES=$(wc -l < "$DIFF_FILE" | tr -d ' ')
 
 if [[ -n "${CODEX_REVIEW_EFFORT:-}" ]]; then
