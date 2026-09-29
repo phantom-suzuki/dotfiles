@@ -2,7 +2,7 @@
   {{- /* 上書き: data.claude.model で変更可。未定義なら現行 default。
          値は toString | toJson で「文字列化 + JSON エスケープ」してから埋め込む
          （quote や制御文字を含む値でも出力 JSON が壊れないようにするため）。 */}}
-  "model": {{ dig "claude" "model" "claude-fable-5-1[1m]" . | toString | toJson }},
+  "model": {{ dig "claude" "model" "claude-opus-5-5[1m]" . | toString | toJson }},
   {{- /*
     effortLevel は data.claude.effortLevel を定義したマシンでのみ出力する。
     未定義ならキー自体を出力しない（= ハーネス既定に従う。現行 main と同一出力）。
@@ -11,8 +11,8 @@
   "effortLevel": {{ dig "claude" "effortLevel" "" . | toString | toJson }},
   {{- end }}
   {{- /*
-    モデルごとの effort。用途別の使い分け（統括セッション = Fable 5.1 は high、担当セッション = Opus 5 は medium）を
-    保存する。/effort は settings.json に直接書くため、マシン固有の値は data.claude.modelSettings で
+    モデルごとの effort。基本モデルは Opus 5.5（2026-09-25 に変更。effort は未指定 = ハーネス既定）。
+    Fable 5.1 は high。Opus 5 の medium は旧運用の値として残す。/effort は settings.json に直接書くため、マシン固有の値は data.claude.modelSettings で
     丸ごと上書きする。キーはモデル ID（`[1m]` などのサフィックスを除いた形）。
     用途別の起動コマンド（claude-plan / claude-work）は dot_zshrc.tmpl、説明は docs/chezmoi-workflow.md。
   */}}
@@ -33,6 +33,10 @@
     {{- end }}
     {{- if dig "claude" "autoCompactWindow" "" . }}
     "CLAUDE_CODE_AUTO_COMPACT_WINDOW": {{ dig "claude" "autoCompactWindow" "" . | toString | toJson }},
+    {{- end }}
+    {{- /* 自動 compact の停止: data.claude.disableAutoCompact = "1" のマシンだけ出力する。手動の /compact は使える。 */}}
+    {{- if dig "claude" "disableAutoCompact" "" . }}
+    "DISABLE_AUTO_COMPACT": {{ dig "claude" "disableAutoCompact" "" . | toString | toJson }},
     {{- end }}
     {{- /* 上書き: data.claude.autoCompactPct で変更可。未定義なら現行 default（30 = 1M 前提）。 */}}
     "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": {{ dig "claude" "autoCompactPct" "30" . | toString | toJson }}
@@ -156,7 +160,19 @@
       "Bash(rsync *)",
       "Bash(protoc *)",
       "WebFetch(domain:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(.venv-audio/bin/python *)",
+      "Bash(.venv/bin/python *)",
+      "Bash(venv/bin/python *)",
+      "Bash(python *)",
+      "Bash(ffmpeg *)",
+      "Bash(ffprobe *)",
+      "Bash(/opt/homebrew/bin/ffmpeg *)",
+      "Bash(/opt/homebrew/bin/ffprobe *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(git worktree list)"
     ],
     {{- /*
       deny と ask の git ルールは、tameny-base プラグインの git-safety-check.sh が
@@ -203,14 +219,22 @@
       "Read(.env)",
       "Read(.env.*)",
       "Read(**/.env)",
-      "Read(**/.env.*)"
+      "Read(**/.env.*)",
+      "mcp__freee-mcp__freee_api_post",
+      "mcp__freee-mcp__freee_api_put",
+      "mcp__freee-mcp__freee_api_patch",
+      "mcp__freee-mcp__freee_api_delete",
+      "mcp__freee-mcp__freee_file_upload"
     ],
     {{- /*
       ask は許可リストより強く、auto mode でも確認を求める。
       main / master への push は上の deny が受け持つので、ここは develop と release/* だけ。
       gh pr merge は意図的に入れていない（毎回の確認をやめるのが移行の目的）。
+      引数なしの `git push` は `Bash(git push *)` に一致せず、main 上で実行すると上の deny も効かない
+      （auto mode は作業中リポジトリの既定ブランチへの push を既定で許す）ので、確認を求める（PR #135 のレビュー指摘）。
     */}}
     "ask": [
+      "Bash(git push)",
       "Bash(git push origin develop)",
       "Bash(git push origin develop *)",
       "Bash(git push * develop)",
@@ -222,8 +246,12 @@
       "Bash(git push *:release/*)",
       "Bash(git push *refs/heads/release/*)"
     ],
-    {{- /* /permissions で切り替えた既定モードは settings.json に直接書かれる。data.claude.defaultMode で上書きする（未定義なら acceptEdits）。 */}}
-    "defaultMode": {{ dig "claude" "defaultMode" "acceptEdits" . | toJson }}
+    {{- /* /permissions で切り替えた既定モードは settings.json に直接書かれる。data.claude.defaultMode で上書きする（未定義なら auto。2026-09-20 に実体で auto へ変更したのを 2026-09-25 に正本へ反映）。 */}}
+    "defaultMode": {{ dig "claude" "defaultMode" "auto" . | toJson }}
+    {{- /* 作業ディレクトリ外で常に読み書きを許す場所。マシン固有なので data.claude.additionalDirectories を定義したマシンだけ出力する。 */}}
+    {{- with dig "claude" "additionalDirectories" "" . }},
+    "additionalDirectories": {{ . | toJson }}
+    {{- end }}
   },
   "hooks": {
     "PreToolUse": [
@@ -309,6 +337,23 @@
         ]
       }
     ]
+    {{- /*
+      セッション終了時のフック（会話ログを別リポジトリへ取り込むなど）。コマンドのパスがマシン固有なので、
+      data.claude.sessionEndCommand を定義したマシンだけ出力する。
+    */}}
+    {{- with dig "claude" "sessionEndCommand" "" . }},
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": {{ . | toString | toJson }},
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+    {{- end }}
   },
   "statusLine": {
     "type": "command",
@@ -358,6 +403,24 @@
   "switchModelsOnFlag": {{ dig "claude" "switchModelsOnFlag" false . | toJson }},
   "teammateMode": "auto",
   "skipAutoPermissionPrompt": true,
+  {{- /* プッシュ通知とテーマはマシン固有。data.claude.* で定義したマシンだけ出力する。 */}}
+  {{- if dig "claude" "agentPushNotifEnabled" false . }}
+  "agentPushNotifEnabled": true,
+  {{- end }}
+  {{- with dig "claude" "theme" "" . }}
+  "theme": {{ . | toString | toJson }},
+  {{- end }}
+  {{- /*
+    Bash サンドボックス。許可ドメイン・書き込み先・除外コマンドがマシンごとに違うので、
+    data.claude.sandbox（TOML のテーブル）を定義したマシンだけ丸ごと出力する。
+    書き方の例は CLAUDE.md の「Claude Code settings の上書き変数」節。
+    excludedCommands に codex-companion を入れるのは、Codex プラグインが ~/.claude/plugins/data/ に作業記録を書くため
+    サンドボックスの外で動かす必要があるから（Claude Code が ~/.claude/plugins への書き込みを禁止している）。
+    除外が効くのは単純な 1 コマンドの形で呼んだときだけ（$(...) や && でつなぐと効かない）。
+  */}}
+  {{- with dig "claude" "sandbox" "" . }}
+  "sandbox": {{ . | toJson }},
+  {{- end }}
   {{- /*
     auto mode の設定（soft_deny / environment）。/permissions の auto mode セットアップが settings.json に
     直接書き込むため、data.claude.autoMode に置かないと apply のたびに消える。未定義ならキー自体を出さない。

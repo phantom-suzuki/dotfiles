@@ -16,6 +16,7 @@
 次の操作はブロックされず、承認を求めるプロンプトが出る。settings.json の `permissions.ask` が受け持つ。
 
 - `develop` / `release/*` への直接 push
+- 引数なしの `git push`（今いるブランチの upstream へ送る形。main 上で打つと deny をすり抜けるため）。push はブランチ名を明示して `git push -u origin <branch>` と書く
 
 `gh pr merge` は 2026-09-19 にプロンプトの対象から外した。tameny-base プラグインのフックが、
 ユーザーが「マージして」と明示した直後でも毎回確認を求めていたため。Claude Code にはフックを
