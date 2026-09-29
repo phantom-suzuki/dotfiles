@@ -47,7 +47,7 @@ chezmoi apply
 | `/effort` | `data.claude.modelSettings`（モデル ID ごとの `effortLevel`。テンプレート既定は Fable 5.1 = high、Opus 5 = medium） |
 | `/voice` | `data.claude.voice.mode` / `data.claude.voice.enabled` |
 | `/permissions`（既定モードの切り替え） | `data.claude.defaultMode` |
-| `/permissions`（auto mode のセットアップ。`soft_deny` / `environment`） | `data.claude.autoMode`（TOML の配列でそのまま持つ） |
+| `/permissions`（auto mode のセットアップ。`allow` / `soft_deny` / `environment`） | `data.claude.autoMode`（TOML の配列でそのまま持つ。書き方は `docs/auto-mode.md`） |
 
 ### 用途別のモデルと effort
 

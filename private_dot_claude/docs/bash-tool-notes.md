@@ -28,6 +28,15 @@ PreToolUse フック `hooks/block-codex-direct.py` は、コマンド位置の�
 
 `gh issue create` / `gh pr create` の本文のように、日本語や改行を多く含む文字列をコマンド文字列に直接埋めるとクォートが崩れやすい。`--body-file` などファイル経由の引数を使う。短い 1 行のタイトルだけはコマンド文字列に書いてよい。
 
+## auto mode では複合コマンドと python / node が判定に回る
+
+auto mode 中は、`Bash(python3 *)` `Bash(node *)` `Bash(npx *)` のような任意コード実行の許可と、`&&` / `;` / heredoc でつないだ複合コマンドが `permissions.allow` を通らず、毎回判定（classifier）に回る。2026-09-29 の棚卸しでは、直近 7 日に止まった 83 件がほぼ全部この形だった。判定の仕組みと止まったときの手順は `docs/auto-mode.md`。
+
+- 1 回の Bash に 1 つの目的（上の「複合コマンドは権限確認で止まる」と同じ対策）
+- ファイルの読み書きは Read / Edit / Write を使う。作業ディレクトリ内なら判定を通らない
+- 止まった直後に同じ操作を小分けや別経路で通そうとしない。"Auto-Mode Bypass" として止まる
+
 ## 記録
 
+- 2026-09-29: auto mode の節を追加（dotfiles の `docs/auto-mode.md` と同時）。
 - 2026-09-09: 旧 `rules/tool-call-hygiene.md` から、環境固有の事実だけをこの文書へ移した。同ルールの大半（引数の書き方で parse エラーを防ぐ規範）は Opus 4.7/4.8 時代の対策で、直近 400 セッションで parse エラーが 0 件だったため撤去した（dotfiles Issue #89 / #90）。
