@@ -194,6 +194,26 @@ sol 不可」は現在は誤り。過去に ChatGPT 認証で 400 になった `
 
 2026-09-09 にサブエージェントを無効化した。設定は `[agents] enabled = false`（公式 Subagents ドキュメント https://learn.chatgpt.com/docs/agent-configuration/subagents の正式キー）と、補助として `[features]` の `multi_agent = false` / `multi_agent_v2 = false` である。背景として、モデル定義（`~/.codex/models_cache.json`）で gpt-6-astra は `multi_agent_version = v2` かつ `multi_agent_reasoning_effort = xhigh` を持ち、親を medium にしても子は xhigh で動く。2026-09-08 の実測では、Astra の子セッションが親の約 3 倍の非キャッシュ入力を使った。`[features]` の旗だけではモデル定義に上書きされる報告（GitHub Issue #31097、0.148.0 時点）があるため、`[agents] enabled` を主にした。有効性はセッションログの `turn_context.multi_agent_version` が `disabled` になることで確認する。
 
+## Claude Code の auto mode からの委譲と、連携ツールの事前承認
+
+Claude Code の Codex プラグイン（`codex-companion.mjs`）は Codex を `approval_policy = never` で起動する。承認が要るツールは自動で承認されるのではなく拒否される。連携ツール（Slack / Google Drive など）を委譲先の Codex に使わせるには、`config.toml` でツール単位に事前承認する。
+
+```toml
+# Slack（slack@openai-curated プラグイン）。app id は ~/.codex/cache/codex_apps_tools/*.json の
+# connector_id、<tool> は同じファイルの tool.name（MCP 名。"slack." の接頭辞付き）。
+# 接頭辞なしの slack_send_message_draft では照合されず拒否された（2026-09-29 実測）。
+[apps.asdk_app_69a1d78e929881919bba0dbda1f6436d.tools."slack.slack_send_message_draft"]
+approval_mode = "approve"   # 2026-09-29 下書き保存。同日 18:2x に Claude Code からの委譲で保存できることを確認
+[apps.asdk_app_69a1d78e929881919bba0dbda1f6436d.tools."slack.slack_send_message"]
+approval_mode = "approve"   # 2026-09-29 送信（ユーザー判断）。予約送信・編集・削除・リアクションは対象外
+```
+
+`approval_mode` の値は `auto` / `prompt` / `writes` / `approve`。公式の設定リファレンスは `writes`（読み取り専用でないツールだけ確認する）しか説明していないが、同梱プラグイン `codex-app-tools/.mcp.json` が既定を `approve`、投稿系のツールだけ `prompt` にしている構成から、`approve` が「事前承認（確認なしで実行）」、`prompt` が「毎回確認」と読める。
+
+Claude Code 側では auto mode の判定が、この委譲を "Create Unsafe Agents" や "Auto-Mode Bypass" として止めることがある。`~/.config/chezmoi/chezmoi.toml` の `[data.claude.autoMode]` に、Codex のサンドボックスと事前承認の仕組みを `environment` で説明し、`allow` で委譲と Slack の書き込みを許可している。詳細は `~/.claude/docs/auto-mode.md`。
+
+`config.toml` は chezmoi の管理外（上の「config.toml を丸ごと追跡しない理由」）なので、変更したら `.bak` を残し、この節にも書く。
+
 ## 実務上の含意
 
 - Codex のレートが急増したら、まず**委譲時に `gpt-5.6-sol` や `high` 以上を選んだ回数**を疑う。Claude Code はモデルと effort を毎回明示するため、消費を決めるのはルーティング表（`codex-routing.md`）の判定である。次に `config.toml` の値（`xhigh` だと最重）を確認する。ここが効くのは明示指定を忘れた呼び出しと、Codex を直接使う対話セッションである。seed の値も合わせて更新する。
