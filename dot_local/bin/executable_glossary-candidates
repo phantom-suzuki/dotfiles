@@ -1,0 +1,308 @@
+#!/usr/bin/env python3
+"""会話ログから、用語集にまだ無い造語の候補を拾い出す。
+
+毎週月曜 9:30 に launchd（com.h-suzuki.glossary-candidates）が実行する。手でも動かせる。
+
+  glossary-candidates            直近 7 日を見て ~/.claude/state/glossary-candidates.md に書く
+  glossary-candidates --days 30  期間を変える
+  glossary-candidates --stdout   ファイルに書かず標準出力へ出す
+
+見るのは Claude がユーザーへ出した本文と AskUserQuestion の質問文だけ。ユーザーの発言は見ない。
+出す候補は 2 種類ある。
+
+  1. 既知の内輪語   : docs/glossary/jargon.md の検出パターンに当たったもの。再発の件数を数える
+  2. 新しい造語の候補: IT の標準用語を和語に置き換えた疑いのある語
+
+2 が造語かどうかは機械では決められない。判定は glossary-research スキルの review で人が行う。
+このファイルは会話の断片を含むため、実機のローカルに置いたまま dotfiles には入れない。
+"""
+import argparse
+import collections
+import datetime
+import json
+import pathlib
+import re
+import sys
+import time
+
+HOME = pathlib.Path.home()
+PROJECTS = HOME / ".claude" / "projects"
+GLOSSARY = HOME / ".claude" / "docs" / "glossary" / "jargon.md"
+OUT = HOME / ".claude" / "state" / "glossary-candidates.md"
+
+ROW = re.compile(r"^\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]*)\|\s*$")
+BACKTICKED = re.compile(r"^`([^`]+)`$")
+KEEP_SECTION = re.compile(r"## 検出しない語.*?(?=\n## |\Z)", re.S)
+
+FENCE = re.compile(r"```.*?```", re.S)
+INLINE_CODE = re.compile(r"`[^`\n]*`")
+URL = re.compile(r"https?://\S+")
+PATH_LIKE = re.compile(r"[~./][\w./-]*[\w/-]")
+TABLE_ROW = re.compile(r"^\s*\|.*\|\s*$", re.M)
+
+# 造語になりやすい和語の名詞だけを拾う。片仮名と英字は拾わない。
+# IT の標準用語は片仮名か英字で書くのが正しく、そちらは造語になりにくいため。
+#   漢字 2 字          : 台帳 / 道具 / 合図 / 裁定
+#   漢字 1〜2 字＋連用形 : 写し / 名乗り / 見張り / 横送り
+#   漢字 1 字          : 帯 / 絵 / 札 / 門 / 係 / 器
+KANJI = "[一-龥]"
+RENYO = "[しりみきちびえげ]"
+NOUN_FORMS = (
+    KANJI + "{2}" + RENYO          # 横送り
+    + "|" + KANJI + RENYO          # 写し / 帯び
+    + "|" + KANJI + "{2}"          # 台帳 / 道具
+    + "|" + KANJI                  # 帯 / 絵 / 門
+)
+# 「の」「な」に続き、助詞か句読点で閉じる位置だけを名詞とみなす。
+# この縛りを外すと、動詞の活用（取り / 書き）や連体修飾（元の / 次の）まで数えてしまう。
+NOUN_USE = re.compile("[のな](" + NOUN_FORMS + r")(?=[をがはにへもや、。）)」\s])")
+
+# IT の文脈であることを示す語。近くにこれが無い文は見ない。
+IT_CONTEXT = re.compile(
+    r"(PR|Issue|CI|dev|prod|main|branch|commit|merge|deploy|test|API|DB|URL|HTML|CSS|"
+    r"Terraform|Docker|WordPress|GitHub|Slack|Lambda|S3|RDS|ECS|CloudFront|"
+    r"ブランチ|コミット|マージ|デプロイ|テスト|リポジトリ|セッション|スクリプト|"
+    r"ページ|テンプレート|プラグイン|ワークフロー|キャッシュ|サーバー|データベース)"
+)
+
+# 件数の範囲。実測（2026-09-19、直近 7 日）では、実際の造語は 3〜300 件に収まった。
+# 上限を超える語は、一般語の取りこぼしとみなして外す。
+MIN_COUNT = 3
+MAX_COUNT = 800
+
+# 日本語として普通に使う語。候補から外す。造語でないと判定した語はここへ足していく。
+STOPWORDS = set(
+    """
+方法 場合 内容 状態 結果 対象 理由 目的 範囲 単位 種類 形式 名前 数値 用例 件数 合計 総数
+今日 明日 昨日 今回 前回 次回 今週 来週 先週 今月 来月 先月 午前 午後 時間 期限 期間 日付
+作業 対応 確認 実行 実施 変更 修正 追加 削除 更新 作成 移行 検討 判断 決定 報告 説明 共有
+問題 課題 原因 影響 状況 進捗 完了 開始 終了 失敗 成功 必要 可能 不要 以上 以下 未満 程度
+現在 以降 以前 最初 最後 途中 一部 全体 全件 全部 両方 片方 双方 上記 下記 前後 左右 上下
+自分 相手 担当 部分 中身 手元 手順 本文 文章 文書 質問 回答 選択 指摘 指示 提案 承認 却下
+用語 標準 業界 造語 比喩 意味 内訳 一覧 表示 出力 入力 設定 通知 監視 分類 集計 測定 実測
+記録 保存 取得 生成 送信 受信 接続 切断 起動 停止 再開 中断 継続 保留 完成 既定 初期 最終
+統括 投稿 検査 番号 版数 履歴 差分 変換 抽出 挿入 置換 複製 移動 配置 項目 共通 個別 重複
+規約 規律 規則 方針 基準 条件 制約 前提 根拠 証跡 観点 論点 要点 概要 詳細 補足 注意 例外
+題名 本数 分量 規模 速度 精度 品質 性能 容量 負荷 上限 下限 件名 語数 文字 数字 記号 単語
+実装 指定 処理 設計 画像 本番 転送 許可 余白 下書き 仕組み 先頭 材料 連絡 可否 誤り 残り
+判定 実物 実体 実例 実績 実装 版数 読み 答え 注釈 表現 文言 見出し 本体 中核 要件 仕様
+今 上 下 左 右 前 後 次 別 他 各 全 半 約 計 数 件 回 本 行 点 例 分 時 日 月 年 週 個 中 内 外
+方 事 物 者 際 側 形 面 種 組 対 位 度 割 差 比 量 幅 高 長 短 力 値 先 元 場 所 名 表 版 順 節
+"""
+    .split()
+)
+
+
+def load_jargon():
+    """jargon.md から検出パターンと、見出し語・検出しないと決めた語を読む。"""
+    patterns, known, keep = [], set(), set()
+    try:
+        text = GLOSSARY.read_text(encoding="utf-8")
+    except Exception:
+        return patterns, known, keep
+
+    section = KEEP_SECTION.search(text)
+    if section:
+        for line in section.group(0).splitlines():
+            m = re.match(r"^\|\s*([^|]+?)\s*\|", line)
+            if m and not m.group(1).startswith("-") and m.group(1) != "語":
+                keep.add(m.group(1))
+
+    for line in text.splitlines():
+        m = ROW.match(line)
+        if not m:
+            continue
+        term, pat_cell = m.group(1).strip(), m.group(2).strip()
+        if term in ("内輪語", "列", "語") or term.startswith("-"):
+            continue
+        # 見出し語は「配信（デプロイの意味で）」のような形もあるので、括弧の前だけを覚える
+        known.add(re.split(r"[（(]", term)[0].strip())
+        b = BACKTICKED.match(pat_cell)
+        if not b or b.group(1) in ("—", "-", ""):
+            continue
+        try:
+            patterns.append((term, re.compile(b.group(1))))
+        except re.error:
+            continue
+    return patterns, known, keep
+
+
+def load_standard_terms():
+    """分野別の用語集に載っている語を集める。標準用語なので候補から外す。"""
+    terms = set()
+    for name in ("design.md", "infra.md", "process.md", "ai-agent-ops.md"):
+        try:
+            text = (GLOSSARY.parent / name).read_text(encoding="utf-8")
+        except Exception:
+            continue
+        for line in text.splitlines():
+            m = re.match(r"^\|\s*([^|]+?)\s*\|", line)
+            if not m:
+                continue
+            head = m.group(1)
+            if head.startswith("-") or head in ("用語", "列", "語"):
+                continue
+            # 「Idempotency（冪等性）」のような併記から日本語側も取り出す
+            for part in re.split(r"[（）()/・]", head):
+                part = part.strip()
+                if part:
+                    terms.add(part)
+    return terms
+
+
+def strip_noise(text):
+    """コード・URL・パス・表の行を落とす。この中の語は数えない。"""
+    text = FENCE.sub(" ", text)
+    text = INLINE_CODE.sub(" ", text)
+    text = URL.sub(" ", text)
+    text = PATH_LIKE.sub(" ", text)
+    text = TABLE_ROW.sub(" ", text)
+    return text
+
+
+def collect(days):
+    """直近 days 日の会話ログから、Claude がユーザーへ出した文を集める。"""
+    cut = time.time() - days * 86400
+    texts = []
+    if not PROJECTS.is_dir():
+        return texts
+    for path in PROJECTS.glob("*/*.jsonl"):
+        try:
+            if path.stat().st_mtime < cut:
+                continue
+            fh = path.open(errors="ignore")
+        except OSError:
+            continue
+        with fh:
+            for line in fh:
+                if '"assistant"' not in line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except Exception:
+                    continue
+                if rec.get("type") != "assistant":
+                    continue
+                content = (rec.get("message") or {}).get("content")
+                if not isinstance(content, list):
+                    continue
+                for blk in content:
+                    if not isinstance(blk, dict):
+                        continue
+                    if blk.get("type") == "text":
+                        texts.append(blk.get("text", ""))
+                    elif blk.get("type") == "tool_use" and blk.get("name") == "AskUserQuestion":
+                        for q in (blk.get("input") or {}).get("questions", []):
+                            if isinstance(q, dict):
+                                texts.append(q.get("question", ""))
+    return texts
+
+
+def sample_of(text, term, width=70, pattern=None):
+    """語の前後を切り出して 1 行で返す。
+
+    表の見出し語は「飛ばし / 飛ばす」「段（順序）」のように、本文にそのままの形では
+    現れないことがある。見出しで見つからなければ、検出パターンが当たった位置を使う。
+    """
+    i = text.find(term)
+    if i < 0 and pattern is not None:
+        m = pattern.search(text)
+        i = m.start() if m else -1
+    if i < 0:
+        return ""
+    start, end = max(0, i - width // 2), min(len(text), i + width // 2)
+    return " ".join(text[start:end].replace("|", " ").split())
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--days", type=int, default=7, help="さかのぼる日数（既定 7）")
+    ap.add_argument("--stdout", action="store_true", help="ファイルに書かず標準出力へ出す")
+    args = ap.parse_args()
+
+    patterns, known, keep = load_jargon()
+    if not patterns:
+        print("jargon.md を読めませんでした", file=sys.stderr)
+        return 2
+    standard_terms = load_standard_terms()
+
+    texts = collect(args.days)
+    if not texts:
+        print(f"直近 {args.days} 日の会話ログが見つかりませんでした", file=sys.stderr)
+        return 1
+
+    hits = collections.Counter()
+    hit_sample = {}
+    wago = collections.Counter()
+    wago_sample = {}
+
+    for raw in texts:
+        body = strip_noise(raw)
+        for term, pat in patterns:
+            found = pat.findall(body)
+            if found:
+                hits[term] += len(found)
+                hit_sample.setdefault(term, sample_of(body, term, pattern=pat))
+        if not IT_CONTEXT.search(body):
+            continue
+        for word in NOUN_USE.findall(body):
+            if word in STOPWORDS or word in known or word in keep or word in standard_terms:
+                continue
+            wago[word] += 1
+            wago_sample.setdefault(word, sample_of(body, word))
+
+    today = datetime.date.today().isoformat()
+    lines = [
+        f"# 用語の候補（{today} 生成・直近 {args.days} 日）",
+        "",
+        f"Claude がユーザーへ出した文 {len(texts):,} 件を数えた。",
+        "判定は `glossary-research` スキルの review で行う。",
+        "このファイルは会話の断片を含む。dotfiles には入れず、実機のローカルに置いたままにする。",
+        "",
+        "## 既知の内輪語の再発",
+        "",
+        "`jargon.md` に載せたあとも使われている語。件数が減らない語は、",
+        "補足に `[block]` を足して応答を差し戻す設定に上げることを検討する。",
+        "",
+    ]
+    if hits:
+        lines += ["| 語 | 件数 | 用例 |", "|---|---:|---|"]
+        for term, n in hits.most_common(40):
+            lines.append(f"| {term} | {n} | {hit_sample.get(term, '')} |")
+    else:
+        lines.append("再発なし。")
+
+    lines += [
+        "",
+        "## 新しい造語の候補",
+        "",
+        "IT の文脈に現れた和語の名詞のうち、用語集にまだ無いもの。",
+        "上から読み、標準用語を和語に置き換えたものだけを `jargon.md` に足す。",
+        "普通の日本語なら、このスクリプトの STOPWORDS に足して次回から出ないようにする。",
+        "",
+        "| 語 | 件数 | 用例 |",
+        "|---|---:|---|",
+    ]
+    shown = 0
+    for word, n in wago.most_common():
+        if n > MAX_COUNT:
+            continue  # 一般語の取りこぼし
+        if n < MIN_COUNT or shown >= 60:
+            break
+        lines.append(f"| {word} | {n} | {wago_sample.get(word, '')} |")
+        shown += 1
+    if not shown:
+        lines.append("| （候補なし） | | |")
+
+    out = "\n".join(lines) + "\n"
+    if args.stdout:
+        sys.stdout.write(out)
+        return 0
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    OUT.write_text(out, encoding="utf-8")
+    print(f"{OUT} に書きました（既知 {len(hits)} 語 / 候補 {shown} 語）")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
