@@ -274,8 +274,9 @@ fallback_row="${project} ${model} ${used}% ${cost_fmt}"
 # --- Rate limit segment (Claude.ai Pro/Max only; appears after 1st API response) ---
 # Nudges an account switch as you approach the usage cap before a rate-limit stop.
 # Thresholds overridable via env. All reads are guarded for absence (set -euo pipefail safe).
-RL_WARN=${CLAUDE_RL_WARN:-80}   # local prepare notification
-RL_CRIT=${CLAUDE_RL_CRIT:-95}   # local switch notification
+RL_WARN=${CLAUDE_RL_WARN:-80}   # display warning only
+RL_5H_SWITCH=${CLAUDE_RL_5H_SWITCH:-90}
+RL_7D_SWITCH=${CLAUDE_RL_7D_SWITCH:-95}
 # Local account-manager checkout. Override with CLAUDE_ACCOUNT_MANAGER_DIR on machines
 # that keep it elsewhere; when the flag file is absent no controller is called.
 ACCOUNT_MANAGER_DIR="${CLAUDE_ACCOUNT_MANAGER_DIR:-$HOME/work/claude-code-account-manager}"
@@ -283,7 +284,7 @@ AUTO_ROTATION_FLAG="$ACCOUNT_MANAGER_DIR/state/auto-event-enabled"
 auto_rotation=false
 [[ -f "$AUTO_ROTATION_FLAG" ]] && auto_rotation=true
 rl_short=""; rl_wide=""
-rl_max=0; rl_label=""
+rl_max=0; rl_label=""; rl_switch_active=false
 if [[ -n "$five_h" ]]; then
   v=${five_h%%.*}; v=${v:-0}; rl_max=$v; rl_label="5h"
 fi
@@ -293,6 +294,12 @@ if [[ -n "$seven_d" ]]; then
     rl_max=$v; rl_label="7d"
   fi
 fi
+if [[ -n "$five_h" && "${five_h%%.*}" =~ ^[0-9]+$ ]] && (( ${five_h%%.*} >= RL_5H_SWITCH )); then
+  rl_switch_active=true
+fi
+if [[ -n "$seven_d" && "${seven_d%%.*}" =~ ^[0-9]+$ ]] && (( ${seven_d%%.*} >= RL_7D_SWITCH )); then
+  rl_switch_active=true
+fi
 
 # Wide shows BOTH windows, each colored by its own severity; once a window
 # crosses the warn threshold its reset time is attached.
@@ -300,7 +307,9 @@ rl_pair() {
   local p=${2%%.*}; p=${p:-0}
   local color hm seg
   [[ "$p" =~ ^[0-9]+$ ]] || p=0
-  if (( p >= RL_CRIT )); then color="31;1"
+  local switch_threshold
+  [[ "$1" == "5h" ]] && switch_threshold=$RL_5H_SWITCH || switch_threshold=$RL_7D_SWITCH
+  if (( p >= switch_threshold )); then color="31;1"
   elif (( p >= RL_WARN )); then color="33"
   else color="32"
   fi
@@ -317,7 +326,7 @@ if [[ -n "$seven_d" ]]; then
   rl_wide+="$(rl_pair 7d "$seven_d" "$rl7_reset")"
 fi
 if [[ -n "$rl_label" ]]; then
-  if (( rl_max >= RL_CRIT )); then
+  if [[ "$rl_switch_active" == true ]]; then
     rl_short="\033[31;1m⚠${rl_max}%\033[0m"
   elif (( rl_max >= RL_WARN )); then
     rl_short="\033[33m${rl_max}%\033[0m"
@@ -356,7 +365,7 @@ rotation_local_trusted() {
 }
 
 record_local_notification() {
-  local trigger_window=$1 trigger_used=$2 trigger_reset=$3 phase auto_key auto_lock auto_result result_age result_mtime
+  local trigger_window=$1 trigger_used=$2 trigger_reset=$3 phase threshold auto_key auto_lock auto_result result_age result_mtime
   [[ "$auto_rotation" == true && "$trigger_reset" =~ ^[0-9]+$ ]] || return 0
   rotation_local_trusted || return 0
   # The local controller records delivery against account, reset and phase. Do
@@ -364,9 +373,14 @@ record_local_notification() {
   # switch and used to suppress the next account's notification. A short
   # throttle only protects the render path from spawning an identical process
   # on every redraw; it starts no agent and makes no model call.
-  phase=prepare
+  case "$trigger_window" in
+    5h) threshold=$RL_5H_SWITCH ;;
+    7d) threshold=$RL_7D_SWITCH ;;
+    *) return 0 ;;
+  esac
+  (( trigger_used >= threshold )) || return 0
+  phase=switch
   (( trigger_used >= 100 )) && phase=stop
-  (( trigger_used >= RL_CRIT && trigger_used < 100 )) && phase=switch
   auto_key="$cache_dir/rl-local-v2-${trigger_window}-${trigger_reset}-${phase}"
   auto_lock="$auto_key.lock"
   auto_result="$auto_key.result"
@@ -403,10 +417,10 @@ record_local_notification() {
   return 0
 }
 
-if [[ -n "$five_h" && "${five_h%%.*}" =~ ^[0-9]+$ ]] && (( ${five_h%%.*} >= RL_WARN )); then
+if [[ -n "$five_h" && "${five_h%%.*}" =~ ^[0-9]+$ ]] && (( ${five_h%%.*} >= RL_5H_SWITCH )); then
   record_local_notification 5h "${five_h%%.*}" "${rl5_reset%%.*}" || true
 fi
-if [[ -n "$seven_d" && "${seven_d%%.*}" =~ ^[0-9]+$ ]] && (( ${seven_d%%.*} >= RL_WARN )); then
+if [[ -n "$seven_d" && "${seven_d%%.*}" =~ ^[0-9]+$ ]] && (( ${seven_d%%.*} >= RL_7D_SWITCH )); then
   record_local_notification 7d "${seven_d%%.*}" "${rl7_reset%%.*}" || true
 fi
 
@@ -471,7 +485,7 @@ elif (( cols >= 60 )); then
 else
   # Narrow: single row — project model XX% $X.XX (rate-limit shown only when critical)
   line1="\033[36m${project}\033[0m \033[2m${model_short}\033[0m \033[${bar_color}m${used}%\033[0m \033[2m${cost_fmt}\033[0m"
-  (( rl_max >= RL_CRIT )) && [[ -n "$rl_short" ]] && line1+=" ${rl_short}"
+  [[ "$rl_switch_active" == true ]] && [[ -n "$rl_short" ]] && line1+=" ${rl_short}"
 fi
 
 # shellcheck disable=SC2034  # read by the EXIT trap armed near cost_fmt
