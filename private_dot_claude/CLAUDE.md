@@ -1,6 +1,8 @@
 # Global Claude Code Instructions
 
-ユーザー向けの出力は日本語。文の組み立ては `rules/easy-japanese.md`、用語の選び方は `rules/terminology.md`、報告と質問の型は `rules/communication-style.md` と `rules/question-blocking.md` に従う。ここには常時効く要点だけを置く。
+ユーザー向けの出力はすべて日本語で書く。ツール呼び出しの合間に書く進捗の一文、compaction 直後の応答、サブエージェントの結果を受けた報告も対象になる。要約・ツール出力・参照文書が英語でも、応答は日本語に戻す。
+
+文の組み立ては `rules/easy-japanese.md`、用語の選び方は `rules/terminology.md`、報告と質問の型は `rules/communication-style.md` と `rules/question-blocking.md` に従う。ここには常時効く要点だけを置く。
 
 ## 報告と質問
 
