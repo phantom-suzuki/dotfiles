@@ -3,3 +3,10 @@
     url = "https://github.com/sorin-ionescu/prezto.git"
     clone.args = ["--recursive"]
     pull.args = ["--recurse-submodules"]
+
+# Mac の負荷対策（メモリ監視 mem-guard など）の正本。~/.local/bin の 2 つはここへのシンボリックリンク。
+# private リポジトリなので SSH で取る。chezmoi update のたびではなく、1 週間ごとに pull する。
+[".local/share/mac-performance-tuning"]
+    type = "git-repo"
+    url = "git@github.com:phantom-suzuki/mac-performance-tuning.git"
+    refreshPeriod = "168h"
