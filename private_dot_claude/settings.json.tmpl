@@ -216,6 +216,37 @@
       "Bash(git restore . *)",
       "Bash(git restore -- .*)",
       "Bash(git restore --worktree *)",
+      {{- /*
+        2026-10-07: auto mode の allow を日常の開発操作まで広げた代わりに、取り返しのつかない操作をここで止める。
+        auto mode の判定より先に効き、AskUserQuestion で承認されても通らない。本当に要るときはユーザーが自分で打つ。
+      */}}
+      "Bash(terraform destroy*)",
+      "Bash(terraform apply -destroy*)",
+      "Bash(terragrunt destroy*)",
+      "Bash(terragrunt run-all destroy*)",
+      "Bash(terragrunt run --all destroy*)",
+      "Bash(aws s3 rb *)",
+      "Bash(aws rds delete-db-cluster *)",
+      "Bash(aws rds delete-db-instance *)",
+      "Bash(aws dynamodb delete-table *)",
+      "Bash(aws secretsmanager delete-secret *)",
+      "Bash(aws kms schedule-key-deletion *)",
+      "Bash(aws route53 delete-hosted-zone *)",
+      "Bash(aws cognito-idp delete-user-pool *)",
+      "Bash(aws ecr delete-repository *)",
+      "Bash(aws iam create-access-key *)",
+      "Bash(aws organizations *)",
+      "Bash(gh repo delete *)",
+      "Bash(gh repo archive *)",
+      "Bash(gh repo edit *--visibility*)",
+      "Bash(gh secret delete *)",
+      "Bash(gh release delete *)",
+      "Bash(rm -rf /)",
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~)",
+      "Bash(rm -rf ~/)",
+      "Bash(rm -rf ~/work*)",
+      "Bash(rm -rf $HOME*)",
       "Read(.env)",
       "Read(.env.*)",
       "Read(**/.env)",
@@ -244,7 +275,14 @@
       "Bash(git push origin release/*)",
       "Bash(git push * release/*)",
       "Bash(git push *:release/*)",
-      "Bash(git push *refs/heads/release/*)"
+      "Bash(git push *refs/heads/release/*)",
+      {{- /* 2026-10-07: 権限と秘密の値を変える操作は、allow を広げても毎回確認する */}}
+      "Bash(gh secret set *)",
+      "Bash(gh variable set *)",
+      "Bash(aws iam create-*)",
+      "Bash(aws iam attach-*)",
+      "Bash(aws iam put-*)",
+      "Bash(aws iam update-*)"
     ],
     {{- /* /permissions で切り替えた既定モードは settings.json に直接書かれる。data.claude.defaultMode で上書きする（未定義なら auto。2026-09-20 に実体で auto へ変更したのを 2026-09-25 に正本へ反映）。 */}}
     "defaultMode": {{ dig "claude" "defaultMode" "auto" . | toJson }}
