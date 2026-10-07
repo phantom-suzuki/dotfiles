@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# meimei の PoC フィードバック表を GitHub の Issue と突き合わせ、朝の報告を残して Mac に通知する。
+#
+# 平日 8:30 に launchd（com.h-suzuki.poc-feedback-triage）が実行する。手でも動かせる。
+# 中身の手順は ~/.claude/skills/poc-feedback-triage/SKILL.md にある。
+#
+#   poc-feedback-triage       実行して ~/.claude/state/poc-feedback/<日付>.md に報告を書く
+#
+# 表への書き込みと Issue の起票まで行う（2026-10-07 のユーザー決定）。
+# コミット・push・マージ・ワークフローの起動は、許可する操作から外し、禁止の側にも入れてある。
+set -uo pipefail
+
+REPO="$HOME/work/mationinc/business-card-registry"
+STATE="$HOME/.claude/state/poc-feedback"
+day=$(date +%F)
+report="$STATE/$day.md"
+log="$STATE/$day.log"
+mkdir -p "$STATE/tmp"
+export TMPDIR="$STATE/tmp"
+
+# launchd の PATH は最小限なので、gh（Homebrew）・gws（nvm の Node）・claude を足す。
+# gws は特定の版の Node にだけ入っているので、gws のある bin を新しい順に探す（一番新しい版に入っているとは限らない）
+node_bin=""
+for d in $(ls -d "$HOME"/.nvm/versions/node/*/bin 2>/dev/null | sort -V -r); do
+  if [ -x "$d/gws" ]; then node_bin=$d; break; fi
+done
+export PATH="$HOME/.local/bin:/opt/homebrew/bin:${node_bin:+$node_bin:}/usr/local/bin:/usr/bin:/bin"
+
+notify() {
+  local text
+  text=$(printf '%s' "$1" | tr -d '"\\')
+  /usr/bin/osascript -e "display notification \"$text\" with title \"meimei PoC フィードバック\"" || true
+}
+
+# 二重起動を防ぐ（手で動かしている最中に launchd が起動したときなど）
+lock="$STATE/.lock"
+if ! mkdir "$lock" 2>/dev/null; then
+  echo "already running: $lock" >&2
+  exit 0
+fi
+trap 'rmdir "$lock"' EXIT
+
+cd "$REPO" || { notify "repo が見つからない: $REPO"; exit 1; }
+
+allowed=(
+  "Skill(poc-feedback-triage)"
+  "Read" "Grep" "Glob"
+  # ファイルの書き込みの許可は Edit(path) で書く（Write(path) はファイルの権限の判定に使われない）。
+  # 絶対パスは先頭を // にする（$STATE は / で始まるので "/$STATE"）。置き場は --add-dir で作業範囲にも足す。
+  # 許可するのは一時ファイルの置き場だけ。ほかのファイルは dontAsk なので書けない
+  "Edit(/$STATE/tmp/**)"
+  "Bash(command gws sheets spreadsheets values get *)"
+  "Bash(command gws sheets spreadsheets get *)"
+  "Bash(python3 -I $HOME/.claude/skills/poc-feedback-triage/scripts/write-cells.py *)"
+  "Bash(python3 -I ~/.claude/skills/poc-feedback-triage/scripts/write-cells.py *)"
+  "Bash(gh issue list *)" "Bash(gh issue view *)" "Bash(gh issue create *)" "Bash(gh issue edit *)" "Bash(gh issue comment *)"
+  "Bash(gh pr view *)" "Bash(gh pr list *)"
+  "Bash(gh api *)"
+  "Bash(git fetch *)" "Bash(git merge-base *)" "Bash(git log *)" "Bash(git show *)" "Bash(git grep *)"
+)
+denied=(
+  "Bash(gh pr merge *)" "Bash(gh workflow *)" "Bash(gh run *)" "Bash(git push *)" "Bash(git commit *)"
+  "Bash(gh api -X PUT *)" "Bash(gh api -X DELETE *)" "Bash(gh api --method *)" "Bash(gh api graphql *)"
+  "NotebookEdit"
+)
+
+status=0
+claude -p "/poc-feedback-triage" \
+  --permission-mode dontAsk \
+  --add-dir "$STATE/tmp" \
+  --allowedTools "${allowed[@]}" \
+  --disallowedTools "${denied[@]}" \
+  >| "$report.tmp" 2>| "$log" || status=$?
+mv -f "$report.tmp" "$report"
+
+if [ "$status" -eq 0 ] && [ -s "$report" ]; then
+  notify "$(head -n 1 "$report")"
+else
+  notify "失敗しました（終了コード $status）。$log を見てください"
+  exit "${status/#0/1}"
+fi
