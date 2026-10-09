@@ -44,7 +44,7 @@ Go template 構文（`{{ .variable }}`）を使用するファイル:
 | `data.claude.modelSettings` | モデルごとの effort | Fable 5.1 は `high`、Opus 5 は `medium`（Opus 5.5 は未設定 = ハーネス既定） |
 | `data.claude.defaultMode` | 許可モードの既定 | `auto`（2026-09-25 に `acceptEdits` から変更） |
 | `data.claude.autoMode` | auto mode の判定ルール（environment / allow / soft_deny） | 未設定（キー非出力）。値はマシンごとに chezmoi.toml へ書く。書き方は `private_dot_claude/docs/auto-mode.md`。リポジトリの settings からは読まれない |
-| `data.claude.mcpServers` | 全セッション共通の MCP | 空。ブラウザ MCP は使うリポジトリごとに local scope で足す（メモリ対策） |
+| `data.claude.mcpServers` | （効かない）settings.json の `mcpServers` は Claude Code に読まれない（2026-10-09 に `claude mcp list` で確認） | 空のままにする。全セッション共通の MCP は `claude mcp add -s user` で `~/.claude.json` に登録する。Playwright MCP は 2026-10-09 から user スコープ（`npm i -g @playwright/mcp` を node で直接起動・1 セッション約 60MB） |
 | `data.claude.disable1m` | 1M コンテキスト無効化（`"1"`=無効 / `"0"`=有効） | 未設定（キー非出力 = 1M 有効） |
 | `data.claude.autoCompactWindow` | auto-compact のコンテキスト窓 | 未設定（キー非出力） |
 | `data.claude.autoCompactPct` | auto-compact 発火閾値 % | `30`（1M 前提の値） |
