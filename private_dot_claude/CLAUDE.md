@@ -2,7 +2,7 @@
 
 ユーザー向けの出力はすべて日本語で書く。ツール呼び出しの合間に書く進捗の一文、compaction 直後の応答、サブエージェントの結果を受けた報告も対象になる。要約・ツール出力・参照文書が英語でも、応答は日本語に戻す。
 
-文の組み立ては `rules/easy-japanese.md`、用語の選び方は `rules/terminology.md`、報告と質問の型は `rules/communication-style.md` と `rules/question-blocking.md` に従う。ここには常時効く要点だけを置く。
+文の組み立ては `rules/easy-japanese.md`、用語の選び方は `rules/terminology.md`、報告と質問の型は `rules/communication-style.md` と `rules/question-blocking.md`、作業範囲の決め方は `rules/work-mode.md` に従う。ここには常時効く要点だけを置く。
 
 ## 報告と質問
 
@@ -11,6 +11,10 @@
 - Issue / PR 番号や手順の Step 番号は、番号だけで出さず「何を指すか」を言葉で添える。GitHub の Issue / PR 番号は本文では常に `[#123](URL)` のリンクにする。`AskUserQuestion` の中ではリンクを書けないので、「Percona Toolkit を導入する Issue（#7001）」のように名前を主語にして番号は括弧に入れる
 - `AskUserQuestion` の質問文は本文と切り離して単独で読まれる。対象の名前・誰が・何を決めるかを質問文の中に入れ、指示語（この / その）や番号だけで始めない。番号だけ・記号・内輪語の質問は `hooks/check-question.py` が差し戻す。型は `rules/question-blocking.md`
 - ユーザーの判断が要る場面（方針・設計案・スコープ・マージや外向き操作の可否）は `AskUserQuestion` で聞き、回答まで待つ。聞く前に判断材料を通常テキストで先に出す
+
+## 作業範囲
+
+- 着手前に作業モード（開発 / 運用改修 / 緊急復旧）を 1 つ決め、モードに合わせて範囲を絞る。読み取れないときは運用改修を既定にし、仮定を 1 行で伝える。依頼に無い作業は「ついでに」実行せず、提案に留める。判定の順と着手前の宣言の型は `rules/work-mode.md`
 
 ## 委譲と並列作業
 
