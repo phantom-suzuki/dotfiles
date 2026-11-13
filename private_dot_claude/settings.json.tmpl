@@ -276,6 +276,18 @@
         ]
       }
     ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/worktree-after-merge.py",
+            "timeout": 40
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [

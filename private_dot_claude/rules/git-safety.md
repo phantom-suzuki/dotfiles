@@ -31,6 +31,8 @@ auto mode では、`gh pr merge` のような複合コマンドは allow を通�
 
 - PR のマージは、ユーザーが「マージして」と明示したときだけ行う。プロンプトで止まらなくなったので、この規律だけが歯止めである。「マージまで進めて」のような曖昧な表現では PR 作成まで行い、マージ前に確かめる。マージ前に `git status` が clean で `git log @{u}..HEAD` が空であることを確認する。未 push のコミットがあると squash マージの内容から抜け落ちる（2026-07-08 に発生）
 - 例外は、ユーザーがその会話で設定した定期実行（CronCreate）の取り込み判定だけ。CI が全緑、Greptile が現在の head をレビュー済み、未解決スレッド 0、ユーザーが指定した範囲内の PR に限って squash マージしてよい（2026-09-29 のユーザー判断）。条件を 1 つでも欠く PR は記録だけして触らない
+- PR をマージしたら、そのブランチの worktree を同じ応答の中で消す。`git status --porcelain` が空であることを確かめ、`git worktree remove <path>` で消す（`--force` は使わない）。`gh pr merge` の後に動くフック（`hooks/worktree-after-merge.py`）が、残っている worktree を知らせる
+- 取りこぼした worktree は `worktree-sweep` で確かめる。PR がマージ済みで変更の無いものを一覧にし、`--remove` を付けたときだけ消す。launchd が週 1 回（月曜 9:30）実行し、消せるものがあれば通知する
 - force push が本当に必要なときは `--force-with-lease` を使い、理由を伝え、`git fetch && git log origin/<branch>..` で他人の push が無いことを確かめる
 - 見慣れないファイルやブランチは作業中のものかもしれない。消す前に調べる。未コミットの変更を捨てるより `git stash` を使う
 - コミットは amend せず新しく作る（頼まれたときだけ amend する）
